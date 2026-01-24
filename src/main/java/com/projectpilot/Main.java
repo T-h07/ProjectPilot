@@ -7,9 +7,11 @@ import com.projectpilot.data.InMemoryStore;
 import com.projectpilot.data.SampleData;
 import com.projectpilot.ui.MainLayout;
 import com.projectpilot.ui.pages.*;
+import javafx.scene.text.Font;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+
 
 public class Main extends Application {
 
@@ -17,6 +19,8 @@ public class Main extends Application {
     public void start(Stage stage) {
         InMemoryStore store = new InMemoryStore();
         SampleData.seed(store);
+        Font.loadFont(getClass().getResourceAsStream("/fonts/Inter-Regular.ttf"), 12);
+        Font.loadFont(getClass().getResourceAsStream("/fonts/Inter-SemiBold.ttf"), 12);
 
         AppState appState = new AppState();
         if (!store.getProjects().isEmpty()) appState.setSelectedProject(store.getProjects().get(0));

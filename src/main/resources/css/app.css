@@ -1,21 +1,326 @@
+/* =========================
+   ProjectPilot Dark Theme
+   ========================= */
+
 .root {
+    /* Font */
+    -fx-font-family: "Segoe UI", "Inter", "SF Pro Display", "Arial";
     -fx-font-size: 13px;
+
+    /* Global colors */
+    -pp-bg: #0b1220;
+    -pp-bg2: #070b14;
+    -pp-surface: #0f172a;
+    -pp-card: #111b33;
+    -pp-card2: #0f1930;
+    -pp-border: rgba(255,255,255,0.08);
+
+    -pp-text: #e6edf7;
+    -pp-muted: rgba(230,237,247,0.70);
+
+    -pp-accent: #3b82f6;
+    -pp-accent2: #2563eb;
+
+    -fx-background-color: linear-gradient(to bottom, -pp-bg, -pp-bg2);
+}
+
+/* Text */
+.label {
+    -fx-text-fill: -pp-text;
+}
+
+.page-title {
+    -fx-font-size: 28px;
+    -fx-font-weight: 700;
+}
+
+.muted {
+    -fx-text-fill: -pp-muted;
+}
+
+/* Top bar + sidebar containers */
+.topbar {
+    -fx-background-color: rgba(15, 23, 42, 0.75);
+    -fx-border-color: rgba(255,255,255,0.06);
+    -fx-border-width: 0 0 1 0;
 }
 
 .sidebar {
-    -fx-pref-width: 200px;
-    -fx-padding: 12px;
+    -fx-background-color: rgba(15, 23, 42, 0.55);
+    -fx-border-color: rgba(255,255,255,0.06);
+    -fx-border-width: 0 1 0 0;
 }
 
+/* Inputs */
+.text-field, .text-area {
+    -fx-background-color: rgba(17, 27, 51, 0.9);
+    -fx-text-fill: -pp-text;
+    -fx-prompt-text-fill: rgba(230,237,247,0.45);
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-padding: 8 10;
+}
+
+.combo-box-base {
+    -fx-background-color: rgba(17, 27, 51, 0.9);
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-padding: 4 8;
+}
+
+.combo-box .list-cell {
+    -fx-text-fill: -pp-text;
+}
+
+/* Buttons */
+.button {
+    -fx-background-color: rgba(17, 27, 51, 0.85);
+    -fx-text-fill: -pp-text;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+}
+
+.button:hover {
+    -fx-background-color: rgba(30, 41, 59, 0.9);
+}
+
+.button:pressed {
+    -fx-background-color: rgba(30, 41, 59, 0.7);
+}
+
+/* Primary button variant (add style class "primary") */
+.button.primary {
+    -fx-background-color: linear-gradient(to bottom, -pp-accent, -pp-accent2);
+    -fx-border-color: rgba(255,255,255,0.10);
+}
+
+.button.primary:hover {
+    -fx-opacity: 0.95;
+}
+
+/* Sidebar nav buttons */
 .nav-button {
-    -fx-padding: 10px 12px;
+    -fx-background-color: rgba(17, 27, 51, 0.70);
+    -fx-text-fill: -pp-text;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: rgba(255,255,255,0.06);
+    -fx-padding: 12 12;
 }
 
-.topbar {
-    -fx-padding: 12px;
+.nav-button:hover {
+    -fx-background-color: rgba(30, 41, 59, 0.75);
 }
 
-.app-title {
-    -fx-font-size: 18px;
-    -fx-font-weight: bold;
+.nav-button-active {
+    -fx-background-color: rgba(59, 130, 246, 0.18);
+    -fx-border-color: rgba(59, 130, 246, 0.55);
+}
+
+/* Cards (use style class "card") */
+.card {
+    -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-border-width: 1;
+    -fx-padding: 16;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 18, 0.20, 0, 6);
+}
+
+/* TableView (for “Recent Activity” look) */
+.table-view {
+    -fx-background-color: rgba(17, 27, 51, 0.55);
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-border-width: 1;
+    -fx-padding: 8;
+}
+
+.table-view .column-header-background {
+    -fx-background-color: rgba(15, 23, 42, 0.95);
+    -fx-background-radius: 14 14 0 0;
+}
+
+.table-view .column-header, .table-view .filler {
+    -fx-background-color: transparent;
+    -fx-border-color: rgba(255,255,255,0.06);
+    -fx-border-width: 0 0 1 0;
+}
+
+.table-view .column-header .label {
+    -fx-text-fill: rgba(230,237,247,0.85);
+    -fx-font-weight: 700;
+}
+
+.table-row-cell {
+    -fx-background-color: transparent;
+    -fx-text-background-color: -pp-text;
+}
+
+.table-row-cell:filled:hover {
+    -fx-background-color: rgba(255,255,255,0.04);
+}
+
+.table-row-cell:filled:selected {
+    -fx-background-color: rgba(59, 130, 246, 0.18);
+}
+
+/* Scrollbars (basic) */
+.scroll-bar:vertical .thumb, .scroll-bar:horizontal .thumb {
+    -fx-background-color: rgba(255,255,255,0.12);
+    -fx-background-radius: 10;
+}
+
+/* =========================
+   LISTVIEW (your “white table”)
+   ========================= */
+.list-view {
+    -fx-background-color: rgba(17, 27, 51, 0.55);
+    -fx-control-inner-background: rgba(17, 27, 51, 0.55);
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-border-width: 1;
+    -fx-padding: 8;
+}
+
+.list-view .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -pp-text;
+    -fx-padding: 10 12;
+}
+
+.list-view .list-cell:filled:hover {
+    -fx-background-color: rgba(255,255,255,0.04);
+}
+
+.list-view .list-cell:filled:selected {
+    -fx-background-color: rgba(59, 130, 246, 0.18);
+    -fx-text-fill: -pp-text;
+}
+
+/* Remove bright “empty area” look inside list */
+.list-view .virtual-flow {
+    -fx-background-color: transparent;
+}
+
+
+/* =========================
+   TEXTAREA (Export preview white area)
+   ========================= */
+.text-area {
+    -fx-background-color: rgba(17, 27, 51, 0.55);
+    -fx-control-inner-background: rgba(17, 27, 51, 0.55);
+    -fx-text-fill: -pp-text;
+    -fx-prompt-text-fill: rgba(230,237,247,0.45);
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-border-width: 1;
+}
+
+.text-area .content {
+    -fx-background-color: rgba(17, 27, 51, 0.55);
+}
+
+/* Caret/selection readable on dark */
+.text-area .text {
+    -fx-fill: -pp-text;
+}
+
+.text-area:focused {
+    -fx-border-color: rgba(59,130,246,0.55);
+}
+
+
+/* =========================
+   TABLEVIEW (if you use it later)
+   ========================= */
+.table-view {
+    -fx-control-inner-background: rgba(17, 27, 51, 0.55);
+}
+
+.table-view .table-cell {
+    -fx-text-fill: -pp-text;
+}
+
+/* =========================
+   ComboBox popup (dropdown) - make it solid
+   ========================= */
+
+/* The popup list container */
+.combo-box-popup .list-view {
+    -fx-background-color: #0f172a;           /* solid dark */
+    -fx-control-inner-background: #0f172a;   /* solid dark */
+    -fx-background-insets: 0;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: rgba(255,255,255,0.10);
+    -fx-border-width: 1;
+    -fx-padding: 6;
+}
+
+/* Each row */
+.combo-box-popup .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -pp-text;
+    -fx-padding: 10 12;
+}
+
+/* Hover/selected states */
+.combo-box-popup .list-cell:filled:hover {
+    -fx-background-color: rgba(255,255,255,0.06);
+}
+
+.combo-box-popup .list-cell:filled:selected {
+    -fx-background-color: rgba(59,130,246,0.22);
+}
+
+/* Optional: make the popup shadow nicer */
+.combo-box-popup {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.55), 22, 0.2, 0, 8);
+}
+/* =========================
+   TextArea: remove light inner panel / shadow
+   ========================= */
+
+.text-area,
+.text-area:focused {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: rgba(17, 27, 51, 0.55);
+    -fx-background-insets: 0;
+}
+
+/* This is the big inner rectangle */
+.text-area .content {
+    -fx-background-color: rgba(17, 27, 51, 0.55);
+    -fx-background-insets: 0;
+    -fx-background-radius: 12;
+}
+
+/* If a ScrollPane skin layer is showing through */
+.text-area > .scroll-pane {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+.text-area > .scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+
+/* Optional: selection color tuned for dark */
+.text-area .text {
+    -fx-fill: -pp-text;
+}
+.pp-textarea .content {
+    -fx-background-color: rgba(17, 27, 51, 0.55);
 }
