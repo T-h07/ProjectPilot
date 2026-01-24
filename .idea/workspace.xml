@@ -5,11 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3bc74b88-a1cd-4285-b566-42fa4f2f79bd" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/src/main/java/com/projectpilot/model/ActivityItem.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/com/projectpilot/ui/dialogs/AddMilestoneDialog.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/projectpilot/data/InMemoryStore.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/projectpilot/data/InMemoryStore.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/projectpilot/model/Task.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/projectpilot/model/Task.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/projectpilot/ui/dialogs/CreateTaskDialog.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/projectpilot/ui/dialogs/CreateTaskDialog.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/com/projectpilot/ui/pages/TasksPage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/projectpilot/ui/pages/TasksPage.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

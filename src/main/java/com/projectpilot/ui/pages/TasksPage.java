@@ -2,17 +2,16 @@ package com.projectpilot.ui.pages;
 
 import com.projectpilot.core.AppState;
 import com.projectpilot.data.InMemoryStore;
+import com.projectpilot.model.Phase;
 import com.projectpilot.model.Project;
 import com.projectpilot.model.Task;
 import com.projectpilot.model.enums.Priority;
 import com.projectpilot.model.enums.TaskStatus;
+import com.projectpilot.ui.components.ProjectPicker;
 import com.projectpilot.ui.dialogs.CreateTaskDialog;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import com.projectpilot.ui.components.ProjectPicker;
-import javafx.scene.layout.Region;
-
 
 public class TasksPage extends VBox {
 
@@ -25,6 +24,7 @@ public class TasksPage extends VBox {
     private final TextArea descField = new TextArea();
     private final ComboBox<TaskStatus> statusBox = new ComboBox<>();
     private final ComboBox<Priority> priorityBox = new ComboBox<>();
+    private final ComboBox<Phase> phaseBox = new ComboBox<>();
     private final DatePicker duePicker = new DatePicker();
 
     public TasksPage(InMemoryStore store, AppState appState) {
@@ -33,13 +33,11 @@ public class TasksPage extends VBox {
 
         header.getStyleClass().add("page-title");
 
-
         ProjectPicker taskProjectPicker = new ProjectPicker(store, appState);
         taskProjectPicker.setPrefWidth(320);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
-
 
         Button newTask = new Button("New Task");
         newTask.getStyleClass().add("primary");
@@ -63,7 +61,6 @@ public class TasksPage extends VBox {
             });
         });
 
-
         HBox toolbar = new HBox(10, new Label("Project:"), taskProjectPicker, spacer, newTask);
 
         tasksList.setPrefWidth(420);
@@ -72,11 +69,23 @@ public class TasksPage extends VBox {
         statusBox.getItems().setAll(TaskStatus.values());
         priorityBox.getItems().setAll(Priority.values());
 
+        phaseBox.setPromptText("Select phase");
+        phaseBox.setPrefWidth(220);
+        phaseBox.setCellFactory(cb -> new ListCell<>() {
+            @Override protected void updateItem(Phase item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "" : item.getName());
+            }
+        });
+        phaseBox.setButtonCell(new ListCell<>() {
+            @Override protected void updateItem(Phase item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "Select phase" : item.getName());
+            }
+        });
+
         descField.setPrefRowCount(6);
         descField.getStyleClass().add("pp-textarea");
-
-
-
 
         GridPane form = new GridPane();
         form.setHgap(10);
@@ -94,8 +103,11 @@ public class TasksPage extends VBox {
         form.add(new Label("Priority"), 0, 3);
         form.add(priorityBox, 1, 3);
 
-        form.add(new Label("Due date"), 0, 4);
-        form.add(duePicker, 1, 4);
+        form.add(new Label("Phase"), 0, 4);
+        form.add(phaseBox, 1, 4);
+
+        form.add(new Label("Due date"), 0, 5);
+        form.add(duePicker, 1, 5);
 
         ColumnConstraints c1 = new ColumnConstraints();
         c1.setMinWidth(90);
@@ -124,11 +136,15 @@ public class TasksPage extends VBox {
         if (p == null) {
             header.setText("Tasks (no project selected)");
             tasksList.setItems(null);
+            phaseBox.getItems().clear();
             bindTask(null);
             return;
         }
+
         header.setText("Tasks — " + p.getName());
         tasksList.setItems(p.getTasks());
+        phaseBox.getItems().setAll(p.getPhases());
+
         if (!p.getTasks().isEmpty()) tasksList.getSelectionModel().select(0);
         else bindTask(null);
     }
@@ -139,6 +155,7 @@ public class TasksPage extends VBox {
             descField.textProperty().unbindBidirectional(bound.descriptionProperty());
             statusBox.valueProperty().unbindBidirectional(bound.statusProperty());
             priorityBox.valueProperty().unbindBidirectional(bound.priorityProperty());
+            phaseBox.valueProperty().unbindBidirectional(bound.phaseProperty());
             duePicker.valueProperty().unbindBidirectional(bound.dueDateProperty());
         }
 
@@ -149,6 +166,7 @@ public class TasksPage extends VBox {
         descField.setDisable(disabled);
         statusBox.setDisable(disabled);
         priorityBox.setDisable(disabled);
+        phaseBox.setDisable(disabled);
         duePicker.setDisable(disabled);
 
         if (t == null) {
@@ -156,6 +174,7 @@ public class TasksPage extends VBox {
             descField.setText("");
             statusBox.setValue(null);
             priorityBox.setValue(null);
+            phaseBox.setValue(null);
             duePicker.setValue(null);
             return;
         }
@@ -164,10 +183,12 @@ public class TasksPage extends VBox {
         descField.textProperty().bindBidirectional(t.descriptionProperty());
         statusBox.valueProperty().bindBidirectional(t.statusProperty());
         priorityBox.valueProperty().bindBidirectional(t.priorityProperty());
+        phaseBox.valueProperty().bindBidirectional(t.phaseProperty());
         duePicker.valueProperty().bindBidirectional(t.dueDateProperty());
 
         statusBox.setValue(t.getStatus());
         priorityBox.setValue(t.getPriority());
+        phaseBox.setValue(t.getPhase());
         duePicker.setValue(t.getDueDate());
     }
 }
