@@ -1,0 +1,21 @@
+.root {
+    -fx-font-size: 13px;
+}
+
+.sidebar {
+    -fx-pref-width: 200px;
+    -fx-padding: 12px;
+}
+
+.nav-button {
+    -fx-padding: 10px 12px;
+}
+
+.topbar {
+    -fx-padding: 12px;
+}
+
+.app-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}

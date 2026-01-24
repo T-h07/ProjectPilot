@@ -1,17 +1,46 @@
 package com.projectpilot;
 
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
-public class Main {
-    static void main() {
-        //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
-        // to see how IntelliJ IDEA suggests fixing it.
-        IO.println(String.format("Hello and welcome!"));
+import com.projectpilot.core.AppState;
+import com.projectpilot.core.PageId;
+import com.projectpilot.core.Router;
+import com.projectpilot.data.InMemoryStore;
+import com.projectpilot.data.SampleData;
+import com.projectpilot.ui.MainLayout;
+import com.projectpilot.ui.pages.*;
+import javafx.application.Application;
+import javafx.scene.Scene;
+import javafx.stage.Stage;
 
-        for (int i = 1; i <= 5; i++) {
-            //TIP Press <shortcut actionId="Debug"/> to start debugging your code. We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint
-            // for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.
-            IO.println("i = " + i);
-        }
+public class Main extends Application {
+
+    @Override
+    public void start(Stage stage) {
+        InMemoryStore store = new InMemoryStore();
+        SampleData.seed(store);
+
+        AppState appState = new AppState();
+        if (!store.getProjects().isEmpty()) appState.setSelectedProject(store.getProjects().get(0));
+
+        Router router = new Router();
+        router.register(PageId.DASHBOARD, () -> new DashboardPage(store, appState));
+        router.register(PageId.PROJECTS, () -> new ProjectsPage(store, appState));
+        router.register(PageId.PROJECT_OVERVIEW, () -> new ProjectOverviewPage(store, appState));
+        router.register(PageId.TASKS, () -> new TasksPage(store, appState));
+        router.register(PageId.GANTT, () -> new GanttPage(store, appState));
+        router.register(PageId.TEAM, () -> new TeamPage(store, appState));
+        router.register(PageId.EXPORT_REPORT, () -> new ExportReportPage(store, appState));
+
+        MainLayout root = new MainLayout(router, store, appState);
+
+        Scene scene = new Scene(root, 1200, 800);
+        scene.getStylesheets().add(getClass().getResource("/css/app.css").toExternalForm());
+
+        stage.setTitle("ProjectPilot");
+        stage.setScene(scene);
+        stage.show();
+    }
+
+    public static void main(String[] args) {
+        launch(args);
     }
 }
