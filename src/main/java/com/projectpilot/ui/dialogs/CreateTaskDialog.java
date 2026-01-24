@@ -1,19 +1,21 @@
 package com.projectpilot.ui.dialogs;
 
 import com.projectpilot.model.Member;
+import com.projectpilot.model.Phase;
+import com.projectpilot.model.Project;
 import com.projectpilot.model.Task;
 import com.projectpilot.model.enums.Priority;
 import com.projectpilot.model.enums.TaskStatus;
 import javafx.geometry.Insets;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
-import javafx.scene.Node;
 
 import java.time.LocalDate;
 
 public class CreateTaskDialog extends Dialog<Task> {
 
-    public CreateTaskDialog(java.util.List<Member> members) {
+    public CreateTaskDialog(Project project) {
         setTitle("New Task");
         setHeaderText("Create a new task");
 
@@ -37,11 +39,17 @@ public class CreateTaskDialog extends Dialog<Task> {
 
         DatePicker due = new DatePicker(LocalDate.now().plusDays(7));
 
+        ComboBox<Phase> phase = new ComboBox<>();
+        phase.setPromptText("Select phase");
+        phase.getItems().setAll(project.getPhases());
+        phase.setPrefWidth(220);
+
         ComboBox<Member> assignee = new ComboBox<>();
         assignee.setPromptText("Unassigned");
-        assignee.getItems().setAll(members);
+        assignee.getItems().setAll(project.getMembers());
         assignee.setPrefWidth(220);
 
+        // nice labels for Member/Phase
         assignee.setCellFactory(cb -> new ListCell<>() {
             @Override protected void updateItem(Member item, boolean empty) {
                 super.updateItem(item, empty);
@@ -55,30 +63,31 @@ public class CreateTaskDialog extends Dialog<Task> {
             }
         });
 
-
+        phase.setCellFactory(cb -> new ListCell<>() {
+            @Override protected void updateItem(Phase item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "" : item.getName());
+            }
+        });
+        phase.setButtonCell(new ListCell<>() {
+            @Override protected void updateItem(Phase item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "Select phase" : item.getName());
+            }
+        });
 
         GridPane grid = new GridPane();
         grid.setHgap(10);
         grid.setVgap(10);
         grid.setPadding(new Insets(12));
 
-        grid.add(new Label("Title"), 0, 0);
-        grid.add(title, 1, 0);
-
-        grid.add(new Label("Description"), 0, 1);
-        grid.add(desc, 1, 1);
-
-        grid.add(new Label("Status"), 0, 2);
-        grid.add(status, 1, 2);
-
-        grid.add(new Label("Priority"), 0, 3);
-        grid.add(priority, 1, 3);
-
-        grid.add(new Label("Due date"), 0, 4);
-        grid.add(due, 1, 4);
-
-        grid.add(new Label("Assignee"), 0, 5);
-        grid.add(assignee, 1, 5);
+        grid.add(new Label("Title"), 0, 0);       grid.add(title, 1, 0);
+        grid.add(new Label("Description"), 0, 1); grid.add(desc, 1, 1);
+        grid.add(new Label("Status"), 0, 2);      grid.add(status, 1, 2);
+        grid.add(new Label("Priority"), 0, 3);    grid.add(priority, 1, 3);
+        grid.add(new Label("Due date"), 0, 4);    grid.add(due, 1, 4);
+        grid.add(new Label("Phase"), 0, 5);       grid.add(phase, 1, 5);
+        grid.add(new Label("Assignee"), 0, 6);    grid.add(assignee, 1, 6);
 
         getDialogPane().setContent(grid);
 
@@ -94,6 +103,7 @@ public class CreateTaskDialog extends Dialog<Task> {
             t.setStatus(status.getValue());
             t.setPriority(priority.getValue());
             t.setDueDate(due.getValue());
+            t.setPhase(phase.getValue());         // ✅ phase stored on task
             t.setAssignee(assignee.getValue());
             return t;
         });

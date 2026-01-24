@@ -56,7 +56,7 @@ public class TasksPage extends VBox {
                 return;
             }
 
-            CreateTaskDialog d = new CreateTaskDialog(p.getMembers());
+            CreateTaskDialog d = new CreateTaskDialog(p);
             d.showAndWait().ifPresent(t -> {
                 store.addTask(p, t);
                 tasksList.getSelectionModel().select(t);
