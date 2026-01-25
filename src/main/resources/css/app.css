@@ -2,12 +2,12 @@
    ProjectPilot Dark Theme
    ========================= */
 
+/* ---- Root tokens / defaults ---- */
 .root {
-    /* Font */
     -fx-font-family: "Segoe UI", "Inter", "SF Pro Display", "Arial";
     -fx-font-size: 13px;
 
-    /* Global colors */
+    /* Palette */
     -pp-bg: #0b1220;
     -pp-bg2: #070b14;
     -pp-surface: #0f172a;
@@ -24,21 +24,22 @@
     -fx-background-color: linear-gradient(to bottom, -pp-bg, -pp-bg2);
 }
 
-/* Text */
-.label {
-    -fx-text-fill: -pp-text;
-}
+/* ---- Text ---- */
+.label { -fx-text-fill: -pp-text; }
 
 .page-title {
     -fx-font-size: 28px;
     -fx-font-weight: 700;
 }
 
-.muted {
-    -fx-text-fill: -pp-muted;
+.section-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
 }
 
-/* Top bar + sidebar containers */
+.muted { -fx-text-fill: -pp-muted; }
+
+/* ---- Layout containers ---- */
 .topbar {
     -fx-background-color: rgba(15, 23, 42, 0.75);
     -fx-border-color: rgba(255,255,255,0.06);
@@ -51,7 +52,18 @@
     -fx-border-width: 0 1 0 0;
 }
 
-/* Inputs */
+/* ---- Cards ---- */
+.card {
+    -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-border-width: 1;
+    -fx-padding: 16;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 18, 0.20, 0, 6);
+}
+
+/* ---- Inputs (TextField / TextArea base) ---- */
 .text-field, .text-area {
     -fx-background-color: rgba(17, 27, 51, 0.9);
     -fx-text-fill: -pp-text;
@@ -63,6 +75,36 @@
     -fx-padding: 8 10;
 }
 
+/* TextArea: remove inner white panel + keep dark content */
+.text-area,
+.text-area:focused {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: rgba(17, 27, 51, 0.55);
+    -fx-background-insets: 0;
+}
+
+.text-area .content {
+    -fx-background-color: rgba(17, 27, 51, 0.55);
+    -fx-background-insets: 0;
+    -fx-background-radius: 12;
+}
+
+.text-area > .scroll-pane,
+.text-area > .scroll-pane > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+.text-area .text { -fx-fill: -pp-text; }
+
+.text-area:focused { -fx-border-color: rgba(59,130,246,0.55); }
+
+/* Optional helper class you used in code */
+.pp-textarea .content {
+    -fx-background-color: rgba(17, 27, 51, 0.55);
+}
+
+/* ---- ComboBox ---- */
 .combo-box-base {
     -fx-background-color: rgba(17, 27, 51, 0.9);
     -fx-background-radius: 10;
@@ -72,11 +114,39 @@
     -fx-padding: 4 8;
 }
 
-.combo-box .list-cell {
-    -fx-text-fill: -pp-text;
+.combo-box .list-cell { -fx-text-fill: -pp-text; }
+
+/* ComboBox popup (dropdown) - solid (no transparency) */
+.combo-box-popup .list-view {
+    -fx-background-color: #0f172a;
+    -fx-control-inner-background: #0f172a;
+    -fx-background-insets: 0;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: rgba(255,255,255,0.10);
+    -fx-border-width: 1;
+    -fx-padding: 6;
 }
 
-/* Buttons */
+.combo-box-popup .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -pp-text;
+    -fx-padding: 10 12;
+}
+
+.combo-box-popup .list-cell:filled:hover {
+    -fx-background-color: rgba(255,255,255,0.06);
+}
+
+.combo-box-popup .list-cell:filled:selected {
+    -fx-background-color: rgba(59,130,246,0.22);
+}
+
+.combo-box-popup {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.55), 22, 0.2, 0, 8);
+}
+
+/* ---- Buttons ---- */
 .button {
     -fx-background-color: rgba(17, 27, 51, 0.85);
     -fx-text-fill: -pp-text;
@@ -87,23 +157,15 @@
     -fx-padding: 10 12;
 }
 
-.button:hover {
-    -fx-background-color: rgba(30, 41, 59, 0.9);
-}
+.button:hover { -fx-background-color: rgba(30, 41, 59, 0.9); }
+.button:pressed { -fx-background-color: rgba(30, 41, 59, 0.7); }
 
-.button:pressed {
-    -fx-background-color: rgba(30, 41, 59, 0.7);
-}
-
-/* Primary button variant (add style class "primary") */
 .button.primary {
     -fx-background-color: linear-gradient(to bottom, -pp-accent, -pp-accent2);
     -fx-border-color: rgba(255,255,255,0.10);
 }
 
-.button.primary:hover {
-    -fx-opacity: 0.95;
-}
+.button.primary:hover { -fx-opacity: 0.95; }
 
 /* Sidebar nav buttons */
 .nav-button {
@@ -115,74 +177,21 @@
     -fx-padding: 12 12;
 }
 
-.nav-button:hover {
-    -fx-background-color: rgba(30, 41, 59, 0.75);
-}
+.nav-button:hover { -fx-background-color: rgba(30, 41, 59, 0.75); }
 
 .nav-button-active {
     -fx-background-color: rgba(59, 130, 246, 0.18);
     -fx-border-color: rgba(59, 130, 246, 0.55);
 }
 
-/* Cards (use style class "card") */
-.card {
-    -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
-    -fx-background-radius: 16;
-    -fx-border-radius: 16;
-    -fx-border-color: rgba(255,255,255,0.07);
-    -fx-border-width: 1;
-    -fx-padding: 16;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 18, 0.20, 0, 6);
-}
-
-/* TableView (for “Recent Activity” look) */
-.table-view {
-    -fx-background-color: rgba(17, 27, 51, 0.55);
-    -fx-background-radius: 14;
-    -fx-border-radius: 14;
-    -fx-border-color: rgba(255,255,255,0.07);
-    -fx-border-width: 1;
-    -fx-padding: 8;
-}
-
-.table-view .column-header-background {
-    -fx-background-color: rgba(15, 23, 42, 0.95);
-    -fx-background-radius: 14 14 0 0;
-}
-
-.table-view .column-header, .table-view .filler {
-    -fx-background-color: transparent;
-    -fx-border-color: rgba(255,255,255,0.06);
-    -fx-border-width: 0 0 1 0;
-}
-
-.table-view .column-header .label {
-    -fx-text-fill: rgba(230,237,247,0.85);
-    -fx-font-weight: 700;
-}
-
-.table-row-cell {
-    -fx-background-color: transparent;
-    -fx-text-background-color: -pp-text;
-}
-
-.table-row-cell:filled:hover {
-    -fx-background-color: rgba(255,255,255,0.04);
-}
-
-.table-row-cell:filled:selected {
-    -fx-background-color: rgba(59, 130, 246, 0.18);
-}
-
-/* Scrollbars (basic) */
-.scroll-bar:vertical .thumb, .scroll-bar:horizontal .thumb {
+/* ---- Scrollbars (basic) ---- */
+.scroll-bar:vertical .thumb,
+.scroll-bar:horizontal .thumb {
     -fx-background-color: rgba(255,255,255,0.12);
     -fx-background-radius: 10;
 }
 
-/* =========================
-   LISTVIEW (your “white table”)
-   ========================= */
+/* ---- ListView ---- */
 .list-view {
     -fx-background-color: rgba(17, 27, 51, 0.55);
     -fx-control-inner-background: rgba(17, 27, 51, 0.55);
@@ -208,119 +217,290 @@
     -fx-text-fill: -pp-text;
 }
 
-/* Remove bright “empty area” look inside list */
-.list-view .virtual-flow {
-    -fx-background-color: transparent;
-}
+.list-view .virtual-flow { -fx-background-color: transparent; }
 
-
-/* =========================
-   TEXTAREA (Export preview white area)
-   ========================= */
-.text-area {
+/* ---- TableView base (general tables) ---- */
+.table-view {
     -fx-background-color: rgba(17, 27, 51, 0.55);
     -fx-control-inner-background: rgba(17, 27, 51, 0.55);
-    -fx-text-fill: -pp-text;
-    -fx-prompt-text-fill: rgba(230,237,247,0.45);
     -fx-background-radius: 14;
     -fx-border-radius: 14;
     -fx-border-color: rgba(255,255,255,0.07);
     -fx-border-width: 1;
+    -fx-padding: 8;
 }
 
-.text-area .content {
-    -fx-background-color: rgba(17, 27, 51, 0.55);
+.table-view .column-header-background {
+    -fx-background-color: rgba(15, 23, 42, 0.95);
+    -fx-background-radius: 14 14 0 0;
 }
 
-/* Caret/selection readable on dark */
-.text-area .text {
-    -fx-fill: -pp-text;
-}
-
-.text-area:focused {
-    -fx-border-color: rgba(59,130,246,0.55);
-}
-
-
-/* =========================
-   TABLEVIEW (if you use it later)
-   ========================= */
-.table-view {
-    -fx-control-inner-background: rgba(17, 27, 51, 0.55);
-}
-
-.table-view .table-cell {
-    -fx-text-fill: -pp-text;
-}
-
-/* =========================
-   ComboBox popup (dropdown) - make it solid
-   ========================= */
-
-/* The popup list container */
-.combo-box-popup .list-view {
-    -fx-background-color: #0f172a;           /* solid dark */
-    -fx-control-inner-background: #0f172a;   /* solid dark */
-    -fx-background-insets: 0;
-    -fx-background-radius: 12;
-    -fx-border-radius: 12;
-    -fx-border-color: rgba(255,255,255,0.10);
-    -fx-border-width: 1;
-    -fx-padding: 6;
-}
-
-/* Each row */
-.combo-box-popup .list-cell {
+.table-view .column-header, .table-view .filler {
     -fx-background-color: transparent;
-    -fx-text-fill: -pp-text;
-    -fx-padding: 10 12;
+    -fx-border-color: rgba(255,255,255,0.06);
+    -fx-border-width: 0 0 1 0;
 }
 
-/* Hover/selected states */
-.combo-box-popup .list-cell:filled:hover {
+.table-view .column-header .label {
+    -fx-text-fill: rgba(230,237,247,0.85);
+    -fx-font-weight: 700;
+}
+
+.table-row-cell { -fx-background-color: transparent; }
+.table-row-cell:filled:hover { -fx-background-color: rgba(255,255,255,0.04); }
+.table-row-cell:filled:selected { -fx-background-color: rgba(59, 130, 246, 0.18); }
+
+/* ---- Metric tiles ---- */
+.metric-tile {
+    -fx-background-color: rgba(255,255,255,0.04);
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(255,255,255,0.06);
+    -fx-border-radius: 14;
+}
+
+/* =========================
+   Dashboard: Recent Activity table (.pp-table)
+   ========================= */
+
+.pp-table {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+
+    -fx-control-inner-background: rgba(10, 18, 32, 0.85);
+    -fx-control-inner-background-alt: rgba(10, 18, 32, 0.65);
+
+    -fx-table-cell-border-color: transparent;
+    -fx-table-header-border-color: transparent;
+
+    /* selection */
+    -fx-selection-bar: #2f5ea8;
+    -fx-selection-bar-non-focused: rgba(47,94,168,0.70);
+}
+
+/* Remove default white layers */
+.pp-table .virtual-flow,
+.pp-table .corner,
+.pp-table .clipped-container,
+.pp-table .sheet {
+    -fx-background-color: transparent;
+}
+
+/* Header */
+.pp-table .column-header-background {
+    -fx-background-color: rgba(14, 26, 46, 0.95);
+    -fx-background-insets: 0;
+}
+
+.pp-table .column-header,
+.pp-table .filler {
+    -fx-background-color: transparent;
+    -fx-border-color: rgba(255,255,255,0.08);
+    -fx-border-width: 0 0 1 0;
+}
+
+.pp-table .column-header .label {
+    -fx-text-fill: rgba(255,255,255,0.85);
+    -fx-font-weight: 700;
+}
+
+/* Rows */
+.pp-table .table-row-cell {
+    -fx-background-color: rgba(10, 18, 32, 0.65);
+    -fx-background-insets: 0;
+}
+.pp-table .table-row-cell:odd {
+    -fx-background-color: rgba(10, 18, 32, 0.50);
+}
+
+/* Cells */
+.pp-table .table-cell {
+    -fx-text-fill: rgba(255,255,255,0.90);
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+
+    /* was: 10 12 10 12 (too tall for fixed rows) */
+    -fx-padding: 6 12 6 12;
+
+    /* helps vertical positioning */
+    -fx-alignment: CENTER_LEFT;
+}
+
+
+/* Hover */
+.pp-table .table-row-cell:filled:hover {
+    -fx-background-color: rgba(255,255,255,0.04);
+}
+
+/* Selection background */
+.pp-table .table-row-cell:filled:selected,
+.pp-table .table-row-cell:filled:selected:hover {
+    -fx-background-color: -fx-selection-bar;
+}
+
+/* Selection text (force full white and full opacity) */
+.pp-table .table-row-cell:filled:selected .table-cell {
+    -fx-text-fill: #ffffff;
+    -fx-opacity: 1;
+}
+.pp-table .table-row-cell:filled:selected .text {
+    -fx-fill: #ffffff;
+    -fx-opacity: 1;
+}
+
+/* Optional: soften scrollbars inside pp-table */
+.pp-table .scroll-bar:vertical,
+.pp-table .scroll-bar:horizontal { -fx-background-color: transparent; }
+
+.pp-table .scroll-bar .track { -fx-background-color: rgba(255,255,255,0.05); }
+.pp-table .scroll-bar .thumb { -fx-background-color: rgba(255,255,255,0.18); }
+
+
+/* =========================================
+   HARD OVERRIDE: force white body text in pp-table
+   (put this at the VERY END of the CSS file)
+   ========================================= */
+
+.table-view.pp-table .table-row-cell:filled .table-cell {
+    -fx-text-fill: #ffffff;
+    -fx-opacity: 1;
+}
+
+.table-view.pp-table .table-row-cell:filled .table-cell .text {
+    -fx-fill: #ffffff;
+    -fx-opacity: 1;
+}
+
+/* Keep selected row text white too */
+.table-view.pp-table .table-row-cell:filled:selected .table-cell,
+.table-view.pp-table .table-row-cell:filled:selected:hover .table-cell {
+    -fx-text-fill: #ffffff;
+    -fx-opacity: 1;
+}
+
+.table-view.pp-table .table-row-cell:filled:selected .table-cell .text,
+.table-view.pp-table .table-row-cell:filled:selected:hover .table-cell .text {
+    -fx-fill: #ffffff;
+    -fx-opacity: 1;
+}
+/* =========================
+   GANTT
+   ========================= */
+
+.gantt-card {
+    -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-border-width: 1;
+    -fx-padding: 12;
+}
+
+.gantt-scroll {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.gantt-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.gantt-sheet {
+    -fx-background-color: rgba(10, 18, 32, 0.75);
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-border-width: 1;
+    -fx-padding: 10;
+}
+
+/* Header row */
+.gantt-header-row {
+    -fx-background-color: rgba(14, 26, 46, 0.95);
+    -fx-background-radius: 12;
+    -fx-padding: 8 10;
+    -fx-border-color: rgba(255,255,255,0.08);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+}
+
+.gantt-header-label {
+    -fx-text-fill: rgba(255,255,255,0.85);
+    -fx-font-weight: 700;
+}
+
+/* Rows */
+.gantt-row {
+    -fx-padding: 6 10;
+    -fx-background-radius: 10;
+}
+
+.gantt-row:odd {
+    -fx-background-color: rgba(255,255,255,0.03);
+}
+
+.gantt-row:hover {
+    -fx-background-color: rgba(255,255,255,0.05);
+}
+
+.gantt-task-label {
+    -fx-text-fill: rgba(255,255,255,0.92);
+}
+
+.gantt-task-muted {
+    -fx-text-fill: rgba(255,255,255,0.60);
+}
+
+/* Bars */
+.gantt-bar {
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 10, 0.2, 0, 3);
+}
+
+.gantt-bar.todo {        -fx-background-color: rgba(148,163,184,0.75); }
+.gantt-bar.inprogress {  -fx-background-color: rgba(59,130,246,0.85); }
+.gantt-bar.blocked {     -fx-background-color: rgba(239,68,68,0.85); }
+.gantt-bar.done {        -fx-background-color: rgba(34,197,94,0.80); }
+
+/* Gantt vertical tick lines (subtle) */
+.gantt-tick {
     -fx-background-color: rgba(255,255,255,0.06);
 }
-
-.combo-box-popup .list-cell:filled:selected {
-    -fx-background-color: rgba(59,130,246,0.22);
-}
-
-/* Optional: make the popup shadow nicer */
-.combo-box-popup {
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.55), 22, 0.2, 0, 8);
-}
 /* =========================
-   TextArea: remove light inner panel / shadow
+   Gantt: hide scrollbar arrows (still scrollable)
    ========================= */
 
-.text-area,
-.text-area:focused {
+/* remove arrow glyphs */
+.gantt-scroll .scroll-bar .increment-arrow,
+.gantt-scroll .scroll-bar .decrement-arrow {
+    -fx-opacity: 0;          /* invisible arrow */
+    -fx-padding: 0;          /* no extra space from the arrow node */
+}
+
+/* keep the buttons but make them invisible */
+.gantt-scroll .scroll-bar .increment-button,
+.gantt-scroll .scroll-bar .decrement-button {
     -fx-background-color: transparent;
-    -fx-control-inner-background: rgba(17, 27, 51, 0.55);
-    -fx-background-insets: 0;
+    -fx-opacity: 0;          /* invisible button */
 }
 
-/* This is the big inner rectangle */
-.text-area .content {
-    -fx-background-color: rgba(17, 27, 51, 0.55);
-    -fx-background-insets: 0;
-    -fx-background-radius: 12;
+/* optional: make sure the track/thumb remain visible */
+.gantt-scroll .scroll-bar .track {
+    -fx-background-color: rgba(255,255,255,0.05);
+}
+.gantt-scroll .scroll-bar .thumb {
+    -fx-background-color: rgba(255,255,255,0.18);
+}
+/* =========================
+   Gantt: checkbox text color
+   ========================= */
+
+.gantt-check .text {
+    -fx-fill: rgba(255,255,255,0.92);
 }
 
-/* If a ScrollPane skin layer is showing through */
-.text-area > .scroll-pane {
-    -fx-background-color: transparent;
-    -fx-background-insets: 0;
-}
-
-.text-area > .scroll-pane > .viewport {
-    -fx-background-color: transparent;
-}
-
-/* Optional: selection color tuned for dark */
-.text-area .text {
-    -fx-fill: -pp-text;
-}
-.pp-textarea .content {
-    -fx-background-color: rgba(17, 27, 51, 0.55);
+.gantt-check {
+    -fx-text-fill: rgba(255,255,255,0.92);
 }
