@@ -6,6 +6,7 @@ import com.projectpilot.model.Project;
 import com.projectpilot.model.Task;
 import com.projectpilot.model.enums.TaskStatus;
 import javafx.application.Platform;
+import javafx.beans.InvalidationListener;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -54,6 +55,23 @@ public class GanttPage extends VBox {
     // display/project range (un-padded)
     private LocalDate rangeStartDate;
     private LocalDate rangeEndDate;
+
+    // IMPORTANT: fixes “due date changed but bar didn’t appear”
+    private final InvalidationListener taskPropsListener = obs -> rebuild();
+
+    private void hookTask(Task t) {
+        if (t == null) return;
+        t.titleProperty().addListener(taskPropsListener);
+        t.statusProperty().addListener(taskPropsListener);
+        t.dueDateProperty().addListener(taskPropsListener);
+    }
+
+    private void unhookTask(Task t) {
+        if (t == null) return;
+        t.titleProperty().removeListener(taskPropsListener);
+        t.statusProperty().removeListener(taskPropsListener);
+        t.dueDateProperty().removeListener(taskPropsListener);
+    }
 
     public GanttPage(InMemoryStore store, AppState appState) {
         this.store = store;
@@ -113,15 +131,23 @@ public class GanttPage extends VBox {
 
         store.getProjects().addListener((ListChangeListener<Project>) c -> rebuild());
 
-        // selected project change: swap task listeners + rebuild once
+        // selected project change: swap task listeners + hook/unhook task props
         appState.selectedProjectProperty().addListener((obs, oldP, newP) -> {
-            if (oldP != null) oldP.getTasks().removeListener(tasksListener);
-            if (newP != null) newP.getTasks().addListener(tasksListener);
+            if (oldP != null) {
+                oldP.getTasks().removeListener(tasksListener);
+                for (Task t : oldP.getTasks()) unhookTask(t);
+            }
+            if (newP != null) {
+                newP.getTasks().addListener(tasksListener);
+                for (Task t : newP.getTasks()) hookTask(t);
+            }
             rebuild();
         });
 
         if (appState.getSelectedProject() != null) {
-            appState.getSelectedProject().getTasks().addListener(tasksListener);
+            Project p = appState.getSelectedProject();
+            p.getTasks().addListener(tasksListener);
+            for (Task t : p.getTasks()) hookTask(t);
         }
 
         // initial
@@ -131,7 +157,17 @@ public class GanttPage extends VBox {
         Platform.runLater(this::fitDatesToViewport);
     }
 
-    private final ListChangeListener<Task> tasksListener = c -> rebuild();
+    private final ListChangeListener<Task> tasksListener = c -> {
+        while (c.next()) {
+            if (c.wasRemoved()) {
+                for (Task t : c.getRemoved()) unhookTask(t);
+            }
+            if (c.wasAdded()) {
+                for (Task t : c.getAddedSubList()) hookTask(t);
+            }
+        }
+        rebuild();
+    };
 
     private void rebuild() {
         Project p = appState.getSelectedProject();
@@ -207,7 +243,6 @@ public class GanttPage extends VBox {
         if (p.getStartDate() != null && p.getStartDate().isBefore(min)) min = p.getStartDate();
         if (p.getEndDate() != null && p.getEndDate().isAfter(max)) max = p.getEndDate();
 
-        // pad a bit so bars don’t hug edges
         minDate = min.minusDays(2);
         maxDate = max.plusDays(2);
 
@@ -236,7 +271,6 @@ public class GanttPage extends VBox {
         timelineHeader.setMinWidth(timelineWidth);
         timelineHeader.setPrefWidth(timelineWidth);
 
-        // ticks every 7 days
         LocalDate d = minDate;
         for (int i = 0; i < days; i++, d = d.plusDays(1)) {
             if (i % 7 == 0) {
@@ -303,7 +337,6 @@ public class GanttPage extends VBox {
         timeline.setMinWidth(timelineWidth);
         timeline.setPrefWidth(timelineWidth);
 
-        // vertical ticks (subtle), every 7 days
         for (int i = 0; i < days; i += 7) {
             Region tick = new Region();
             tick.getStyleClass().add("gantt-tick");
@@ -327,7 +360,6 @@ public class GanttPage extends VBox {
 
         LocalDate start = due.minusDays(defaultDurationDays - 1);
 
-        // keep inside chart bounds
         if (start.isBefore(minDate)) start = minDate;
         if (due.isAfter(maxDate)) due = maxDate;
 
@@ -365,9 +397,7 @@ public class GanttPage extends VBox {
         double availableTimelineWidth = Math.max(200, viewport - (labelColWidth + 40));
         double target = availableTimelineWidth / days;
 
-        // clamp so it never becomes ugly
         dayWidth = clamp(target, 10, 28);
-
         rebuild();
     }
 

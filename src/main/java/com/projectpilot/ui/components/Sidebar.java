@@ -21,6 +21,10 @@ public class Sidebar extends VBox {
                 navButton("Tasks", PageId.TASKS, onNavigate),
                 navButton("Gantt", PageId.GANTT, onNavigate),
                 navButton("Team", PageId.TEAM, onNavigate),
+
+                // NEW:
+                navButton("History", PageId.HISTORY, onNavigate),
+
                 navButton("Export", PageId.EXPORT_REPORT, onNavigate)
         );
     }

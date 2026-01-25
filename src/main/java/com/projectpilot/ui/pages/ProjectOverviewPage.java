@@ -9,9 +9,12 @@ import com.projectpilot.model.enums.TaskStatus;
 import com.projectpilot.service.ProgressService;
 import com.projectpilot.ui.dialogs.AddMilestoneDialog;
 import javafx.beans.binding.Bindings;
+import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+
+import java.time.format.DateTimeFormatter;
 
 public class ProjectOverviewPage extends VBox {
 
@@ -25,6 +28,19 @@ public class ProjectOverviewPage extends VBox {
     private final TableView<Phase> phaseTable = new TableView<>();
     private final ListView<Milestone> milestoneList = new ListView<>();
 
+    private Project boundProject;
+
+    private final ListChangeListener<?> tasksListener = c -> {
+        // Update computed values + phase table computed columns
+        if (boundProject != null) refresh(boundProject);
+        phaseTable.refresh();
+    };
+
+    private final ListChangeListener<?> milestonesListener = c -> {
+        // list is already bound, but refresh text/selection if needed
+        milestoneList.refresh();
+    };
+
     public ProjectOverviewPage(InMemoryStore store, AppState appState) {
         setPadding(new Insets(16));
         setSpacing(14);
@@ -34,54 +50,80 @@ public class ProjectOverviewPage extends VBox {
 
         VBox topCard = new VBox(8, header, sub, progress, counts);
         topCard.getStyleClass().add("card");
+
         progress.setStyle("-fx-font-size: 22px; -fx-font-weight: 800;");
         counts.getStyleClass().add("muted");
 
-        // Phase table
+        // ---------- Phase table ----------
         TableColumn<Phase, String> phaseName = new TableColumn<>("Phase");
         phaseName.setCellValueFactory(c -> c.getValue().nameProperty());
         phaseName.setPrefWidth(260);
 
         TableColumn<Phase, String> phaseProg = new TableColumn<>("Progress");
-        phaseProg.setCellValueFactory(c -> Bindings.createStringBinding(() -> {
-            Project p = appState.getSelectedProject();
-            if (p == null) return "-";
-            int pct = phaseProgressPercent(p, c.getValue());
-            return pct + "%";
-        }, appState.selectedProjectProperty()));
         phaseProg.setPrefWidth(100);
+        phaseProg.setCellValueFactory(c ->
+                Bindings.createStringBinding(() -> {
+                    Project p = appState.getSelectedProject();
+                    if (p == null) return "-";
+                    int pct = phaseProgressPercent(p, c.getValue());
+                    return pct + "%";
+                })
+        );
 
         TableColumn<Phase, String> phaseOpen = new TableColumn<>("Open Tasks");
-        phaseOpen.setCellValueFactory(c -> Bindings.createStringBinding(() -> {
-            Project p = appState.getSelectedProject();
-            if (p == null) return "-";
-            long open = p.getTasks().stream()
-                    .filter(t -> t.getPhase() == c.getValue())
-                    .filter(t -> t.getStatus() != TaskStatus.DONE)
-                    .count();
-            return String.valueOf(open);
-        }, appState.selectedProjectProperty()));
         phaseOpen.setPrefWidth(110);
+        phaseOpen.setCellValueFactory(c ->
+                Bindings.createStringBinding(() -> {
+                    Project p = appState.getSelectedProject();
+                    if (p == null) return "-";
+                    long open = p.getTasks().stream()
+                            .filter(t -> t.getPhase() == c.getValue())
+                            .filter(t -> t.getStatus() != TaskStatus.DONE)
+                            .count();
+                    return String.valueOf(open);
+                })
+        );
 
-        phaseTable.getColumns().addAll(phaseName, phaseProg, phaseOpen);
+        phaseTable.getColumns().setAll(phaseName, phaseProg, phaseOpen);
         phaseTable.setPrefHeight(260);
+        phaseTable.getStyleClass().add("pp-table");
 
-        VBox phasesCard = new VBox(10, new Label("Phases"), phaseTable);
+        Label phasesTitle = new Label("Phases");
+        phasesTitle.getStyleClass().add("section-title");
+
+        VBox phasesCard = new VBox(10, phasesTitle, phaseTable);
         phasesCard.getStyleClass().add("card");
 
-        // Milestones
+        // ---------- Milestones ----------
         milestoneList.setPrefHeight(220);
         milestoneList.setCellFactory(lv -> new ListCell<>() {
             private final CheckBox cb = new CheckBox();
-            @Override protected void updateItem(Milestone item, boolean empty) {
+            private Milestone bound;
+
+            @Override
+            protected void updateItem(Milestone item, boolean empty) {
                 super.updateItem(item, empty);
+
+                if (bound != null) {
+                    cb.selectedProperty().unbindBidirectional(bound.completedProperty());
+                    bound = null;
+                }
+
                 if (empty || item == null) {
                     setGraphic(null);
                     setText(null);
                     return;
                 }
-                cb.setText(item.nameProperty().get() + "  •  due " + item.dueDateProperty().get());
+
+                bound = item;
                 cb.selectedProperty().bindBidirectional(item.completedProperty());
+
+                String name = safe(item.nameProperty().get());
+                String due = (item.dueDateProperty().get() == null)
+                        ? "-"
+                        : item.dueDateProperty().get().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+
+                cb.setText(name + "  •  due " + due);
                 setGraphic(cb);
             }
         });
@@ -91,16 +133,20 @@ public class ProjectOverviewPage extends VBox {
         addMilestone.setOnAction(e -> {
             Project p = appState.getSelectedProject();
             if (p == null) return;
+
             AddMilestoneDialog d = new AddMilestoneDialog();
             d.showAndWait().ifPresent(m -> store.addMilestone(p, m));
         });
 
-        VBox milestoneCard = new VBox(10, new Label("Milestones"), milestoneList, addMilestone);
+        Label msTitle = new Label("Milestones");
+        msTitle.getStyleClass().add("section-title");
+
+        VBox milestoneCard = new VBox(10, msTitle, milestoneList, addMilestone);
         milestoneCard.getStyleClass().add("card");
 
         HBox bottom = new HBox(14, phasesCard, milestoneCard);
-        HBox.setHgrow(phasesCard, Priority.ALWAYS);
-        HBox.setHgrow(milestoneCard, Priority.ALWAYS);
+        HBox.setHgrow(phasesCard, javafx.scene.layout.Priority.ALWAYS);
+        HBox.setHgrow(milestoneCard, javafx.scene.layout.Priority.ALWAYS);
 
         getChildren().addAll(topCard, bottom);
 
@@ -109,6 +155,13 @@ public class ProjectOverviewPage extends VBox {
     }
 
     private void refresh(Project p) {
+        // Unbind old project listeners
+        if (boundProject != null) {
+            boundProject.getTasks().removeListener((ListChangeListener) tasksListener);
+            boundProject.getMilestones().removeListener((ListChangeListener) milestonesListener);
+        }
+        boundProject = p;
+
         if (p == null) {
             sub.setText("No project selected");
             progress.setText("-");
@@ -118,7 +171,11 @@ public class ProjectOverviewPage extends VBox {
             return;
         }
 
-        sub.setText(p.getName() + "  •  " + p.getStartDate() + " → " + p.getEndDate());
+        // Bind listeners for live updates
+        p.getTasks().addListener((ListChangeListener) tasksListener);
+        p.getMilestones().addListener((ListChangeListener) milestonesListener);
+
+        sub.setText(safe(p.getName()) + "  •  " + safe(p.getStartDate()) + " → " + safe(p.getEndDate()));
 
         int pct = progressService.projectProgressPercent(p);
         progress.setText("Progress: " + pct + "%");
@@ -132,6 +189,9 @@ public class ProjectOverviewPage extends VBox {
 
         phaseTable.setItems(p.getPhases());
         milestoneList.setItems(p.getMilestones());
+
+        phaseTable.refresh();
+        milestoneList.refresh();
     }
 
     private int phaseProgressPercent(Project p, Phase phase) {
@@ -148,5 +208,13 @@ public class ProjectOverviewPage extends VBox {
             };
         }
         return (int) Math.round((total / tasks.size()) * 100.0);
+    }
+
+    private String safe(Object o) {
+        return (o == null) ? "-" : o.toString();
+    }
+
+    private String safe(String s) {
+        return s == null ? "" : s;
     }
 }

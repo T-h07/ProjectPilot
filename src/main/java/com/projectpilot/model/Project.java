@@ -11,11 +11,17 @@ import java.util.UUID;
 public class Project {
     private final String id = UUID.randomUUID().toString();
 
+    public enum ProjectStatus { ACTIVE, DONE }
+
     private final StringProperty name = new SimpleStringProperty();
     private final StringProperty description = new SimpleStringProperty("");
     private final ObjectProperty<LocalDate> startDate = new SimpleObjectProperty<>(LocalDate.now());
     private final ObjectProperty<LocalDate> endDate = new SimpleObjectProperty<>(LocalDate.now().plusWeeks(4));
     private final ObjectProperty<ProjectHealth> health = new SimpleObjectProperty<>(ProjectHealth.ON_TRACK);
+
+    // ✅ NEW: status + completed date (for History)
+    private final ObjectProperty<ProjectStatus> status = new SimpleObjectProperty<>(ProjectStatus.ACTIVE);
+    private final ObjectProperty<LocalDate> completedDate = new SimpleObjectProperty<>(null);
 
     private final ObservableList<Phase> phases = FXCollections.observableArrayList();
     private final ObservableList<Task> tasks = FXCollections.observableArrayList();
@@ -45,6 +51,15 @@ public class Project {
     public ObjectProperty<ProjectHealth> healthProperty() { return health; }
     public ProjectHealth getHealth() { return health.get(); }
     public void setHealth(ProjectHealth v) { health.set(v); }
+
+    // ✅ NEW
+    public ObjectProperty<ProjectStatus> statusProperty() { return status; }
+    public ProjectStatus getStatus() { return status.get(); }
+    public void setStatus(ProjectStatus v) { status.set(v); }
+
+    public ObjectProperty<LocalDate> completedDateProperty() { return completedDate; }
+    public LocalDate getCompletedDate() { return completedDate.get(); }
+    public void setCompletedDate(LocalDate v) { completedDate.set(v); }
 
     public ObservableList<Phase> getPhases() { return phases; }
     public ObservableList<Task> getTasks() { return tasks; }

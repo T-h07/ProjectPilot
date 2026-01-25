@@ -7,5 +7,6 @@ public enum PageId {
     TASKS,
     GANTT,
     TEAM,
+    HISTORY,        // NEW
     EXPORT_REPORT
 }
