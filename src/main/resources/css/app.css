@@ -169,6 +169,29 @@
     -fx-background-color: linear-gradient(to bottom, -pp-accent, -pp-accent2);
     -fx-border-color: rgba(255,255,255,0.10);
 }
+/* ---- Small buttons (tables) ---- */
+.pp-root .button.sm {
+    -fx-padding: 6 10;
+    -fx-font-size: 12px;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+
+/* ---- Danger outline button (good on dark tables) ---- */
+.pp-root .button.danger-outline {
+    -fx-background-color: transparent;
+    -fx-text-fill: rgba(239,68,68,0.95);
+    -fx-border-color: rgba(239,68,68,0.55);
+    -fx-border-width: 1;
+}
+
+.pp-root .button.danger-outline:hover {
+    -fx-background-color: rgba(239,68,68,0.14);
+}
+
+.pp-root .button.danger-outline:pressed {
+    -fx-background-color: rgba(239,68,68,0.22);
+}
 
 .pp-root .button.primary:hover { -fx-opacity: 0.95; }
 

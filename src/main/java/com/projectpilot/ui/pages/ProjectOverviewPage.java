@@ -11,9 +11,11 @@ import com.projectpilot.ui.dialogs.AddMilestoneDialog;
 import javafx.beans.binding.Bindings;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 
+import java.lang.reflect.Method;
 import java.time.format.DateTimeFormatter;
 
 public class ProjectOverviewPage extends VBox {
@@ -24,6 +26,12 @@ public class ProjectOverviewPage extends VBox {
     private final Label sub = new Label("");
     private final Label progress = new Label("-");
     private final Label counts = new Label("-");
+
+    // NEW: project info
+    private final Label descTitle = new Label("Description");
+    private final Label descLabel = new Label("-");
+    private final Label stakeholderTitle = new Label("Stakeholder");
+    private final Label stakeholderLabel = new Label("-");
 
     private final TableView<Phase> phaseTable = new TableView<>();
     private final ListView<Milestone> milestoneList = new ListView<>();
@@ -47,11 +55,25 @@ public class ProjectOverviewPage extends VBox {
         header.getStyleClass().add("page-title");
         sub.getStyleClass().add("muted");
 
-        VBox topCard = new VBox(8, header, sub, progress, counts);
-        topCard.getStyleClass().add("card");
-
         progress.setStyle("-fx-font-size: 22px; -fx-font-weight: 800;");
         counts.getStyleClass().add("muted");
+
+        // NEW: info styling
+        descTitle.getStyleClass().add("muted");
+        descTitle.setStyle("-fx-font-weight: 800;");
+        descLabel.getStyleClass().add("muted");
+        descLabel.setWrapText(true);
+
+        stakeholderTitle.getStyleClass().add("muted");
+        stakeholderTitle.setStyle("-fx-font-weight: 800;");
+        stakeholderLabel.getStyleClass().add("muted");
+        stakeholderLabel.setWrapText(true);
+
+        VBox infoBox = new VBox(6, descTitle, descLabel, stakeholderTitle, stakeholderLabel);
+        infoBox.setPadding(new Insets(6, 0, 2, 0));
+
+        VBox topCard = new VBox(8, header, sub, infoBox, progress, counts);
+        topCard.getStyleClass().add("card");
 
         // ---------- Phase table ----------
         TableColumn<Phase, String> phaseName = new TableColumn<>("Phase");
@@ -86,11 +108,17 @@ public class ProjectOverviewPage extends VBox {
         // ✅ Actions column (delete phase)
         TableColumn<Phase, Void> phaseActions = new TableColumn<>("");
         phaseActions.setPrefWidth(120);
+        phaseActions.setSortable(false);
+        phaseActions.setResizable(false);
+
         phaseActions.setCellFactory(col -> new TableCell<>() {
             private final Button deleteBtn = new Button("Delete");
 
             {
-                deleteBtn.getStyleClass().add("danger");
+                // ✅ readable + clean on dark theme (requires CSS you added)
+                deleteBtn.getStyleClass().addAll("sm", "danger-outline");
+                deleteBtn.setFocusTraversable(false);
+
                 deleteBtn.setOnAction(e -> {
                     Project p = appState.getSelectedProject();
                     if (p == null) return;
@@ -114,12 +142,20 @@ public class ProjectOverviewPage extends VBox {
                     p.getPhases().remove(ph);
                     // If you want autosave for this too, add a store.removePhase(...) later.
                 });
+
+                setAlignment(Pos.CENTER_RIGHT);
             }
 
             @Override
             protected void updateItem(Void item, boolean empty) {
                 super.updateItem(item, empty);
-                setGraphic(empty ? null : deleteBtn);
+                if (empty) {
+                    setGraphic(null);
+                    setText(null);
+                } else {
+                    setGraphic(deleteBtn);
+                    setText(null);
+                }
             }
         });
 
@@ -135,8 +171,11 @@ public class ProjectOverviewPage extends VBox {
         addPhaseBtn.getStyleClass().add("primary");
         addPhaseBtn.setOnAction(e -> addPhase(store, appState));
 
-        HBox phasesHeader = new HBox(10, phasesTitle, new Region(), addPhaseBtn);
-        HBox.setHgrow(phasesHeader.getChildren().get(1), Priority.ALWAYS);
+        Region phasesSpacer = new Region();
+        HBox.setHgrow(phasesSpacer, Priority.ALWAYS);
+
+        HBox phasesHeader = new HBox(10, phasesTitle, phasesSpacer, addPhaseBtn);
+        phasesHeader.setAlignment(Pos.CENTER_LEFT);
 
         VBox phasesCard = new VBox(10, phasesHeader, phaseTable);
         phasesCard.getStyleClass().add("card");
@@ -224,7 +263,6 @@ public class ProjectOverviewPage extends VBox {
 
     private Phase createPhase(String name) {
         try {
-            // Your Phase requires 1 argument (String)
             return new Phase(name);
         } catch (Exception ignored) {
             return null;
@@ -241,6 +279,8 @@ public class ProjectOverviewPage extends VBox {
 
         if (p == null) {
             sub.setText("No project selected");
+            descLabel.setText("-");
+            stakeholderLabel.setText("-");
             progress.setText("-");
             counts.setText("-");
             phaseTable.setItems(null);
@@ -254,6 +294,29 @@ public class ProjectOverviewPage extends VBox {
 
         sub.setText(safe(p.getName()) + "  •  " + safe(p.getStartDate()) + " → " + safe(p.getEndDate()));
 
+        // ---------- NEW: Description + Stakeholder ----------
+        String desc = readString(p, "getDescription", "getProjectDescription", "getDetails");
+        descLabel.setText(desc.isBlank() ? "-" : desc);
+
+        // Prefer a prebuilt stakeholder string if your model has it
+        String stakeholderInfo = readString(p, "getStakeholderInfo", "getStakeholderData", "getStakeholder");
+        if (stakeholderInfo.isBlank()) {
+            String shName = readString(p, "getStakeholderName", "getClientName", "getOwnerName");
+            String shRole = readString(p, "getStakeholderRole", "getClientRole", "getOwnerRole");
+            String shEmail = readString(p, "getStakeholderEmail", "getClientEmail", "getOwnerEmail");
+
+            String built = (shName.isBlank() && shRole.isBlank() && shEmail.isBlank())
+                    ? ""
+                    : shName
+                    + (shRole.isBlank() ? "" : " • " + shRole)
+                    + (shEmail.isBlank() ? "" : " • " + shEmail);
+
+            stakeholderLabel.setText(built.isBlank() ? "-" : built);
+        } else {
+            stakeholderLabel.setText(stakeholderInfo);
+        }
+
+        // ---------- Progress ----------
         int pct = progressService.projectProgressPercent(p);
         progress.setText("Progress: " + pct + "%");
 
@@ -285,6 +348,40 @@ public class ProjectOverviewPage extends VBox {
             };
         }
         return (int) Math.round((total / tasks.size()) * 100.0);
+    }
+
+    private String readString(Object target, String... methodNames) {
+        if (target == null) return "";
+        for (String m : methodNames) {
+            try {
+                Method method = target.getClass().getMethod(m);
+                Object val = method.invoke(target);
+                if (val == null) continue;
+
+                // Direct String
+                if (val instanceof String s) {
+                    String t = s.trim();
+                    if (!t.isBlank()) return t;
+                    continue;
+                }
+
+                // JavaFX Property (StringProperty, ObjectProperty<String>, etc.)
+                try {
+                    Method get = val.getClass().getMethod("get");
+                    Object inner = get.invoke(val);
+                    if (inner != null) {
+                        String t = inner.toString().trim();
+                        if (!t.isBlank()) return t;
+                    }
+                } catch (Exception ignored) {}
+
+                // Fallback
+                String t = val.toString().trim();
+                if (!t.isBlank()) return t;
+
+            } catch (Exception ignored) {}
+        }
+        return "";
     }
 
     private String safe(Object o) {

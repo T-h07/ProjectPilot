@@ -47,6 +47,8 @@ public class Main extends Application {
         router.register(PageId.EXPORT_REPORT, () -> new ExportReportPage(store, appState));
 
         MainLayout root = new MainLayout(router, store, appState);
+        root.getStyleClass().add("pp-root");
+
 
         Scene scene = new Scene(root, 1200, 800);
         scene.getStylesheets().add(getClass().getResource("/css/app.css").toExternalForm());

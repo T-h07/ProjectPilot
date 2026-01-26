@@ -18,6 +18,12 @@ import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.layout.Region;
+import javafx.util.StringConverter;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
+import java.util.Set;
 
 public class TasksPage extends VBox {
 
@@ -29,8 +35,8 @@ public class TasksPage extends VBox {
 
     private final ListView<Task> tasksList = new ListView<>();
 
-    private final TextField searchField = new TextField();      // NEW
-    private final CheckBox showDone = new CheckBox("Show Done"); // label needs to be white
+    private final TextField searchField = new TextField();
+    private final CheckBox showDone = new CheckBox("Show Done");
 
     private Task bound;
 
@@ -45,12 +51,19 @@ public class TasksPage extends VBox {
 
     private Project boundProject;
 
+    // Prevent stacking multiple listeners on the same task
+    private final Set<Task> statusHooked = new HashSet<>();
+
     private final ListChangeListener<Task> projectTasksListener = c -> {
         if (boundProject == null) return;
 
         while (c.next()) {
             if (c.wasAdded()) {
-                for (Task t : c.getAddedSubList()) attachStatusListener(t);
+                for (Task t : c.getAddedSubList()) attachStatusListenerOnce(t);
+            }
+            if (c.wasRemoved()) {
+                // keep the set clean; removed tasks shouldn't hold hooks state
+                statusHooked.removeAll(c.getRemoved());
             }
         }
 
@@ -66,19 +79,18 @@ public class TasksPage extends VBox {
         ProjectPicker taskProjectPicker = new ProjectPicker(store, appState);
         taskProjectPicker.setPrefWidth(320);
 
-        // NEW: Search box in the empty toolbar area
+        // Search
         searchField.setPromptText("Search tasks...");
-        searchField.getStyleClass().add("pp-input");
         searchField.setPrefWidth(320);
-        searchField.textProperty().addListener((obs, ov, nv) -> applyFilter());
+        searchField.textProperty().addListener((obs, ov, nv) -> applyFilterPreserveSelection());
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
 
         showDone.setSelected(false); // default OFF
-        // Make the label white (no CSS dependency)
+        // Keep it readable even if checkbox text isn't covered by .label CSS
         showDone.setStyle("-fx-text-fill: white;");
-        showDone.selectedProperty().addListener((obs, ov, nv) -> applyFilter());
+        showDone.selectedProperty().addListener((obs, ov, nv) -> applyFilterPreserveSelection());
 
         Button newTask = new Button("New Task");
         newTask.getStyleClass().add("primary");
@@ -98,8 +110,8 @@ public class TasksPage extends VBox {
             CreateTaskDialog d = new CreateTaskDialog(p);
             d.showAndWait().ifPresent(t -> {
                 store.addTask(p, t);
-                attachStatusListener(t);
-                applyFilter();
+                attachStatusListenerOnce(t);
+                applyFilterPreserveSelection();
                 tasksList.getSelectionModel().select(t);
             });
         });
@@ -108,7 +120,7 @@ public class TasksPage extends VBox {
                 10,
                 new Label("Project:"),
                 taskProjectPicker,
-                searchField,      // NEW in the marked area
+                searchField,
                 spacer,
                 showDone,
                 newTask
@@ -124,6 +136,22 @@ public class TasksPage extends VBox {
         descField.setPrefRowCount(6);
         descField.getStyleClass().add("pp-textarea");
 
+        // Date format consistency (does not fix popup styling; CSS does that)
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        duePicker.setPromptText("yyyy-MM-dd");
+        duePicker.setConverter(new StringConverter<>() {
+            @Override public String toString(LocalDate date) {
+                return date == null ? "" : fmt.format(date);
+            }
+            @Override public LocalDate fromString(String s) {
+                if (s == null) return null;
+                String v = s.trim();
+                if (v.isEmpty()) return null;
+                try { return LocalDate.parse(v, fmt); } catch (Exception ignored) { return null; }
+            }
+        });
+
+        // Nice display for Phase dropdown
         phaseBox.setPromptText("No phase");
         phaseBox.setCellFactory(cb -> new ListCell<>() {
             @Override protected void updateItem(Phase item, boolean empty) {
@@ -138,6 +166,7 @@ public class TasksPage extends VBox {
             }
         });
 
+        // Nice display for Assignee dropdown
         assigneeBox.setPromptText("Unassigned");
         assigneeBox.setCellFactory(cb -> new ListCell<>() {
             @Override protected void updateItem(Member item, boolean empty) {
@@ -206,7 +235,9 @@ public class TasksPage extends VBox {
         if (boundProject != null) {
             try { boundProject.getTasks().removeListener(projectTasksListener); } catch (Exception ignored) {}
         }
+
         boundProject = p;
+        statusHooked.clear();
 
         if (p == null) {
             header.setText("Tasks (no project selected)");
@@ -232,18 +263,40 @@ public class TasksPage extends VBox {
     }
 
     private void rebuildTaskSource(Project p) {
-        Task currentlySelected = tasksList.getSelectionModel().getSelectedItem();
+        Task selected = tasksList.getSelectionModel().getSelectedItem();
+        int selectedIndex = tasksList.getSelectionModel().getSelectedIndex();
 
         taskSource.setAll(p.getTasks());
-        for (Task t : p.getTasks()) attachStatusListener(t);
+        for (Task t : p.getTasks()) attachStatusListenerOnce(t);
 
         applyFilter();
 
-        if (currentlySelected != null && !filteredTasks.contains(currentlySelected)) {
+        // preserve selection as best as possible
+        if (selected != null && filteredTasks.contains(selected)) {
+            tasksList.getSelectionModel().select(selected);
+        } else if (!filteredTasks.isEmpty()) {
+            int idx = Math.min(Math.max(selectedIndex, 0), filteredTasks.size() - 1);
+            tasksList.getSelectionModel().select(idx);
+        } else {
             tasksList.getSelectionModel().clearSelection();
             bindTask(null);
-        } else if (tasksList.getSelectionModel().getSelectedItem() == null && !filteredTasks.isEmpty()) {
-            tasksList.getSelectionModel().select(0);
+        }
+    }
+
+    private void applyFilterPreserveSelection() {
+        Task selected = tasksList.getSelectionModel().getSelectedItem();
+        int selectedIndex = tasksList.getSelectionModel().getSelectedIndex();
+
+        applyFilter();
+
+        if (selected != null && filteredTasks.contains(selected)) {
+            tasksList.getSelectionModel().select(selected);
+        } else if (!filteredTasks.isEmpty()) {
+            int idx = Math.min(Math.max(selectedIndex, 0), filteredTasks.size() - 1);
+            tasksList.getSelectionModel().select(idx);
+        } else {
+            tasksList.getSelectionModel().clearSelection();
+            bindTask(null);
         }
     }
 
@@ -258,24 +311,45 @@ public class TasksPage extends VBox {
             // Hide DONE unless toggled on
             if (!includeDone && t.getStatus() == TaskStatus.DONE) return false;
 
-            // Search filter (title + description)
+            // Search filter (title + description + phase + assignee)
             if (query.isEmpty()) return true;
 
             String title = (t.getTitle() == null) ? "" : t.getTitle().toLowerCase();
             String desc = (t.getDescription() == null) ? "" : t.getDescription().toLowerCase();
 
-            return title.contains(query) || desc.contains(query);
+            String phase = "";
+            try { phase = (t.getPhase() == null || t.getPhase().getName() == null) ? "" : t.getPhase().getName().toLowerCase(); }
+            catch (Exception ignored) {}
+
+            String assignee = "";
+            try { assignee = (t.getAssignee() == null || t.getAssignee().getName() == null) ? "" : t.getAssignee().getName().toLowerCase(); }
+            catch (Exception ignored) {}
+
+            return title.contains(query)
+                    || desc.contains(query)
+                    || phase.contains(query)
+                    || assignee.contains(query);
         });
     }
 
-    private void attachStatusListener(Task t) {
+    private void attachStatusListenerOnce(Task t) {
+        if (t == null) return;
+        if (!statusHooked.add(t)) return; // already hooked
+
         try {
             t.statusProperty().addListener((obs, ov, nv) -> {
+                // If DONE and we're hiding done, push selection to next visible item
+                boolean willHide = (!showDone.isSelected() && nv == TaskStatus.DONE);
+                Task selected = tasksList.getSelectionModel().getSelectedItem();
+                int selectedIndex = tasksList.getSelectionModel().getSelectedIndex();
+
                 applyFilter();
 
-                if (!showDone.isSelected() && nv == TaskStatus.DONE) {
-                    Task selected = tasksList.getSelectionModel().getSelectedItem();
-                    if (selected == t) {
+                if (willHide && selected == t) {
+                    if (!filteredTasks.isEmpty()) {
+                        int idx = Math.min(Math.max(selectedIndex, 0), filteredTasks.size() - 1);
+                        tasksList.getSelectionModel().select(idx);
+                    } else {
                         tasksList.getSelectionModel().clearSelection();
                         bindTask(null);
                     }
