@@ -31,15 +31,14 @@ public class ProjectOverviewPage extends VBox {
     private Project boundProject;
 
     private final ListChangeListener<?> tasksListener = c -> {
-        // Update computed values + phase table computed columns
         if (boundProject != null) refresh(boundProject);
         phaseTable.refresh();
     };
 
-    private final ListChangeListener<?> milestonesListener = c -> {
-        // list is already bound, but refresh text/selection if needed
-        milestoneList.refresh();
-    };
+    private final ListChangeListener<?> milestonesListener = c -> milestoneList.refresh();
+
+    // ✅ react to phases changing (so table updates after add/remove)
+    private final ListChangeListener<?> phasesListener = c -> phaseTable.refresh();
 
     public ProjectOverviewPage(InMemoryStore store, AppState appState) {
         setPadding(new Insets(16));
@@ -84,14 +83,62 @@ public class ProjectOverviewPage extends VBox {
                 })
         );
 
-        phaseTable.getColumns().setAll(phaseName, phaseProg, phaseOpen);
+        // ✅ Actions column (delete phase)
+        TableColumn<Phase, Void> phaseActions = new TableColumn<>("");
+        phaseActions.setPrefWidth(120);
+        phaseActions.setCellFactory(col -> new TableCell<>() {
+            private final Button deleteBtn = new Button("Delete");
+
+            {
+                deleteBtn.getStyleClass().add("danger");
+                deleteBtn.setOnAction(e -> {
+                    Project p = appState.getSelectedProject();
+                    if (p == null) return;
+
+                    int idx = getIndex();
+                    if (idx < 0 || idx >= getTableView().getItems().size()) return;
+
+                    Phase ph = getTableView().getItems().get(idx);
+                    if (ph == null) return;
+
+                    long used = p.getTasks().stream().filter(t -> t.getPhase() == ph).count();
+                    if (used > 0) {
+                        Alert a = new Alert(Alert.AlertType.WARNING);
+                        a.setTitle("Cannot delete phase");
+                        a.setHeaderText("This phase is used by tasks");
+                        a.setContentText("Unassign or move tasks out of this phase before deleting it.");
+                        a.showAndWait();
+                        return;
+                    }
+
+                    p.getPhases().remove(ph);
+                    // If you want autosave for this too, add a store.removePhase(...) later.
+                });
+            }
+
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : deleteBtn);
+            }
+        });
+
+        phaseTable.getColumns().setAll(phaseName, phaseProg, phaseOpen, phaseActions);
         phaseTable.setPrefHeight(260);
         phaseTable.getStyleClass().add("pp-table");
 
         Label phasesTitle = new Label("Phases");
         phasesTitle.getStyleClass().add("section-title");
 
-        VBox phasesCard = new VBox(10, phasesTitle, phaseTable);
+        // ✅ Add Phase button
+        Button addPhaseBtn = new Button("Add Phase");
+        addPhaseBtn.getStyleClass().add("primary");
+        addPhaseBtn.setOnAction(e -> addPhase(store, appState));
+
+        HBox phasesHeader = new HBox(10, phasesTitle, new Region(), addPhaseBtn);
+        HBox.setHgrow(phasesHeader.getChildren().get(1), Priority.ALWAYS);
+
+        VBox phasesCard = new VBox(10, phasesHeader, phaseTable);
         phasesCard.getStyleClass().add("card");
 
         // ---------- Milestones ----------
@@ -145,8 +192,8 @@ public class ProjectOverviewPage extends VBox {
         milestoneCard.getStyleClass().add("card");
 
         HBox bottom = new HBox(14, phasesCard, milestoneCard);
-        HBox.setHgrow(phasesCard, javafx.scene.layout.Priority.ALWAYS);
-        HBox.setHgrow(milestoneCard, javafx.scene.layout.Priority.ALWAYS);
+        HBox.setHgrow(phasesCard, Priority.ALWAYS);
+        HBox.setHgrow(milestoneCard, Priority.ALWAYS);
 
         getChildren().addAll(topCard, bottom);
 
@@ -154,11 +201,41 @@ public class ProjectOverviewPage extends VBox {
         appState.selectedProjectProperty().addListener((obs, o, n) -> refresh(n));
     }
 
+    private void addPhase(InMemoryStore store, AppState appState) {
+        Project p = appState.getSelectedProject();
+        if (p == null) return;
+
+        TextInputDialog d = new TextInputDialog();
+        d.setTitle("Add Phase");
+        d.setHeaderText("Add Phase");
+        d.setContentText("Phase name:");
+
+        d.showAndWait().ifPresent(raw -> {
+            String n = raw == null ? "" : raw.trim();
+            if (n.isBlank()) return;
+
+            Phase ph = createPhase(n);
+            if (ph == null) return;
+
+            store.addPhase(p, ph); // ✅ autosave/logging via store
+            phaseTable.getSelectionModel().select(ph);
+        });
+    }
+
+    private Phase createPhase(String name) {
+        try {
+            // Your Phase requires 1 argument (String)
+            return new Phase(name);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     private void refresh(Project p) {
-        // Unbind old project listeners
         if (boundProject != null) {
             boundProject.getTasks().removeListener((ListChangeListener) tasksListener);
             boundProject.getMilestones().removeListener((ListChangeListener) milestonesListener);
+            boundProject.getPhases().removeListener((ListChangeListener) phasesListener);
         }
         boundProject = p;
 
@@ -171,9 +248,9 @@ public class ProjectOverviewPage extends VBox {
             return;
         }
 
-        // Bind listeners for live updates
         p.getTasks().addListener((ListChangeListener) tasksListener);
         p.getMilestones().addListener((ListChangeListener) milestonesListener);
+        p.getPhases().addListener((ListChangeListener) phasesListener);
 
         sub.setText(safe(p.getName()) + "  •  " + safe(p.getStartDate()) + " → " + safe(p.getEndDate()));
 

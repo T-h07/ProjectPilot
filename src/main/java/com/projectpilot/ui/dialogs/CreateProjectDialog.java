@@ -1,63 +1,129 @@
 package com.projectpilot.ui.dialogs;
 
+import com.projectpilot.model.Phase;
+import com.projectpilot.model.PhaseTemplate;
 import com.projectpilot.model.Project;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
-import javafx.scene.Node;
 
+import java.lang.reflect.Method;
 import java.time.LocalDate;
 
-public class CreateProjectDialog extends Dialog<Project> {
+public final class CreateProjectDialog extends Dialog<Project> {
 
     public CreateProjectDialog() {
-        setTitle("New Project");
-        setHeaderText("Create a new project");
+        setTitle("Create Project");
+        setHeaderText("Enter project details");
 
         ButtonType createBtn = new ButtonType("Create", ButtonBar.ButtonData.OK_DONE);
         getDialogPane().getButtonTypes().addAll(createBtn, ButtonType.CANCEL);
 
-        TextField name = new TextField();
-        name.setPromptText("Project name");
+        TextField nameField = new TextField();
+        nameField.setPromptText("Project name");
 
-        TextArea desc = new TextArea();
-        desc.setPromptText("Description (optional)");
-        desc.setPrefRowCount(3);
+        TextArea descArea = new TextArea();
+        descArea.setPromptText("Short description (what is this project?)");
+        descArea.setPrefRowCount(3);
+        descArea.setWrapText(true);
 
-        DatePicker start = new DatePicker(LocalDate.now());
-        DatePicker end = new DatePicker(LocalDate.now().plusWeeks(4));
+        DatePicker startPicker = new DatePicker(LocalDate.now());
+        DatePicker endPicker = new DatePicker(LocalDate.now().plusWeeks(4));
+
+        ComboBox<PhaseTemplate> templateBox = new ComboBox<>();
+        templateBox.getItems().addAll(PhaseTemplate.values());
+        templateBox.setValue(PhaseTemplate.SOFTWARE);
+
+        TextArea stakeholdersArea = new TextArea();
+        stakeholdersArea.setPromptText("""
+Stakeholders (freeform for now)
+Example:
+- Sponsor: John Doe (john@company.com)
+- Client: ACME Corp
+- Reviewer: Prof. X
+""");
+        stakeholdersArea.setPrefRowCount(4);
+        stakeholdersArea.setWrapText(true);
 
         GridPane grid = new GridPane();
-        grid.setHgap(10);
+        grid.setHgap(12);
         grid.setVgap(10);
-        grid.setPadding(new Insets(12));
+        grid.setPadding(new Insets(14));
 
-        grid.add(new Label("Name"), 0, 0);
-        grid.add(name, 1, 0);
+        int r = 0;
+        grid.add(new Label("Name"), 0, r);
+        grid.add(nameField, 1, r++);
 
-        grid.add(new Label("Description"), 0, 1);
-        grid.add(desc, 1, 1);
+        grid.add(new Label("Description"), 0, r);
+        grid.add(descArea, 1, r++);
 
-        grid.add(new Label("Start"), 0, 2);
-        grid.add(start, 1, 2);
+        grid.add(new Label("Start date"), 0, r);
+        grid.add(startPicker, 1, r++);
 
-        grid.add(new Label("End"), 0, 3);
-        grid.add(end, 1, 3);
+        grid.add(new Label("End date"), 0, r);
+        grid.add(endPicker, 1, r++);
+
+        grid.add(new Label("Phase template"), 0, r);
+        grid.add(templateBox, 1, r++);
+
+        grid.add(new Label("Stakeholders"), 0, r);
+        grid.add(stakeholdersArea, 1, r++);
 
         getDialogPane().setContent(grid);
 
-        Node ok = getDialogPane().lookupButton(createBtn);
-        ok.setDisable(true);
+        // basic validation: require name
+        var okNode = getDialogPane().lookupButton(createBtn);
+        okNode.disableProperty().bind(nameField.textProperty().isEmpty());
 
-        name.textProperty().addListener((obs, o, n) -> ok.setDisable(n == null || n.trim().isEmpty()));
+        setResultConverter(btn -> {
+            if (btn != createBtn) return null;
 
-        setResultConverter(bt -> {
-            if (bt != createBtn) return null;
-            Project p = new Project(name.getText().trim());
-            p.setDescription(desc.getText() == null ? "" : desc.getText().trim());
-            p.setStartDate(start.getValue());
-            p.setEndDate(end.getValue());
+            Project p = new Project(nameField.getText().trim());
+            p.setDescription(descArea.getText() == null ? "" : descArea.getText().trim());
+            p.setStartDate(startPicker.getValue());
+            p.setEndDate(endPicker.getValue());
+            p.setStakeholders(stakeholdersArea.getText() == null ? "" : stakeholdersArea.getText().trim());
+
+            PhaseTemplate tpl = templateBox.getValue() == null ? PhaseTemplate.EMPTY : templateBox.getValue();
+            p.setPhaseTemplate(tpl.name());
+
+            // ✅ Populate phases immediately (this fixes your empty phase list problem)
+            p.getPhases().clear();
+            for (String phName : tpl.phases()) {
+                Phase ph = createPhase(phName);
+                if (ph != null) p.getPhases().add(ph);
+            }
+
             return p;
         });
+    }
+
+    /**
+     * Create Phase in a way that works with your model:
+     * - try new Phase(String)
+     * - else new Phase() + nameProperty().set(...)
+     */
+    private static Phase createPhase(String name) {
+        if (name == null) name = "";
+        try {
+            return Phase.class.getConstructor(String.class).newInstance(name);
+        } catch (Exception ignored) {}
+
+        try {
+            Phase ph = Phase.class.getConstructor().newInstance();
+            trySetNameProperty(ph, name);
+            return ph;
+        } catch (Exception ignored) {}
+
+        return null;
+    }
+
+    private static void trySetNameProperty(Object obj, String name) {
+        try {
+            Method m = obj.getClass().getMethod("nameProperty");
+            Object prop = m.invoke(obj);
+            Method set = prop.getClass().getMethod("set", String.class);
+            set.invoke(prop, name);
+        } catch (Exception ignored) {}
     }
 }

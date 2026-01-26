@@ -13,6 +13,8 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import com.projectpilot.ui.dialogs.CreateProjectDialog;
+
 
 import java.time.format.DateTimeFormatter;
 
@@ -199,17 +201,11 @@ public class ProjectsPage extends BorderPane {
     }
 
     private void createProject() {
-        TextInputDialog d = new TextInputDialog();
-        d.setTitle("New Project");
-        d.setHeaderText("Create a project");
-        d.setContentText("Project name:");
+        com.projectpilot.ui.dialogs.CreateProjectDialog d =
+                new com.projectpilot.ui.dialogs.CreateProjectDialog();
 
-        d.showAndWait().ifPresent(name -> {
-            String n = name.trim();
-            if (n.isBlank()) return;
-
-            Project p = new Project(n);
-            // ensure active
+        d.showAndWait().ifPresent(p -> {
+            // ensure ACTIVE (dialog already sets template + phases + details)
             p.setStatus(Project.ProjectStatus.ACTIVE);
 
             store.createProject(p);
@@ -219,6 +215,7 @@ public class ProjectsPage extends BorderPane {
             projectsList.getSelectionModel().select(p);
         });
     }
+
 
     private void markSelectedDone() {
         Project p = projectsList.getSelectionModel().getSelectedItem();

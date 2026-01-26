@@ -10,6 +10,10 @@ import com.projectpilot.model.enums.Priority;
 import com.projectpilot.model.enums.TaskStatus;
 import com.projectpilot.ui.components.ProjectPicker;
 import com.projectpilot.ui.dialogs.CreateTaskDialog;
+import javafx.collections.FXCollections;
+import javafx.collections.ListChangeListener;
+import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -18,7 +22,15 @@ import javafx.scene.layout.Region;
 public class TasksPage extends VBox {
 
     private final Label header = new Label("Tasks");
+
+    // Backing list we control
+    private final ObservableList<Task> taskSource = FXCollections.observableArrayList();
+    private final FilteredList<Task> filteredTasks = new FilteredList<>(taskSource, t -> true);
+
     private final ListView<Task> tasksList = new ListView<>();
+
+    private final TextField searchField = new TextField();      // NEW
+    private final CheckBox showDone = new CheckBox("Show Done"); // label needs to be white
 
     private Task bound;
 
@@ -28,9 +40,22 @@ public class TasksPage extends VBox {
     private final ComboBox<Priority> priorityBox = new ComboBox<>();
     private final DatePicker duePicker = new DatePicker();
 
-    // NEW: Phase + Assignee on existing tasks
     private final ComboBox<Phase> phaseBox = new ComboBox<>();
     private final ComboBox<Member> assigneeBox = new ComboBox<>();
+
+    private Project boundProject;
+
+    private final ListChangeListener<Task> projectTasksListener = c -> {
+        if (boundProject == null) return;
+
+        while (c.next()) {
+            if (c.wasAdded()) {
+                for (Task t : c.getAddedSubList()) attachStatusListener(t);
+            }
+        }
+
+        rebuildTaskSource(boundProject);
+    };
 
     public TasksPage(InMemoryStore store, AppState appState) {
         setPadding(new Insets(16));
@@ -41,8 +66,19 @@ public class TasksPage extends VBox {
         ProjectPicker taskProjectPicker = new ProjectPicker(store, appState);
         taskProjectPicker.setPrefWidth(320);
 
+        // NEW: Search box in the empty toolbar area
+        searchField.setPromptText("Search tasks...");
+        searchField.getStyleClass().add("pp-input");
+        searchField.setPrefWidth(320);
+        searchField.textProperty().addListener((obs, ov, nv) -> applyFilter());
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
+
+        showDone.setSelected(false); // default OFF
+        // Make the label white (no CSS dependency)
+        showDone.setStyle("-fx-text-fill: white;");
+        showDone.selectedProperty().addListener((obs, ov, nv) -> applyFilter());
 
         Button newTask = new Button("New Task");
         newTask.getStyleClass().add("primary");
@@ -62,13 +98,24 @@ public class TasksPage extends VBox {
             CreateTaskDialog d = new CreateTaskDialog(p);
             d.showAndWait().ifPresent(t -> {
                 store.addTask(p, t);
+                attachStatusListener(t);
+                applyFilter();
                 tasksList.getSelectionModel().select(t);
             });
         });
 
-        HBox toolbar = new HBox(10, new Label("Project:"), taskProjectPicker, spacer, newTask);
+        HBox toolbar = new HBox(
+                10,
+                new Label("Project:"),
+                taskProjectPicker,
+                searchField,      // NEW in the marked area
+                spacer,
+                showDone,
+                newTask
+        );
 
         tasksList.setPrefWidth(420);
+        tasksList.setItems(filteredTasks);
         tasksList.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> bindTask(newV));
 
         statusBox.getItems().setAll(TaskStatus.values());
@@ -77,7 +124,6 @@ public class TasksPage extends VBox {
         descField.setPrefRowCount(6);
         descField.getStyleClass().add("pp-textarea");
 
-        // Nice display for Phase/Assignee dropdowns
         phaseBox.setPromptText("No phase");
         phaseBox.setCellFactory(cb -> new ListCell<>() {
             @Override protected void updateItem(Phase item, boolean empty) {
@@ -124,7 +170,6 @@ public class TasksPage extends VBox {
         form.add(new Label("Priority"), 0, r);
         form.add(priorityBox, 1, r++);
 
-        // NEW rows
         form.add(new Label("Phase"), 0, r);
         form.add(phaseBox, 1, r++);
 
@@ -158,9 +203,14 @@ public class TasksPage extends VBox {
     }
 
     private void refresh(Project p) {
+        if (boundProject != null) {
+            try { boundProject.getTasks().removeListener(projectTasksListener); } catch (Exception ignored) {}
+        }
+        boundProject = p;
+
         if (p == null) {
             header.setText("Tasks (no project selected)");
-            tasksList.setItems(null);
+            taskSource.clear();
 
             phaseBox.getItems().clear();
             assigneeBox.getItems().clear();
@@ -170,14 +220,68 @@ public class TasksPage extends VBox {
         }
 
         header.setText("Tasks — " + p.getName());
-        tasksList.setItems(p.getTasks());
 
-        // Keep dropdown lists in sync with the chosen project
         phaseBox.getItems().setAll(p.getPhases());
         assigneeBox.getItems().setAll(p.getMembers());
 
-        if (!p.getTasks().isEmpty()) tasksList.getSelectionModel().select(0);
+        rebuildTaskSource(p);
+        p.getTasks().addListener(projectTasksListener);
+
+        if (!filteredTasks.isEmpty()) tasksList.getSelectionModel().select(0);
         else bindTask(null);
+    }
+
+    private void rebuildTaskSource(Project p) {
+        Task currentlySelected = tasksList.getSelectionModel().getSelectedItem();
+
+        taskSource.setAll(p.getTasks());
+        for (Task t : p.getTasks()) attachStatusListener(t);
+
+        applyFilter();
+
+        if (currentlySelected != null && !filteredTasks.contains(currentlySelected)) {
+            tasksList.getSelectionModel().clearSelection();
+            bindTask(null);
+        } else if (tasksList.getSelectionModel().getSelectedItem() == null && !filteredTasks.isEmpty()) {
+            tasksList.getSelectionModel().select(0);
+        }
+    }
+
+    private void applyFilter() {
+        boolean includeDone = showDone.isSelected();
+        String q = searchField.getText();
+        String query = (q == null) ? "" : q.trim().toLowerCase();
+
+        filteredTasks.setPredicate(t -> {
+            if (t == null) return false;
+
+            // Hide DONE unless toggled on
+            if (!includeDone && t.getStatus() == TaskStatus.DONE) return false;
+
+            // Search filter (title + description)
+            if (query.isEmpty()) return true;
+
+            String title = (t.getTitle() == null) ? "" : t.getTitle().toLowerCase();
+            String desc = (t.getDescription() == null) ? "" : t.getDescription().toLowerCase();
+
+            return title.contains(query) || desc.contains(query);
+        });
+    }
+
+    private void attachStatusListener(Task t) {
+        try {
+            t.statusProperty().addListener((obs, ov, nv) -> {
+                applyFilter();
+
+                if (!showDone.isSelected() && nv == TaskStatus.DONE) {
+                    Task selected = tasksList.getSelectionModel().getSelectedItem();
+                    if (selected == t) {
+                        tasksList.getSelectionModel().clearSelection();
+                        bindTask(null);
+                    }
+                }
+            });
+        } catch (Exception ignored) {}
     }
 
     private void bindTask(Task t) {
@@ -188,7 +292,6 @@ public class TasksPage extends VBox {
             priorityBox.valueProperty().unbindBidirectional(bound.priorityProperty());
             duePicker.valueProperty().unbindBidirectional(bound.dueDateProperty());
 
-            // NEW unbinds
             try { phaseBox.valueProperty().unbindBidirectional(bound.phaseProperty()); } catch (Exception ignored) {}
             try { assigneeBox.valueProperty().unbindBidirectional(bound.assigneeProperty()); } catch (Exception ignored) {}
         }
@@ -223,11 +326,9 @@ public class TasksPage extends VBox {
         priorityBox.valueProperty().bindBidirectional(t.priorityProperty());
         duePicker.valueProperty().bindBidirectional(t.dueDateProperty());
 
-        // NEW binds (only if your Task model exposes these properties)
         try { phaseBox.valueProperty().bindBidirectional(t.phaseProperty()); } catch (Exception ignored) {}
         try { assigneeBox.valueProperty().bindBidirectional(t.assigneeProperty()); } catch (Exception ignored) {}
 
-        // Ensure UI matches current values
         statusBox.setValue(t.getStatus());
         priorityBox.setValue(t.getPriority());
         duePicker.setValue(t.getDueDate());

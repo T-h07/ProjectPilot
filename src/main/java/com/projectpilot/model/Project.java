@@ -19,9 +19,14 @@ public class Project {
     private final ObjectProperty<LocalDate> endDate = new SimpleObjectProperty<>(LocalDate.now().plusWeeks(4));
     private final ObjectProperty<ProjectHealth> health = new SimpleObjectProperty<>(ProjectHealth.ON_TRACK);
 
-    // ✅ NEW: status + completed date (for History)
     private final ObjectProperty<ProjectStatus> status = new SimpleObjectProperty<>(ProjectStatus.ACTIVE);
     private final ObjectProperty<LocalDate> completedDate = new SimpleObjectProperty<>(null);
+
+    // ✅ NEW: stakeholder notes (freeform text for now)
+    private final StringProperty stakeholders = new SimpleStringProperty("");
+
+    // ✅ NEW: store which template was used (string is safest for persistence)
+    private final StringProperty phaseTemplate = new SimpleStringProperty("EMPTY");
 
     private final ObservableList<Phase> phases = FXCollections.observableArrayList();
     private final ObservableList<Task> tasks = FXCollections.observableArrayList();
@@ -52,7 +57,6 @@ public class Project {
     public ProjectHealth getHealth() { return health.get(); }
     public void setHealth(ProjectHealth v) { health.set(v); }
 
-    // ✅ NEW
     public ObjectProperty<ProjectStatus> statusProperty() { return status; }
     public ProjectStatus getStatus() { return status.get(); }
     public void setStatus(ProjectStatus v) { status.set(v); }
@@ -60,6 +64,16 @@ public class Project {
     public ObjectProperty<LocalDate> completedDateProperty() { return completedDate; }
     public LocalDate getCompletedDate() { return completedDate.get(); }
     public void setCompletedDate(LocalDate v) { completedDate.set(v); }
+
+    // ✅ NEW
+    public StringProperty stakeholdersProperty() { return stakeholders; }
+    public String getStakeholders() { return stakeholders.get(); }
+    public void setStakeholders(String v) { stakeholders.set(v); }
+
+    // ✅ NEW
+    public StringProperty phaseTemplateProperty() { return phaseTemplate; }
+    public String getPhaseTemplate() { return phaseTemplate.get(); }
+    public void setPhaseTemplate(String v) { phaseTemplate.set(v); }
 
     public ObservableList<Phase> getPhases() { return phases; }
     public ObservableList<Task> getTasks() { return tasks; }
