@@ -4,8 +4,8 @@ import com.projectpilot.core.AppState;
 import com.projectpilot.core.PageId;
 import com.projectpilot.core.Router;
 import com.projectpilot.data.InMemoryStore;
-import com.projectpilot.data.PersistenceService;
-import com.projectpilot.data.SampleData;
+import com.projectpilot.data.db.DbManager;
+import com.projectpilot.data.db.DbStore;
 import com.projectpilot.ui.MainLayout;
 import com.projectpilot.ui.pages.*;
 import javafx.application.Application;
@@ -19,17 +19,14 @@ public class Main extends Application {
 
     @Override
     public void start(Stage stage) {
-        store = new InMemoryStore();
-
-        // ✅ Load saved data if present; otherwise seed once and save
-        PersistenceService.loadOrSeed(store, () -> SampleData.seed(store));
+        // ✅ SQLite-backed store (loads from DB on startup)
+        store = new DbStore(DbManager.defaultManager());
 
         Font.loadFont(getClass().getResourceAsStream("/fonts/Inter-Regular.ttf"), 12);
         Font.loadFont(getClass().getResourceAsStream("/fonts/Inter-SemiBold.ttf"), 12);
 
         AppState appState = new AppState();
 
-        // Pick selected project from active projects if available; else from history (optional)
         if (!store.getProjects().isEmpty()) {
             appState.setSelectedProject(store.getProjects().get(0));
         } else if (!store.getHistoryProjects().isEmpty()) {
@@ -49,23 +46,28 @@ public class Main extends Application {
         MainLayout root = new MainLayout(router, store, appState);
         root.getStyleClass().add("pp-root");
 
-
         Scene scene = new Scene(root, 1200, 800);
         scene.getStylesheets().add(getClass().getResource("/css/app.css").toExternalForm());
 
         stage.setTitle("ProjectPilot");
         stage.setScene(scene);
 
-        // ✅ Save on window close
-        stage.setOnCloseRequest(e -> PersistenceService.safeSave(store));
+        // ✅ Ensure DB writer thread stops (and last queued writes finish)
+        stage.setOnCloseRequest(e -> shutdownDbStore());
 
         stage.show();
     }
 
     @Override
     public void stop() {
-        // ✅ Final save (covers normal shutdown)
-        PersistenceService.safeSave(store);
+        // Covers normal shutdown paths too
+        shutdownDbStore();
+    }
+
+    private void shutdownDbStore() {
+        if (store instanceof DbStore ds) {
+            ds.shutdown();
+        }
     }
 
     public static void main(String[] args) {
