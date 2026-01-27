@@ -9,6 +9,8 @@ import com.projectpilot.model.enums.TaskStatus;
 import com.projectpilot.service.ProgressService;
 import com.projectpilot.ui.dialogs.AddMilestoneDialog;
 import javafx.beans.binding.Bindings;
+import javafx.beans.property.StringProperty;
+import javafx.beans.value.ObservableValue;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -20,18 +22,32 @@ import java.time.format.DateTimeFormatter;
 
 public class ProjectOverviewPage extends VBox {
 
+    private final InMemoryStore store;
+    private final AppState appState;
+
     private final ProgressService progressService = new ProgressService();
 
     private final Label header = new Label("Project Overview");
     private final Label sub = new Label("");
+
+    // Info titles
+    private final Label descTitle = new Label("Description");
+    private final Label stakeholderTitle = new Label("Stakeholders");
+
+    // Read-only labels (view mode)
+    private final Label descText = new Label("-");
+    private final Label stakeholderText = new Label("-");
+
+    // Editable fields (edit mode)
+    private final TextArea descArea = new TextArea();
+    private final TextArea stakeholderArea = new TextArea();
+
+    private final Button editSaveBtn = new Button("Edit");
+    private final Button cancelBtn = new Button("Cancel");
+    private boolean editing = false;
+
     private final Label progress = new Label("-");
     private final Label counts = new Label("-");
-
-    // NEW: project info
-    private final Label descTitle = new Label("Description");
-    private final Label descLabel = new Label("-");
-    private final Label stakeholderTitle = new Label("Stakeholder");
-    private final Label stakeholderLabel = new Label("-");
 
     private final TableView<Phase> phaseTable = new TableView<>();
     private final ListView<Milestone> milestoneList = new ListView<>();
@@ -44,35 +60,100 @@ public class ProjectOverviewPage extends VBox {
     };
 
     private final ListChangeListener<?> milestonesListener = c -> milestoneList.refresh();
-
-    // ✅ react to phases changing (so table updates after add/remove)
     private final ListChangeListener<?> phasesListener = c -> phaseTable.refresh();
 
     public ProjectOverviewPage(InMemoryStore store, AppState appState) {
+        this.store = store;
+        this.appState = appState;
+
         setPadding(new Insets(16));
         setSpacing(14);
 
         header.getStyleClass().add("page-title");
         sub.getStyleClass().add("muted");
 
+        descTitle.getStyleClass().add("section-title");
+        stakeholderTitle.getStyleClass().add("section-title");
+
+        // Wrap and allow full width
+        descText.setWrapText(true);
+        stakeholderText.setWrapText(true);
+        descText.setMaxWidth(Double.MAX_VALUE);
+        stakeholderText.setMaxWidth(Double.MAX_VALUE);
+
+        // TextAreas setup
+        descArea.setWrapText(true);
+        stakeholderArea.setWrapText(true);
+        descArea.setPrefRowCount(4);
+        stakeholderArea.setPrefRowCount(4);
+        descArea.getStyleClass().add("pp-textarea");
+        stakeholderArea.getStyleClass().add("pp-textarea");
+
+        // start hidden (only in edit mode)
+        setNodeVisible(descArea, false);
+        setNodeVisible(stakeholderArea, false);
+
+        // Edit/Save + Cancel controls
+        editSaveBtn.getStyleClass().add("primary");
+        cancelBtn.setFocusTraversable(false);
+        setNodeVisible(cancelBtn, false);
+
+        editSaveBtn.setOnAction(e -> {
+            Project p = appState.getSelectedProject();
+            if (p == null) return;
+
+            if (!editing) {
+                // enter edit mode
+                setEditing(true);
+                // preload fields from current project values
+                descArea.setText(safeText(readDescription(p)));
+                stakeholderArea.setText(safeText(readStakeholders(p)));
+            } else {
+                // save
+                String newDesc = normalizeNullable(descArea.getText());
+                String newStake = normalizeNullable(stakeholderArea.getText());
+
+                writeDescription(p, newDesc);
+                writeStakeholders(p, newStake);
+
+                // exit edit mode and refresh displayed values
+                setEditing(false);
+                updateProjectInfo(p);
+            }
+        });
+
+        cancelBtn.setOnAction(e -> {
+            Project p = appState.getSelectedProject();
+            setEditing(false);
+            if (p != null) updateProjectInfo(p);
+        });
+
+        Region headerSpacer = new Region();
+        HBox.setHgrow(headerSpacer, Priority.ALWAYS);
+
+        HBox headerRow = new HBox(10, headerSpacer, editSaveBtn, cancelBtn);
+        headerRow.setAlignment(Pos.CENTER_RIGHT);
+
+        // Put title on left, buttons on right
+        HBox topLine = new HBox(10, header, new Region(), editSaveBtn, cancelBtn);
+        HBox.setHgrow(topLine.getChildren().get(1), Priority.ALWAYS);
+        topLine.setAlignment(Pos.CENTER_LEFT);
+
         progress.setStyle("-fx-font-size: 22px; -fx-font-weight: 800;");
         counts.getStyleClass().add("muted");
 
-        // NEW: info styling
-        descTitle.getStyleClass().add("muted");
-        descTitle.setStyle("-fx-font-weight: 800;");
-        descLabel.getStyleClass().add("muted");
-        descLabel.setWrapText(true);
+        // Info layout (description + stakeholders)
+        VBox infoBox = new VBox(8,
+                descTitle,
+                descText,
+                descArea,
+                stakeholderTitle,
+                stakeholderText,
+                stakeholderArea
+        );
+        infoBox.setFillWidth(true);
 
-        stakeholderTitle.getStyleClass().add("muted");
-        stakeholderTitle.setStyle("-fx-font-weight: 800;");
-        stakeholderLabel.getStyleClass().add("muted");
-        stakeholderLabel.setWrapText(true);
-
-        VBox infoBox = new VBox(6, descTitle, descLabel, stakeholderTitle, stakeholderLabel);
-        infoBox.setPadding(new Insets(6, 0, 2, 0));
-
-        VBox topCard = new VBox(8, header, sub, infoBox, progress, counts);
+        VBox topCard = new VBox(10, topLine, sub, infoBox, progress, counts);
         topCard.getStyleClass().add("card");
 
         // ---------- Phase table ----------
@@ -105,7 +186,6 @@ public class ProjectOverviewPage extends VBox {
                 })
         );
 
-        // ✅ Actions column (delete phase)
         TableColumn<Phase, Void> phaseActions = new TableColumn<>("");
         phaseActions.setPrefWidth(120);
         phaseActions.setSortable(false);
@@ -115,7 +195,6 @@ public class ProjectOverviewPage extends VBox {
             private final Button deleteBtn = new Button("Delete");
 
             {
-                // ✅ readable + clean on dark theme (requires CSS you added)
                 deleteBtn.getStyleClass().addAll("sm", "danger-outline");
                 deleteBtn.setFocusTraversable(false);
 
@@ -140,7 +219,6 @@ public class ProjectOverviewPage extends VBox {
                     }
 
                     p.getPhases().remove(ph);
-                    // If you want autosave for this too, add a store.removePhase(...) later.
                 });
 
                 setAlignment(Pos.CENTER_RIGHT);
@@ -166,7 +244,6 @@ public class ProjectOverviewPage extends VBox {
         Label phasesTitle = new Label("Phases");
         phasesTitle.getStyleClass().add("section-title");
 
-        // ✅ Add Phase button
         Button addPhaseBtn = new Button("Add Phase");
         addPhaseBtn.getStyleClass().add("primary");
         addPhaseBtn.setOnAction(e -> addPhase(store, appState));
@@ -240,6 +317,39 @@ public class ProjectOverviewPage extends VBox {
         appState.selectedProjectProperty().addListener((obs, o, n) -> refresh(n));
     }
 
+    private void setEditing(boolean value) {
+        editing = value;
+
+        if (value) {
+            editSaveBtn.setText("Save");
+            setNodeVisible(cancelBtn, true);
+
+            setNodeVisible(descText, false);
+            setNodeVisible(stakeholderText, false);
+
+            setNodeVisible(descArea, true);
+            setNodeVisible(stakeholderArea, true);
+        } else {
+            editSaveBtn.setText("Edit");
+            setNodeVisible(cancelBtn, false);
+
+            setNodeVisible(descArea, false);
+            setNodeVisible(stakeholderArea, false);
+
+            setNodeVisible(descText, true);
+            setNodeVisible(stakeholderText, true);
+        }
+    }
+
+    private void setNodeVisible(Region node, boolean visible) {
+        node.setVisible(visible);
+        node.setManaged(visible);
+    }
+    private void setNodeVisible(Control node, boolean visible) {
+        node.setVisible(visible);
+        node.setManaged(visible);
+    }
+
     private void addPhase(InMemoryStore store, AppState appState) {
         Project p = appState.getSelectedProject();
         if (p == null) return;
@@ -256,7 +366,7 @@ public class ProjectOverviewPage extends VBox {
             Phase ph = createPhase(n);
             if (ph == null) return;
 
-            store.addPhase(p, ph); // ✅ autosave/logging via store
+            store.addPhase(p, ph);
             phaseTable.getSelectionModel().select(ph);
         });
     }
@@ -277,10 +387,13 @@ public class ProjectOverviewPage extends VBox {
         }
         boundProject = p;
 
+        // switching projects should never keep edit mode open
+        setEditing(false);
+
         if (p == null) {
             sub.setText("No project selected");
-            descLabel.setText("-");
-            stakeholderLabel.setText("-");
+            descText.setText("-");
+            stakeholderText.setText("-");
             progress.setText("-");
             counts.setText("-");
             phaseTable.setItems(null);
@@ -294,29 +407,8 @@ public class ProjectOverviewPage extends VBox {
 
         sub.setText(safe(p.getName()) + "  •  " + safe(p.getStartDate()) + " → " + safe(p.getEndDate()));
 
-        // ---------- NEW: Description + Stakeholder ----------
-        String desc = readString(p, "getDescription", "getProjectDescription", "getDetails");
-        descLabel.setText(desc.isBlank() ? "-" : desc);
+        updateProjectInfo(p);
 
-        // Prefer a prebuilt stakeholder string if your model has it
-        String stakeholderInfo = readString(p, "getStakeholderInfo", "getStakeholderData", "getStakeholder");
-        if (stakeholderInfo.isBlank()) {
-            String shName = readString(p, "getStakeholderName", "getClientName", "getOwnerName");
-            String shRole = readString(p, "getStakeholderRole", "getClientRole", "getOwnerRole");
-            String shEmail = readString(p, "getStakeholderEmail", "getClientEmail", "getOwnerEmail");
-
-            String built = (shName.isBlank() && shRole.isBlank() && shEmail.isBlank())
-                    ? ""
-                    : shName
-                    + (shRole.isBlank() ? "" : " • " + shRole)
-                    + (shEmail.isBlank() ? "" : " • " + shEmail);
-
-            stakeholderLabel.setText(built.isBlank() ? "-" : built);
-        } else {
-            stakeholderLabel.setText(stakeholderInfo);
-        }
-
-        // ---------- Progress ----------
         int pct = progressService.projectProgressPercent(p);
         progress.setText("Progress: " + pct + "%");
 
@@ -332,6 +424,96 @@ public class ProjectOverviewPage extends VBox {
 
         phaseTable.refresh();
         milestoneList.refresh();
+    }
+
+    private void updateProjectInfo(Project p) {
+        descText.setText(safeText(readDescription(p)));
+        stakeholderText.setText(safeText(readStakeholders(p)));
+    }
+
+    // ---------------------------
+    // Read helpers (reflection)
+    // ---------------------------
+
+    private String readDescription(Project p) {
+        return readProjectString(p,
+                "getDescription",
+                "descriptionProperty"
+        );
+    }
+
+    private String readStakeholders(Project p) {
+        return readProjectString(p,
+                "getStakeholders",
+                "getStakeholder",
+                "getStakeholderData",
+                "stakeholdersProperty",
+                "stakeholderProperty",
+                "stakeholderDataProperty"
+        );
+    }
+
+    private String readProjectString(Project p, String... methodNames) {
+        for (String name : methodNames) {
+            try {
+                Method m = p.getClass().getMethod(name);
+                Object v = m.invoke(p);
+                if (v == null) continue;
+
+                if (v instanceof ObservableValue<?> ov) {
+                    Object vv = ov.getValue();
+                    if (vv != null) return vv.toString();
+                    continue;
+                }
+
+                return v.toString();
+            } catch (Exception ignored) { }
+        }
+        return null;
+    }
+
+    // ---------------------------
+    // Write helpers (reflection)
+    // ---------------------------
+
+    private void writeDescription(Project p, String value) {
+        writeProjectString(p, value,
+                "setDescription",
+                "descriptionProperty"
+        );
+    }
+
+    private void writeStakeholders(Project p, String value) {
+        writeProjectString(p, value,
+                "setStakeholders",
+                "setStakeholder",
+                "setStakeholderData",
+                "stakeholdersProperty",
+                "stakeholderProperty",
+                "stakeholderDataProperty"
+        );
+    }
+
+    private boolean writeProjectString(Project p, String value, String... names) {
+        for (String name : names) {
+            // 1) Try setter: setX(String)
+            try {
+                Method setter = p.getClass().getMethod(name, String.class);
+                setter.invoke(p, value);
+                return true;
+            } catch (Exception ignored) { }
+
+            // 2) Try property: xProperty() returning StringProperty
+            try {
+                Method prop = p.getClass().getMethod(name);
+                Object v = prop.invoke(p);
+                if (v instanceof StringProperty sp) {
+                    sp.set(value);
+                    return true;
+                }
+            } catch (Exception ignored) { }
+        }
+        return false;
     }
 
     private int phaseProgressPercent(Project p, Phase phase) {
@@ -350,45 +532,18 @@ public class ProjectOverviewPage extends VBox {
         return (int) Math.round((total / tasks.size()) * 100.0);
     }
 
-    private String readString(Object target, String... methodNames) {
-        if (target == null) return "";
-        for (String m : methodNames) {
-            try {
-                Method method = target.getClass().getMethod(m);
-                Object val = method.invoke(target);
-                if (val == null) continue;
-
-                // Direct String
-                if (val instanceof String s) {
-                    String t = s.trim();
-                    if (!t.isBlank()) return t;
-                    continue;
-                }
-
-                // JavaFX Property (StringProperty, ObjectProperty<String>, etc.)
-                try {
-                    Method get = val.getClass().getMethod("get");
-                    Object inner = get.invoke(val);
-                    if (inner != null) {
-                        String t = inner.toString().trim();
-                        if (!t.isBlank()) return t;
-                    }
-                } catch (Exception ignored) {}
-
-                // Fallback
-                String t = val.toString().trim();
-                if (!t.isBlank()) return t;
-
-            } catch (Exception ignored) {}
-        }
-        return "";
-    }
-
     private String safe(Object o) {
         return (o == null) ? "-" : o.toString();
     }
 
-    private String safe(String s) {
-        return s == null ? "" : s;
+    private String safeText(String s) {
+        if (s == null) return "-";
+        String t = s.trim();
+        return t.isEmpty() ? "-" : t;
+    }
+
+    private String normalizeNullable(String s) {
+        if (s == null) return "";
+        return s.trim();
     }
 }
