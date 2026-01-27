@@ -7,6 +7,9 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
 
 public final class DbManager {
 
@@ -21,6 +24,32 @@ public final class DbManager {
         this.dbFile = dbFile.toAbsolutePath().normalize();
         this.jdbcUrl = toJdbcUrl(this.dbFile);
     }
+    public <T> T tx(Function<Connection, T> work) {
+        try (Connection conn = openConnection()) {
+            boolean prevAutoCommit = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+            try {
+                T out = work.apply(conn);
+                conn.commit();
+                return out;
+            } catch (RuntimeException ex) {
+                try { conn.rollback(); } catch (SQLException ignored) {}
+                throw ex;
+            } catch (Exception ex) {
+                try { conn.rollback(); } catch (SQLException ignored) {}
+                throw new DbException("DB transaction failed", ex);
+            } finally {
+                try { conn.setAutoCommit(prevAutoCommit); } catch (SQLException ignored) {}
+            }
+        } catch (SQLException e) {
+            throw new DbException("Failed to open DB connection for transaction", e);
+        }
+    }
+
+    public void tx(Consumer<Connection> work) {
+        tx(conn -> { work.accept(conn); return null; });
+    }
+
 
     public static DbManager defaultManager() {
         String override = System.getProperty(PROP_DB_PATH);
