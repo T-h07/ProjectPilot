@@ -20,6 +20,7 @@ public class Phase {
     }
 
     public String getId() { return id; }
+
     public StringProperty nameProperty() { return name; }
     public String getName() { return name.get(); }
     public void setName(String v) { name.set(v); }
