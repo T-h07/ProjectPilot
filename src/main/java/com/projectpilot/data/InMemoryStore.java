@@ -16,18 +16,20 @@ public class InMemoryStore {
     public ObservableList<Project> getHistoryProjects() { return historyProjects; }
     public ObservableList<ActivityItem> getActivity() { return activity; }
 
-    // Central place to persist after any change
-    private void autosave() {
-        PersistenceService.safeSave(this);
+    /**
+     * Hook for persistence. InMemoryStore does nothing.
+     * DbStore overrides store methods + attaches listeners to persist to SQLite.
+     */
+    protected void autosave() {
+        // no-op
     }
 
-    private void log(Project p, String msg) {
+    protected void log(Project p, String msg) {
         String pn = (p == null) ? "-" : safe(p.getName());
         activity.add(0, new ActivityItem(pn, msg)); // newest first
         if (activity.size() > 50) activity.remove(activity.size() - 1);
     }
 
-    // ✅ overload so SampleData can keep using createProject("name")
     public Project createProject(String name) {
         return createProject(new Project(name));
     }
@@ -45,7 +47,7 @@ public class InMemoryStore {
         if (project == null) return;
 
         projects.remove(project);
-        historyProjects.remove(project); // also remove if it exists in history
+        historyProjects.remove(project);
 
         log(project, "Project deleted");
         autosave();
@@ -88,7 +90,7 @@ public class InMemoryStore {
         if (project == null || phase == null) return phase;
 
         project.getPhases().add(phase);
-        log(project, "Phase added: " + safe(phase.toString()));
+        log(project, "Phase added: " + safe(phase.getName()));
         autosave();
         return phase;
     }
@@ -131,7 +133,7 @@ public class InMemoryStore {
         autosave();
     }
 
-    private String safe(String s) {
+    protected String safe(String s) {
         return s == null ? "" : s;
     }
 }
