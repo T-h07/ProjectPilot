@@ -6,13 +6,18 @@ import javafx.beans.property.*;
 import java.util.UUID;
 
 public class Member {
-    private final String id = UUID.randomUUID().toString();
+    private final String id;
     private final StringProperty name = new SimpleStringProperty();
     private final ObjectProperty<ProjectRole> role = new SimpleObjectProperty<>(ProjectRole.MEMBER);
 
     public Member(String name, ProjectRole role) {
+        this(UUID.randomUUID().toString(), name, role);
+    }
+
+    public Member(String id, String name, ProjectRole role) {
+        this.id = (id == null || id.isBlank()) ? UUID.randomUUID().toString() : id;
         this.name.set(name);
-        this.role.set(role);
+        this.role.set(role == null ? ProjectRole.MEMBER : role);
     }
 
     public String getId() { return id; }

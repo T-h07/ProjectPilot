@@ -6,11 +6,9 @@ import javafx.beans.property.*;
 
 import java.time.LocalDate;
 import java.util.UUID;
-import com.projectpilot.model.Phase;
-
 
 public class Task {
-    private final String id = UUID.randomUUID().toString();
+    private final String id;
 
     private final StringProperty title = new SimpleStringProperty();
     private final StringProperty description = new SimpleStringProperty("");
@@ -20,15 +18,20 @@ public class Task {
     private final ObjectProperty<Member> assignee = new SimpleObjectProperty<>();
     private final ObjectProperty<Phase> phase = new SimpleObjectProperty<>();
 
+    public Task(String title) {
+        this(UUID.randomUUID().toString(), title);
+    }
 
-    public Task(String title) { this.title.set(title); }
+    public Task(String id, String title) {
+        this.id = (id == null || id.isBlank()) ? UUID.randomUUID().toString() : id;
+        this.title.set(title);
+    }
 
     public String getId() { return id; }
 
     public ObjectProperty<Phase> phaseProperty() { return phase; }
     public Phase getPhase() { return phase.get(); }
     public void setPhase(Phase v) { phase.set(v); }
-
 
     public StringProperty titleProperty() { return title; }
     public String getTitle() { return title.get(); }

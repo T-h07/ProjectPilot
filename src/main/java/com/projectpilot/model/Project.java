@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 public class Project {
-    private final String id = UUID.randomUUID().toString();
+    private final String id;
 
     public enum ProjectStatus { ACTIVE, DONE }
 
@@ -22,10 +22,7 @@ public class Project {
     private final ObjectProperty<ProjectStatus> status = new SimpleObjectProperty<>(ProjectStatus.ACTIVE);
     private final ObjectProperty<LocalDate> completedDate = new SimpleObjectProperty<>(null);
 
-    // ✅ NEW: stakeholder notes (freeform text for now)
     private final StringProperty stakeholders = new SimpleStringProperty("");
-
-    // ✅ NEW: store which template was used (string is safest for persistence)
     private final StringProperty phaseTemplate = new SimpleStringProperty("EMPTY");
 
     private final ObservableList<Phase> phases = FXCollections.observableArrayList();
@@ -33,7 +30,14 @@ public class Project {
     private final ObservableList<Member> members = FXCollections.observableArrayList();
     private final ObservableList<Milestone> milestones = FXCollections.observableArrayList();
 
-    public Project(String name) { this.name.set(name); }
+    public Project(String name) {
+        this(UUID.randomUUID().toString(), name);
+    }
+
+    public Project(String id, String name) {
+        this.id = (id == null || id.isBlank()) ? UUID.randomUUID().toString() : id;
+        this.name.set(name);
+    }
 
     public String getId() { return id; }
 
@@ -65,12 +69,10 @@ public class Project {
     public LocalDate getCompletedDate() { return completedDate.get(); }
     public void setCompletedDate(LocalDate v) { completedDate.set(v); }
 
-    // ✅ NEW
     public StringProperty stakeholdersProperty() { return stakeholders; }
     public String getStakeholders() { return stakeholders.get(); }
     public void setStakeholders(String v) { stakeholders.set(v); }
 
-    // ✅ NEW
     public StringProperty phaseTemplateProperty() { return phaseTemplate; }
     public String getPhaseTemplate() { return phaseTemplate.get(); }
     public void setPhaseTemplate(String v) { phaseTemplate.set(v); }
