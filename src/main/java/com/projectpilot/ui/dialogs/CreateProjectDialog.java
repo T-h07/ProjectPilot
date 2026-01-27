@@ -9,10 +9,13 @@ import javafx.scene.layout.GridPane;
 
 import java.lang.reflect.Method;
 import java.time.LocalDate;
+import com.projectpilot.ui.dialogs.DialogTheme;
 
 public final class CreateProjectDialog extends Dialog<Project> {
 
     public CreateProjectDialog() {
+        DialogTheme.apply(this);
+
         setTitle("Create Project");
         setHeaderText("Enter project details");
 
@@ -25,7 +28,7 @@ public final class CreateProjectDialog extends Dialog<Project> {
         TextArea descArea = new TextArea();
         descArea.setPromptText("Short description (what is this project?)");
         descArea.setPrefRowCount(3);
-        descArea.setWrapText(true);
+        descArea.setWrapText(true); // ✅ word wrap
 
         DatePicker startPicker = new DatePicker(LocalDate.now());
         DatePicker endPicker = new DatePicker(LocalDate.now().plusWeeks(4));
@@ -43,7 +46,7 @@ Example:
 - Reviewer: Prof. X
 """);
         stakeholdersArea.setPrefRowCount(4);
-        stakeholdersArea.setWrapText(true);
+        stakeholdersArea.setWrapText(true); // ✅ word wrap
 
         GridPane grid = new GridPane();
         grid.setHgap(12);
@@ -87,7 +90,7 @@ Example:
             PhaseTemplate tpl = templateBox.getValue() == null ? PhaseTemplate.EMPTY : templateBox.getValue();
             p.setPhaseTemplate(tpl.name());
 
-            // ✅ Populate phases immediately (this fixes your empty phase list problem)
+            // ✅ Populate phases immediately
             p.getPhases().clear();
             for (String phName : tpl.phases()) {
                 Phase ph = createPhase(phName);
@@ -105,6 +108,7 @@ Example:
      */
     private static Phase createPhase(String name) {
         if (name == null) name = "";
+
         try {
             return Phase.class.getConstructor(String.class).newInstance(name);
         } catch (Exception ignored) {}

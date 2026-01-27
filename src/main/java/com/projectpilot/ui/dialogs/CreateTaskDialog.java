@@ -12,10 +12,13 @@ import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 
 import java.time.LocalDate;
+import com.projectpilot.ui.dialogs.DialogTheme;
 
 public class CreateTaskDialog extends Dialog<Task> {
 
     public CreateTaskDialog(Project project) {
+        DialogTheme.apply(this);
+
         setTitle("New Task");
         setHeaderText("Create a new task");
 
@@ -28,6 +31,9 @@ public class CreateTaskDialog extends Dialog<Task> {
         TextArea desc = new TextArea();
         desc.setPromptText("Description (optional)");
         desc.setPrefRowCount(3);
+
+        // ✅ WORD WRAP (fix horizontal overflow)
+        desc.setWrapText(true);
 
         ComboBox<TaskStatus> status = new ComboBox<>();
         status.getItems().addAll(TaskStatus.values());
