@@ -11,6 +11,8 @@ final class SchemaSql {
     static String v1() {
         return readResource("/db/schema_v1.sql");
     }
+    static String v2() { return readResource("/db/schema_v2.sql"); }
+
 
     private static String readResource(String path) {
         try (InputStream in = SchemaSql.class.getResourceAsStream(path)) {
