@@ -10,6 +10,8 @@ import com.projectpilot.model.enums.Priority;
 import com.projectpilot.model.enums.TaskStatus;
 import com.projectpilot.ui.components.ProjectPicker;
 import com.projectpilot.ui.dialogs.CreateTaskDialog;
+import javafx.beans.binding.Bindings;
+import javafx.beans.binding.BooleanBinding;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
@@ -17,7 +19,6 @@ import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import javafx.scene.layout.Region;
 import javafx.util.StringConverter;
 
 import java.time.LocalDate;
@@ -29,7 +30,6 @@ public class TasksPage extends VBox {
 
     private final Label header = new Label("Tasks");
 
-    // Backing list we control
     private final ObservableList<Task> taskSource = FXCollections.observableArrayList();
     private final FilteredList<Task> filteredTasks = new FilteredList<>(taskSource, t -> true);
 
@@ -51,8 +51,8 @@ public class TasksPage extends VBox {
 
     private Project boundProject;
 
-    // Prevent stacking multiple listeners on the same task
     private final Set<Task> statusHooked = new HashSet<>();
+    private final BooleanBinding canEdit;
 
     private final ListChangeListener<Task> projectTasksListener = c -> {
         if (boundProject == null) return;
@@ -62,7 +62,6 @@ public class TasksPage extends VBox {
                 for (Task t : c.getAddedSubList()) attachStatusListenerOnce(t);
             }
             if (c.wasRemoved()) {
-                // keep the set clean; removed tasks shouldn't hold hooks state
                 statusHooked.removeAll(c.getRemoved());
             }
         }
@@ -71,6 +70,11 @@ public class TasksPage extends VBox {
     };
 
     public TasksPage(InMemoryStore store, AppState appState) {
+        this.canEdit = Bindings.createBooleanBinding(
+                () -> appState.sessionProperty().get() != null && appState.isAdmin(),
+                appState.sessionProperty()
+        );
+
         setPadding(new Insets(16));
         setSpacing(12);
 
@@ -79,7 +83,6 @@ public class TasksPage extends VBox {
         ProjectPicker taskProjectPicker = new ProjectPicker(store, appState);
         taskProjectPicker.setPrefWidth(320);
 
-        // Search
         searchField.setPromptText("Search tasks...");
         searchField.setPrefWidth(320);
         searchField.textProperty().addListener((obs, ov, nv) -> applyFilterPreserveSelection());
@@ -87,14 +90,18 @@ public class TasksPage extends VBox {
         Region spacer = new Region();
         HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
 
-        showDone.setSelected(false); // default OFF
-        // Keep it readable even if checkbox text isn't covered by .label CSS
+        showDone.setSelected(false);
         showDone.setStyle("-fx-text-fill: white;");
         showDone.selectedProperty().addListener((obs, ov, nv) -> applyFilterPreserveSelection());
 
         Button newTask = new Button("New Task");
         newTask.getStyleClass().add("primary");
+        newTask.visibleProperty().bind(canEdit);
+        newTask.managedProperty().bind(newTask.visibleProperty());
+
         newTask.setOnAction(e -> {
+            if (!canEdit.get()) return;
+
             Project p = appState.getSelectedProject();
             if (p == null) return;
 
@@ -102,7 +109,7 @@ public class TasksPage extends VBox {
                 Alert a = new Alert(Alert.AlertType.INFORMATION);
                 a.setTitle("No members yet");
                 a.setHeaderText("Add at least one member first");
-                a.setContentText("Go to Projects → Add Member, then create tasks and assign them.");
+                a.setContentText("Go to Team, add members, then create tasks.");
                 a.showAndWait();
                 return;
             }
@@ -136,7 +143,6 @@ public class TasksPage extends VBox {
         descField.setPrefRowCount(6);
         descField.getStyleClass().add("pp-textarea");
 
-        // Date format consistency (does not fix popup styling; CSS does that)
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
         duePicker.setPromptText("yyyy-MM-dd");
         duePicker.setConverter(new StringConverter<>() {
@@ -151,7 +157,6 @@ public class TasksPage extends VBox {
             }
         });
 
-        // Nice display for Phase dropdown
         phaseBox.setPromptText("No phase");
         phaseBox.setCellFactory(cb -> new ListCell<>() {
             @Override protected void updateItem(Phase item, boolean empty) {
@@ -166,7 +171,6 @@ public class TasksPage extends VBox {
             }
         });
 
-        // Nice display for Assignee dropdown
         assigneeBox.setPromptText("Unassigned");
         assigneeBox.setCellFactory(cb -> new ListCell<>() {
             @Override protected void updateItem(Member item, boolean empty) {
@@ -229,6 +233,15 @@ public class TasksPage extends VBox {
 
         refresh(appState.getSelectedProject());
         appState.selectedProjectProperty().addListener((obs, oldV, newV) -> refresh(newV));
+
+        // Worker mode: disable editors (still shows values)
+        titleField.disableProperty().bind(canEdit.not());
+        descField.disableProperty().bind(canEdit.not());
+        statusBox.disableProperty().bind(canEdit.not());
+        priorityBox.disableProperty().bind(canEdit.not());
+        duePicker.disableProperty().bind(canEdit.not());
+        phaseBox.disableProperty().bind(canEdit.not());
+        assigneeBox.disableProperty().bind(canEdit.not());
     }
 
     private void refresh(Project p) {
@@ -271,7 +284,6 @@ public class TasksPage extends VBox {
 
         applyFilter();
 
-        // preserve selection as best as possible
         if (selected != null && filteredTasks.contains(selected)) {
             tasksList.getSelectionModel().select(selected);
         } else if (!filteredTasks.isEmpty()) {
@@ -308,10 +320,8 @@ public class TasksPage extends VBox {
         filteredTasks.setPredicate(t -> {
             if (t == null) return false;
 
-            // Hide DONE unless toggled on
             if (!includeDone && t.getStatus() == TaskStatus.DONE) return false;
 
-            // Search filter (title + description + phase + assignee)
             if (query.isEmpty()) return true;
 
             String title = (t.getTitle() == null) ? "" : t.getTitle().toLowerCase();
@@ -334,11 +344,10 @@ public class TasksPage extends VBox {
 
     private void attachStatusListenerOnce(Task t) {
         if (t == null) return;
-        if (!statusHooked.add(t)) return; // already hooked
+        if (!statusHooked.add(t)) return;
 
         try {
             t.statusProperty().addListener((obs, ov, nv) -> {
-                // If DONE and we're hiding done, push selection to next visible item
                 boolean willHide = (!showDone.isSelected() && nv == TaskStatus.DONE);
                 Task selected = tasksList.getSelectionModel().getSelectedItem();
                 int selectedIndex = tasksList.getSelectionModel().getSelectedIndex();
@@ -371,16 +380,6 @@ public class TasksPage extends VBox {
         }
 
         bound = t;
-        boolean disabled = (t == null);
-
-        titleField.setDisable(disabled);
-        descField.setDisable(disabled);
-        statusBox.setDisable(disabled);
-        priorityBox.setDisable(disabled);
-        duePicker.setDisable(disabled);
-
-        phaseBox.setDisable(disabled);
-        assigneeBox.setDisable(disabled);
 
         if (t == null) {
             titleField.setText("");
@@ -388,7 +387,6 @@ public class TasksPage extends VBox {
             statusBox.setValue(null);
             priorityBox.setValue(null);
             duePicker.setValue(null);
-
             phaseBox.setValue(null);
             assigneeBox.setValue(null);
             return;
@@ -406,7 +404,6 @@ public class TasksPage extends VBox {
         statusBox.setValue(t.getStatus());
         priorityBox.setValue(t.getPriority());
         duePicker.setValue(t.getDueDate());
-
         try { phaseBox.setValue(t.getPhase()); } catch (Exception ignored) {}
         try { assigneeBox.setValue(t.getAssignee()); } catch (Exception ignored) {}
     }

@@ -1057,5 +1057,4 @@ public final class DbStore extends InMemoryStore {
     }
 
     private static String nullToEmpty(String s) { return s == null ? "" : s; }
-    private static String safe(String s) { return s == null ? "" : s; }
 }

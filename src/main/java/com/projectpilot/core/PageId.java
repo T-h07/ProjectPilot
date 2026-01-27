@@ -8,5 +8,6 @@ public enum PageId {
     GANTT,
     TEAM,
     HISTORY,        // NEW
-    EXPORT_REPORT
+    EXPORT_REPORT,
+    ADMIN
 }

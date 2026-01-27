@@ -7,6 +7,8 @@ import com.projectpilot.model.Project;
 import com.projectpilot.model.Task;
 import com.projectpilot.model.enums.ProjectRole;
 import com.projectpilot.model.enums.TaskStatus;
+import javafx.beans.binding.Bindings;
+import javafx.beans.binding.BooleanBinding;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -23,24 +25,28 @@ public class TeamPage extends VBox {
     private final Label header = new Label("Team");
     private final Label sub = new Label("");
 
-    // Add member controls
     private final TextField nameField = new TextField();
     private final ComboBox<ProjectRole> roleBox = new ComboBox<>();
     private final Button addBtn = new Button("Add member");
     private final Button refreshBtn = new Button("Refresh");
 
-    // Members list
     private final ListView<Member> membersList = new ListView<>();
 
-    // Details panel
     private final Label selectedName = new Label("-");
     private final ComboBox<ProjectRole> editRoleBox = new ComboBox<>();
     private final Label openTasksLabel = new Label("-");
     private final Button removeBtn = new Button("Remove member");
 
+    private final BooleanBinding canEdit;
+
     public TeamPage(InMemoryStore store, AppState appState) {
         this.store = store;
         this.appState = appState;
+
+        this.canEdit = Bindings.createBooleanBinding(
+                () -> appState.sessionProperty().get() != null && appState.isAdmin(),
+                appState.sessionProperty()
+        );
 
         setPadding(new Insets(16));
         setSpacing(14);
@@ -48,7 +54,6 @@ public class TeamPage extends VBox {
         header.getStyleClass().add("page-title");
         sub.getStyleClass().add("muted");
 
-        // --- Top card (add member) ---
         nameField.setPromptText("Member name…");
         nameField.setPrefWidth(280);
 
@@ -59,6 +64,13 @@ public class TeamPage extends VBox {
         addBtn.getStyleClass().add("primary");
         refreshBtn.getStyleClass().add("secondary");
 
+        // Workers: read-only (disable inputs + buttons)
+        nameField.disableProperty().bind(canEdit.not());
+        roleBox.disableProperty().bind(canEdit.not());
+        addBtn.disableProperty().bind(canEdit.not());
+        removeBtn.disableProperty().bind(canEdit.not());
+        editRoleBox.disableProperty().bind(canEdit.not());
+
         HBox addRow = new HBox(10, nameField, roleBox, addBtn, refreshBtn);
         addRow.setAlignment(Pos.CENTER_LEFT);
 
@@ -66,7 +78,6 @@ public class TeamPage extends VBox {
         topCard.getStyleClass().add("card");
         topCard.setPadding(new Insets(14));
 
-        // --- Members card (left) ---
         Label membersTitle = new Label("Members");
         membersTitle.getStyleClass().add("section-title");
 
@@ -90,7 +101,6 @@ public class TeamPage extends VBox {
         membersCard.setPadding(new Insets(12));
         VBox.setVgrow(membersList, Priority.ALWAYS);
 
-        // --- Details card (right) ---
         Label detailsTitle = new Label("Member Details");
         detailsTitle.getStyleClass().add("section-title");
 
@@ -114,10 +124,7 @@ public class TeamPage extends VBox {
         form.add(new Label("Open tasks"), 0, 2);
         form.add(openTasksLabel, 1, 2);
 
-        HBox actions = new HBox(10, removeBtn);
-        actions.setAlignment(Pos.CENTER_LEFT);
-
-        VBox detailsCard = new VBox(10, detailsTitle, form, actions);
+        VBox detailsCard = new VBox(10, detailsTitle, form, new HBox(10, removeBtn));
         detailsCard.getStyleClass().add("card");
         detailsCard.setPadding(new Insets(12));
         detailsCard.setMinWidth(420);
@@ -130,32 +137,30 @@ public class TeamPage extends VBox {
         getChildren().addAll(topCard, bottom);
         VBox.setVgrow(bottom, Priority.ALWAYS);
 
-        // --- Wiring ---
         addBtn.setOnAction(e -> addMember());
         refreshBtn.setOnAction(e -> refresh(appState.getSelectedProject()));
 
-        membersList.getSelectionModel().selectedItemProperty().addListener((obs, oldM, newM) -> {
-            showMemberDetails(newM);
-        });
+        membersList.getSelectionModel().selectedItemProperty().addListener((obs, oldM, newM) -> showMemberDetails(newM));
 
         editRoleBox.setOnAction(e -> {
+            if (!canEdit.get()) return;
+
             Member m = membersList.getSelectionModel().getSelectedItem();
             if (m == null) return;
+
             ProjectRole role = editRoleBox.getValue();
             if (role == null) return;
+
             m.setRole(role);
             membersList.refresh();
         });
 
         removeBtn.setOnAction(e -> removeSelectedMember());
 
-        // refresh on project change
         appState.selectedProjectProperty().addListener((obs, o, n) -> refresh(n));
 
-        // refresh on members list changes
         store.getProjects().addListener((ListChangeListener<Project>) c -> refresh(appState.getSelectedProject()));
 
-        // also refresh counts when tasks list changes in selected project
         appState.selectedProjectProperty().addListener((obs, oldP, newP) -> {
             if (oldP != null) oldP.getTasks().removeListener(tasksListener);
             if (newP != null) newP.getTasks().addListener(tasksListener);
@@ -168,7 +173,6 @@ public class TeamPage extends VBox {
     }
 
     private final ListChangeListener<Task> tasksListener = c -> {
-        // task add/remove affects open-task counts
         membersList.refresh();
         Member m = membersList.getSelectionModel().getSelectedItem();
         if (m != null) showMemberDetails(m);
@@ -180,17 +184,11 @@ public class TeamPage extends VBox {
             membersList.setItems(null);
             membersList.getSelectionModel().clearSelection();
             showMemberDetails(null);
-            addBtn.setDisable(true);
-            nameField.setDisable(true);
-            roleBox.setDisable(true);
             refreshBtn.setDisable(true);
             return;
         }
 
         sub.setText(p.getName() + "  •  manage members and roles");
-        addBtn.setDisable(false);
-        nameField.setDisable(false);
-        roleBox.setDisable(false);
         refreshBtn.setDisable(false);
 
         membersList.setItems(p.getMembers());
@@ -204,6 +202,8 @@ public class TeamPage extends VBox {
     }
 
     private void addMember() {
+        if (!canEdit.get()) return;
+
         Project p = appState.getSelectedProject();
         if (p == null) return;
 
@@ -214,9 +214,8 @@ public class TeamPage extends VBox {
         }
 
         ProjectRole role = roleBox.getValue();
-        if (role == null) role = roleBox.getItems().isEmpty() ? null : roleBox.getItems().get(0);
+        if (role == null) role = ProjectRole.MEMBER;
 
-        // Prevent duplicates by name (optional)
         boolean exists = p.getMembers().stream().anyMatch(m -> name.equalsIgnoreCase(m.getName()));
         if (exists) {
             alertInfo("Already exists", "A member with that name already exists.");
@@ -224,7 +223,7 @@ public class TeamPage extends VBox {
         }
 
         Member m = new Member(name, role);
-        store.addMember(p, m); // keep store method so activity/logging stays consistent
+        store.addMember(p, m);
 
         nameField.clear();
         membersList.getSelectionModel().select(m);
@@ -232,6 +231,8 @@ public class TeamPage extends VBox {
     }
 
     private void removeSelectedMember() {
+        if (!canEdit.get()) return;
+
         Project p = appState.getSelectedProject();
         Member m = membersList.getSelectionModel().getSelectedItem();
         if (p == null || m == null) return;
@@ -249,14 +250,13 @@ public class TeamPage extends VBox {
 
         if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) return;
 
-        // Unassign tasks safely
         for (Task t : p.getTasks()) {
             if (Objects.equals(t.getAssignee(), m)) {
                 t.setAssignee(null);
             }
         }
 
-        store.removeMember(p, m); // implement this in store if you don’t have it yet
+        store.removeMember(p, m);
 
         membersList.getSelectionModel().clearSelection();
         membersList.refresh();
@@ -275,20 +275,13 @@ public class TeamPage extends VBox {
             selectedName.setText("-");
             editRoleBox.getSelectionModel().clearSelection();
             openTasksLabel.setText("-");
-            editRoleBox.setDisable(true);
-            removeBtn.setDisable(true);
             return;
         }
 
         selectedName.setText(m.getName());
-        editRoleBox.setDisable(false);
-        removeBtn.setDisable(false);
 
-        if (m.getRole() != null) {
-            editRoleBox.getSelectionModel().select(m.getRole());
-        } else {
-            editRoleBox.getSelectionModel().selectFirst();
-        }
+        if (m.getRole() != null) editRoleBox.getSelectionModel().select(m.getRole());
+        else editRoleBox.getSelectionModel().selectFirst();
 
         openTasksLabel.setText(String.valueOf(openTasksFor(p, m)));
     }

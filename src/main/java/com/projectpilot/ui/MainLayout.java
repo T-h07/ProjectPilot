@@ -1,7 +1,6 @@
 package com.projectpilot.ui;
 
 import com.projectpilot.core.AppState;
-import com.projectpilot.core.PageId;
 import com.projectpilot.core.Router;
 import com.projectpilot.data.InMemoryStore;
 import com.projectpilot.ui.components.Sidebar;
@@ -12,7 +11,9 @@ public class MainLayout extends BorderPane {
 
     public MainLayout(Router router, InMemoryStore store, AppState appState) {
         TopBar topBar = new TopBar(store, appState);
-        Sidebar sidebar = new Sidebar(page -> appState.setCurrentPage(page));
+
+        // ✅ pass appState so Sidebar can show Admin only for admins
+        Sidebar sidebar = new Sidebar(page -> appState.setCurrentPage(page), appState);
 
         setTop(topBar);
         setLeft(sidebar);

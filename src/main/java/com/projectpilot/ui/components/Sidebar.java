@@ -1,5 +1,6 @@
 package com.projectpilot.ui.components;
 
+import com.projectpilot.core.AppState;
 import com.projectpilot.core.PageId;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
@@ -9,7 +10,7 @@ import java.util.function.Consumer;
 
 public class Sidebar extends VBox {
 
-    public Sidebar(Consumer<PageId> onNavigate) {
+    public Sidebar(Consumer<PageId> onNavigate, AppState appState) {
         setSpacing(8);
         setPadding(new Insets(12));
         getStyleClass().add("sidebar");
@@ -26,8 +27,11 @@ public class Sidebar extends VBox {
                 navButton("History", PageId.HISTORY, onNavigate),
 
                 navButton("Export", PageId.EXPORT_REPORT, onNavigate)
+
         );
     }
+
+
 
     private Button navButton(String text, PageId page, Consumer<PageId> onNavigate) {
         Button b = new Button(text);

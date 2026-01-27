@@ -9,15 +9,13 @@ import com.projectpilot.model.enums.TaskStatus;
 import com.projectpilot.service.ProgressService;
 import com.projectpilot.ui.dialogs.AddMilestoneDialog;
 import javafx.beans.binding.Bindings;
-import javafx.beans.property.StringProperty;
-import javafx.beans.value.ObservableValue;
+import javafx.beans.binding.BooleanBinding;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 
-import java.lang.reflect.Method;
 import java.time.format.DateTimeFormatter;
 
 public class ProjectOverviewPage extends VBox {
@@ -30,15 +28,12 @@ public class ProjectOverviewPage extends VBox {
     private final Label header = new Label("Project Overview");
     private final Label sub = new Label("");
 
-    // Info titles
     private final Label descTitle = new Label("Description");
     private final Label stakeholderTitle = new Label("Stakeholders");
 
-    // Read-only labels (view mode)
     private final Label descText = new Label("-");
     private final Label stakeholderText = new Label("-");
 
-    // Editable fields (edit mode)
     private final TextArea descArea = new TextArea();
     private final TextArea stakeholderArea = new TextArea();
 
@@ -58,13 +53,19 @@ public class ProjectOverviewPage extends VBox {
         if (boundProject != null) refresh(boundProject);
         phaseTable.refresh();
     };
-
     private final ListChangeListener<?> milestonesListener = c -> milestoneList.refresh();
     private final ListChangeListener<?> phasesListener = c -> phaseTable.refresh();
+
+    private final BooleanBinding canEdit;
 
     public ProjectOverviewPage(InMemoryStore store, AppState appState) {
         this.store = store;
         this.appState = appState;
+
+        this.canEdit = Bindings.createBooleanBinding(
+                () -> appState.sessionProperty().get() != null && appState.isAdmin(),
+                appState.sessionProperty()
+        );
 
         setPadding(new Insets(16));
         setSpacing(14);
@@ -75,13 +76,11 @@ public class ProjectOverviewPage extends VBox {
         descTitle.getStyleClass().add("section-title");
         stakeholderTitle.getStyleClass().add("section-title");
 
-        // Wrap and allow full width
         descText.setWrapText(true);
         stakeholderText.setWrapText(true);
         descText.setMaxWidth(Double.MAX_VALUE);
         stakeholderText.setMaxWidth(Double.MAX_VALUE);
 
-        // TextAreas setup
         descArea.setWrapText(true);
         stakeholderArea.setWrapText(true);
         descArea.setPrefRowCount(4);
@@ -89,52 +88,48 @@ public class ProjectOverviewPage extends VBox {
         descArea.getStyleClass().add("pp-textarea");
         stakeholderArea.getStyleClass().add("pp-textarea");
 
-        // start hidden (only in edit mode)
         setNodeVisible(descArea, false);
         setNodeVisible(stakeholderArea, false);
 
-        // Edit/Save + Cancel controls
         editSaveBtn.getStyleClass().add("primary");
         cancelBtn.setFocusTraversable(false);
         setNodeVisible(cancelBtn, false);
 
+        // Hide edit buttons for non-admin
+        editSaveBtn.visibleProperty().bind(canEdit);
+        editSaveBtn.managedProperty().bind(editSaveBtn.visibleProperty());
+        cancelBtn.visibleProperty().bind(canEdit.and(Bindings.createBooleanBinding(() -> editing /* no deps */)));
+        cancelBtn.managedProperty().bind(cancelBtn.visibleProperty());
+
         editSaveBtn.setOnAction(e -> {
+            if (!canEdit.get()) return;
+
             Project p = appState.getSelectedProject();
             if (p == null) return;
 
             if (!editing) {
-                // enter edit mode
                 setEditing(true);
-                // preload fields from current project values
-                descArea.setText(safeText(readDescription(p)));
-                stakeholderArea.setText(safeText(readStakeholders(p)));
+                descArea.setText(safeText(p.getDescription()));
+                stakeholderArea.setText(safeText(p.getStakeholders()));
             } else {
-                // save
-                String newDesc = normalizeNullable(descArea.getText());
-                String newStake = normalizeNullable(stakeholderArea.getText());
+                String newDesc = normalize(descArea.getText());
+                String newStake = normalize(stakeholderArea.getText());
 
-                writeDescription(p, newDesc);
-                writeStakeholders(p, newStake);
+                p.setDescription(newDesc);
+                p.setStakeholders(newStake);
 
-                // exit edit mode and refresh displayed values
                 setEditing(false);
                 updateProjectInfo(p);
             }
         });
 
         cancelBtn.setOnAction(e -> {
+            if (!canEdit.get()) return;
             Project p = appState.getSelectedProject();
             setEditing(false);
             if (p != null) updateProjectInfo(p);
         });
 
-        Region headerSpacer = new Region();
-        HBox.setHgrow(headerSpacer, Priority.ALWAYS);
-
-        HBox headerRow = new HBox(10, headerSpacer, editSaveBtn, cancelBtn);
-        headerRow.setAlignment(Pos.CENTER_RIGHT);
-
-        // Put title on left, buttons on right
         HBox topLine = new HBox(10, header, new Region(), editSaveBtn, cancelBtn);
         HBox.setHgrow(topLine.getChildren().get(1), Priority.ALWAYS);
         topLine.setAlignment(Pos.CENTER_LEFT);
@@ -142,14 +137,9 @@ public class ProjectOverviewPage extends VBox {
         progress.setStyle("-fx-font-size: 22px; -fx-font-weight: 800;");
         counts.getStyleClass().add("muted");
 
-        // Info layout (description + stakeholders)
         VBox infoBox = new VBox(8,
-                descTitle,
-                descText,
-                descArea,
-                stakeholderTitle,
-                stakeholderText,
-                stakeholderArea
+                descTitle, descText, descArea,
+                stakeholderTitle, stakeholderText, stakeholderArea
         );
         infoBox.setFillWidth(true);
 
@@ -191,6 +181,8 @@ public class ProjectOverviewPage extends VBox {
         phaseActions.setSortable(false);
         phaseActions.setResizable(false);
 
+        // Hide action column for non-admin
+        phaseActions.visibleProperty().bind(canEdit);
         phaseActions.setCellFactory(col -> new TableCell<>() {
             private final Button deleteBtn = new Button("Delete");
 
@@ -199,6 +191,8 @@ public class ProjectOverviewPage extends VBox {
                 deleteBtn.setFocusTraversable(false);
 
                 deleteBtn.setOnAction(e -> {
+                    if (!canEdit.get()) return;
+
                     Project p = appState.getSelectedProject();
                     if (p == null) return;
 
@@ -246,7 +240,9 @@ public class ProjectOverviewPage extends VBox {
 
         Button addPhaseBtn = new Button("Add Phase");
         addPhaseBtn.getStyleClass().add("primary");
-        addPhaseBtn.setOnAction(e -> addPhase(store, appState));
+        addPhaseBtn.visibleProperty().bind(canEdit);
+        addPhaseBtn.managedProperty().bind(addPhaseBtn.visibleProperty());
+        addPhaseBtn.setOnAction(e -> addPhase());
 
         Region phasesSpacer = new Region();
         HBox.setHgrow(phasesSpacer, Priority.ALWAYS);
@@ -262,6 +258,10 @@ public class ProjectOverviewPage extends VBox {
         milestoneList.setCellFactory(lv -> new ListCell<>() {
             private final CheckBox cb = new CheckBox();
             private Milestone bound;
+
+            {
+                cb.disableProperty().bind(canEdit.not());
+            }
 
             @Override
             protected void updateItem(Milestone item, boolean empty) {
@@ -291,9 +291,13 @@ public class ProjectOverviewPage extends VBox {
             }
         });
 
-        Button addMilestone = new Button("Add Milestone");
-        addMilestone.getStyleClass().add("primary");
-        addMilestone.setOnAction(e -> {
+        Button addMilestoneBtn = new Button("Add Milestone");
+        addMilestoneBtn.getStyleClass().add("primary");
+        addMilestoneBtn.visibleProperty().bind(canEdit);
+        addMilestoneBtn.managedProperty().bind(addMilestoneBtn.visibleProperty());
+        addMilestoneBtn.setOnAction(e -> {
+            if (!canEdit.get()) return;
+
             Project p = appState.getSelectedProject();
             if (p == null) return;
 
@@ -304,7 +308,7 @@ public class ProjectOverviewPage extends VBox {
         Label msTitle = new Label("Milestones");
         msTitle.getStyleClass().add("section-title");
 
-        VBox milestoneCard = new VBox(10, msTitle, milestoneList, addMilestone);
+        VBox milestoneCard = new VBox(10, msTitle, milestoneList, addMilestoneBtn);
         milestoneCard.getStyleClass().add("card");
 
         HBox bottom = new HBox(14, phasesCard, milestoneCard);
@@ -318,6 +322,9 @@ public class ProjectOverviewPage extends VBox {
     }
 
     private void setEditing(boolean value) {
+        // non-admin can never enter edit mode
+        if (value && !canEdit.get()) value = false;
+
         editing = value;
 
         if (value) {
@@ -345,12 +352,15 @@ public class ProjectOverviewPage extends VBox {
         node.setVisible(visible);
         node.setManaged(visible);
     }
+
     private void setNodeVisible(Control node, boolean visible) {
         node.setVisible(visible);
         node.setManaged(visible);
     }
 
-    private void addPhase(InMemoryStore store, AppState appState) {
+    private void addPhase() {
+        if (!canEdit.get()) return;
+
         Project p = appState.getSelectedProject();
         if (p == null) return;
 
@@ -363,20 +373,10 @@ public class ProjectOverviewPage extends VBox {
             String n = raw == null ? "" : raw.trim();
             if (n.isBlank()) return;
 
-            Phase ph = createPhase(n);
-            if (ph == null) return;
-
+            Phase ph = new Phase(n);
             store.addPhase(p, ph);
             phaseTable.getSelectionModel().select(ph);
         });
-    }
-
-    private Phase createPhase(String name) {
-        try {
-            return new Phase(name);
-        } catch (Exception ignored) {
-            return null;
-        }
     }
 
     private void refresh(Project p) {
@@ -387,7 +387,6 @@ public class ProjectOverviewPage extends VBox {
         }
         boundProject = p;
 
-        // switching projects should never keep edit mode open
         setEditing(false);
 
         if (p == null) {
@@ -427,93 +426,8 @@ public class ProjectOverviewPage extends VBox {
     }
 
     private void updateProjectInfo(Project p) {
-        descText.setText(safeText(readDescription(p)));
-        stakeholderText.setText(safeText(readStakeholders(p)));
-    }
-
-    // ---------------------------
-    // Read helpers (reflection)
-    // ---------------------------
-
-    private String readDescription(Project p) {
-        return readProjectString(p,
-                "getDescription",
-                "descriptionProperty"
-        );
-    }
-
-    private String readStakeholders(Project p) {
-        return readProjectString(p,
-                "getStakeholders",
-                "getStakeholder",
-                "getStakeholderData",
-                "stakeholdersProperty",
-                "stakeholderProperty",
-                "stakeholderDataProperty"
-        );
-    }
-
-    private String readProjectString(Project p, String... methodNames) {
-        for (String name : methodNames) {
-            try {
-                Method m = p.getClass().getMethod(name);
-                Object v = m.invoke(p);
-                if (v == null) continue;
-
-                if (v instanceof ObservableValue<?> ov) {
-                    Object vv = ov.getValue();
-                    if (vv != null) return vv.toString();
-                    continue;
-                }
-
-                return v.toString();
-            } catch (Exception ignored) { }
-        }
-        return null;
-    }
-
-    // ---------------------------
-    // Write helpers (reflection)
-    // ---------------------------
-
-    private void writeDescription(Project p, String value) {
-        writeProjectString(p, value,
-                "setDescription",
-                "descriptionProperty"
-        );
-    }
-
-    private void writeStakeholders(Project p, String value) {
-        writeProjectString(p, value,
-                "setStakeholders",
-                "setStakeholder",
-                "setStakeholderData",
-                "stakeholdersProperty",
-                "stakeholderProperty",
-                "stakeholderDataProperty"
-        );
-    }
-
-    private boolean writeProjectString(Project p, String value, String... names) {
-        for (String name : names) {
-            // 1) Try setter: setX(String)
-            try {
-                Method setter = p.getClass().getMethod(name, String.class);
-                setter.invoke(p, value);
-                return true;
-            } catch (Exception ignored) { }
-
-            // 2) Try property: xProperty() returning StringProperty
-            try {
-                Method prop = p.getClass().getMethod(name);
-                Object v = prop.invoke(p);
-                if (v instanceof StringProperty sp) {
-                    sp.set(value);
-                    return true;
-                }
-            } catch (Exception ignored) { }
-        }
-        return false;
+        descText.setText(safeText(p.getDescription()));
+        stakeholderText.setText(safeText(p.getStakeholders()));
     }
 
     private int phaseProgressPercent(Project p, Phase phase) {
@@ -542,8 +456,7 @@ public class ProjectOverviewPage extends VBox {
         return t.isEmpty() ? "-" : t;
     }
 
-    private String normalizeNullable(String s) {
-        if (s == null) return "";
-        return s.trim();
+    private String normalize(String s) {
+        return s == null ? "" : s.trim();
     }
 }

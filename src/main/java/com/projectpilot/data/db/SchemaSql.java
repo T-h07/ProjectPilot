@@ -8,17 +8,13 @@ final class SchemaSql {
 
     private SchemaSql() {}
 
-    static String v1() {
-        return readResource("/db/schema_v1.sql");
-    }
+    static String v1() { return readResource("/db/schema_v1.sql"); }
     static String v2() { return readResource("/db/schema_v2.sql"); }
-
+    static String v3() { return readResource("/db/schema_v3.sql"); } // ✅ NEW
 
     private static String readResource(String path) {
         try (InputStream in = SchemaSql.class.getResourceAsStream(path)) {
-            if (in == null) {
-                throw new DbException("Missing resource: " + path);
-            }
+            if (in == null) throw new DbException("Missing resource: " + path);
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new DbException("Failed to read resource: " + path, e);
