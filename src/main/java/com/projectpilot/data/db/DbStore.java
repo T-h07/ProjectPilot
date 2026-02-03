@@ -1,6 +1,7 @@
 package com.projectpilot.data.db;
 
 import com.projectpilot.data.InMemoryStore;
+import com.projectpilot.data.db.auth.UserAdminService;
 import com.projectpilot.model.*;
 import com.projectpilot.model.enums.*;
 
@@ -8,7 +9,7 @@ import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.ListChangeListener;
 
-import java.sql.Connection;
+import java.sql.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -29,7 +30,7 @@ public final class DbStore extends InMemoryStore {
     // prevent write storms while loading
     private volatile boolean loading = false;
 
-    // track listeners to avoid duplicates
+    // track project-level detach to avoid duplicates
     private final Map<String, Runnable> detachByProjectId = new HashMap<>();
 
     public DbStore(DbManager db) {
@@ -52,7 +53,7 @@ public final class DbStore extends InMemoryStore {
             db.tx(conn -> {
                 clearAllInMemory();
 
-                // Load projects (active + history) from DB
+                // Load projects (active + history)
                 List<ProjectRow> projects = selectProjects(conn);
                 Map<String, Project> projectById = new HashMap<>();
 
@@ -66,20 +67,26 @@ public final class DbStore extends InMemoryStore {
                     }
                 }
 
-                // Load members globally and project_members link
-                Map<String, Member> memberById = new HashMap<>();
+                // Load member identities
+                Map<String, MemberRow> baseMemberById = new HashMap<>();
                 for (MemberRow mr : selectMembers(conn)) {
-                    Member m = new Member(mr.id, mr.name, safeEnum(ProjectRole.class, mr.role, ProjectRole.MEMBER));
-                    memberById.put(m.getId(), m);
+                    baseMemberById.put(mr.id, mr);
                 }
+
+                // Load project membership with per-project role
                 for (ProjectMemberRow pm : selectProjectMembers(conn)) {
                     Project p = projectById.get(pm.projectId);
-                    Member m = memberById.get(pm.memberId);
-                    if (p != null && m != null) {
-                        // Ensure member is in the project list
-                        if (p.getMembers().stream().noneMatch(x -> x.getId().equals(m.getId()))) {
-                            p.getMembers().add(m);
-                        }
+                    MemberRow base = baseMemberById.get(pm.memberId);
+                    if (p == null || base == null) continue;
+
+                    // ✅ IMPORTANT: role must come from project_members.project_role (fallback to members.role)
+                    ProjectRole role = safeEnum(ProjectRole.class, pm.projectRole,
+                            safeEnum(ProjectRole.class, base.role, ProjectRole.MEMBER));
+
+                    Member m = new Member(base.id, base.name, role);
+
+                    if (p.getMembers().stream().noneMatch(x -> x.getId().equals(m.getId()))) {
+                        p.getMembers().add(m);
                     }
                 }
 
@@ -109,7 +116,10 @@ public final class DbStore extends InMemoryStore {
                     if (tr.dueAt != null) t.setDueDate(fromEpochMillisToLocalDate(tr.dueAt));
 
                     if (tr.assigneeMemberId != null) {
-                        Member ass = p.getMembers().stream().filter(x -> x.getId().equals(tr.assigneeMemberId)).findFirst().orElse(null);
+                        Member ass = p.getMembers().stream()
+                                .filter(x -> x.getId().equals(tr.assigneeMemberId))
+                                .findFirst()
+                                .orElse(null);
                         t.setAssignee(ass);
                     }
                     if (tr.phaseId != null) {
@@ -141,7 +151,6 @@ public final class DbStore extends InMemoryStore {
                         if (p != null) projectName = p.getName();
                     }
                     ActivityItem item = new ActivityItem(projectName, ar.details);
-                    // store time into property
                     item.timeProperty().set(fromEpochMillisToLocalDateTime(ar.at));
                     getActivity().add(item);
                 }
@@ -149,7 +158,7 @@ public final class DbStore extends InMemoryStore {
                 return null;
             });
 
-            // After load: attach listeners to persist changes
+            // After load: attach listeners
             attachListenersForAllProjects();
 
         } finally {
@@ -164,8 +173,20 @@ public final class DbStore extends InMemoryStore {
         detachAllProjectListeners();
     }
 
+    public java.util.List<UserAdminService.UserRow> listUsers() {
+        try {
+            return new UserAdminService(db).listLoginUsers()
+                    .stream()
+                    .filter(UserAdminService.UserRow::active)
+                    .toList();
+        } catch (Exception e) {
+            System.err.println("[DbStore] listUsers() failed: " + e.getMessage());
+            return java.util.List.of();
+        }
+    }
+
     // -----------------------------------------
-    // Write-through overrides (InMemoryStore API)
+    // Write-through overrides
     // -----------------------------------------
 
     @Override
@@ -181,6 +202,7 @@ public final class DbStore extends InMemoryStore {
             return null;
         }));
 
+        // project listener guarded by detachByProjectId
         attachListenersForProject(p);
         return p;
     }
@@ -214,7 +236,7 @@ public final class DbStore extends InMemoryStore {
             return null;
         }));
 
-        attachListenersForTask(project, task);
+        // DO NOT attach here; project list listener will attach once.
         return t;
     }
 
@@ -224,14 +246,14 @@ public final class DbStore extends InMemoryStore {
         if (loading || project == null || member == null) return m;
 
         submitWrite(() -> db.tx(conn -> {
-            upsertMember(conn, member);
-            linkProjectMember(conn, project.getId(), member.getId());
+            upsertMemberIdentity(conn, member);
+            upsertProjectMemberRole(conn, project.getId(), member.getId(), member.getRole());
             appendActivity(conn, System.currentTimeMillis(), project.getId(), "MEMBER", member.getId(),
                     "ADD", "Member added: " + safe(member.getName()));
             return null;
         }));
 
-        attachListenersForMember(project, member);
+        // DO NOT attach here; project list listener will attach once.
         return m;
     }
 
@@ -244,7 +266,6 @@ public final class DbStore extends InMemoryStore {
 
         submitWrite(() -> db.tx(conn -> {
             unlinkProjectMember(conn, project.getId(), member.getId());
-            // tasks assignee set null handled by task listener, but ensure DB is consistent:
             nullAssigneeForMember(conn, project.getId(), member.getId());
             appendActivity(conn, System.currentTimeMillis(), project.getId(), "MEMBER", member.getId(),
                     "REMOVE", "Member removed: " + safe(member.getName()));
@@ -264,7 +285,6 @@ public final class DbStore extends InMemoryStore {
             return null;
         }));
 
-        attachListenersForPhase(project, phase);
         return ph;
     }
 
@@ -280,7 +300,6 @@ public final class DbStore extends InMemoryStore {
             return null;
         }));
 
-        attachListenersForMilestone(project, milestone);
         return ms;
     }
 
@@ -311,15 +330,13 @@ public final class DbStore extends InMemoryStore {
     }
 
     // -----------------------------------------
-    // Listener wiring (catch direct edits)
+    // Listener wiring
     // -----------------------------------------
 
     private void attachListenersForAllProjects() {
-        // active + history
         for (Project p : getProjects()) attachListenersForProject(p);
         for (Project p : getHistoryProjects()) attachListenersForProject(p);
 
-        // also react when projects are added/removed not via store methods (safety)
         getProjects().addListener((ListChangeListener<Project>) ch -> {
             if (loading) return;
             while (ch.next()) {
@@ -327,6 +344,7 @@ public final class DbStore extends InMemoryStore {
                 if (ch.wasRemoved()) for (Project p : ch.getRemoved()) detachProjectListeners(p.getId());
             }
         });
+
         getHistoryProjects().addListener((ListChangeListener<Project>) ch -> {
             if (loading) return;
             while (ch.next()) {
@@ -371,7 +389,6 @@ public final class DbStore extends InMemoryStore {
         detach.add(() -> p.statusProperty().removeListener(projectDirty));
         detach.add(() -> p.completedDateProperty().removeListener(projectDirty));
 
-        // list listeners: phases/tasks/members/milestones
         ListChangeListener<Task> tasksListener = ch -> {
             if (loading) return;
             while (ch.next()) {
@@ -417,8 +434,8 @@ public final class DbStore extends InMemoryStore {
                 if (ch.wasAdded()) {
                     for (Member m : ch.getAddedSubList()) {
                         submitWrite(() -> db.tx(conn -> {
-                            upsertMember(conn, m);
-                            linkProjectMember(conn, p.getId(), m.getId());
+                            upsertMemberIdentity(conn, m);
+                            upsertProjectMemberRole(conn, p.getId(), m.getId(), m.getRole());
                             return null;
                         }));
                         attachListenersForMember(p, m);
@@ -457,7 +474,6 @@ public final class DbStore extends InMemoryStore {
         p.getMilestones().addListener(milestonesListener);
         detach.add(() -> p.getMilestones().removeListener(milestonesListener));
 
-        // attach children existing
         for (Task t : p.getTasks()) attachListenersForTask(p, t);
         for (Phase ph : p.getPhases()) attachListenersForPhase(p, ph);
         for (Member m : p.getMembers()) attachListenersForMember(p, m);
@@ -498,11 +514,15 @@ public final class DbStore extends InMemoryStore {
     }
 
     private void attachListenersForMember(Project p, Member m) {
-        if (m == null) return;
+        if (m == null || p == null) return;
 
         ChangeListener<Object> dirty = (obs, o, n) -> {
             if (loading) return;
-            submitWrite(() -> db.tx(conn -> { upsertMember(conn, m); return null; }));
+            submitWrite(() -> db.tx(conn -> {
+                upsertMemberIdentity(conn, m);
+                upsertProjectMemberRole(conn, p.getId(), m.getId(), m.getRole());
+                return null;
+            }));
         };
 
         m.nameProperty().addListener(dirty);
@@ -546,7 +566,87 @@ public final class DbStore extends InMemoryStore {
     }
 
     // -----------------------------------------
-    // Minimal DB row structs + SQL (self-contained)
+    // Project members / directory
+    // -----------------------------------------
+
+    private void upsertProjectMemberRole(Connection conn, String projectId, String memberId, ProjectRole role) {
+        ProjectRole r = (role == null) ? ProjectRole.MEMBER : role;
+        try (PreparedStatement ps = conn.prepareStatement("""
+            INSERT INTO project_members(project_id, member_id, project_role, added_at)
+            VALUES(?,?,?,?)
+            ON CONFLICT(project_id, member_id)
+            DO UPDATE SET project_role = excluded.project_role
+            """)) {
+
+            ps.setString(1, projectId);
+            ps.setString(2, memberId);
+            ps.setString(3, r.name());
+            ps.setLong(4, System.currentTimeMillis());
+            ps.executeUpdate();
+
+        } catch (Exception e) {
+            throw new DbException("Failed to upsert project member role", e);
+        }
+    }
+
+    private void upsertMemberIdentity(Connection conn, Member m) {
+        try (PreparedStatement ps = conn.prepareStatement("""
+        INSERT INTO members (id, name, role, email, created_at, updated_at)
+        VALUES (?, ?, ?, '', ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name=excluded.name,
+          updated_at=excluded.updated_at
+        """)) {
+            long now = System.currentTimeMillis();
+            ps.setString(1, m.getId());
+            ps.setString(2, nullToEmpty(m.getName()));
+            // keep whatever you pass (used as a "default role" when adding to other projects)
+            ps.setString(3, (m.getRole() == null ? ProjectRole.MEMBER : m.getRole()).name());
+            ps.setLong(4, now);
+            ps.setLong(5, now);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            throw new DbException("Failed to upsert member identity " + m.getId(), e);
+        }
+    }
+
+    /**
+     * Directory = all ACTIVE login accounts mapped to members.
+     * Returned Member.role is used as a *default role* when adding to a project.
+     */
+    public List<Member> listDirectoryUsers() {
+        return db.tx(conn -> {
+            List<Member> out = new ArrayList<>();
+
+            try (PreparedStatement ps = conn.prepareStatement("""
+            SELECT m.id AS id,
+                   COALESCE(NULLIF(m.name,''), au.username) AS display,
+                   COALESCE(NULLIF(m.role,''), 'MEMBER') AS default_role
+            FROM auth_users au
+            JOIN members m ON m.id = au.member_id
+            WHERE au.is_active = 1
+            ORDER BY display COLLATE NOCASE
+            """);
+                 ResultSet rs = ps.executeQuery()) {
+
+                while (rs.next()) {
+                    String id = rs.getString("id");
+                    String display = rs.getString("display");
+                    String roleStr = rs.getString("default_role");
+                    ProjectRole role = safeEnum(ProjectRole.class, roleStr, ProjectRole.MEMBER);
+
+                    out.add(new Member(id, display, role));
+                }
+            } catch (Exception e) {
+                throw new DbException("listDirectoryUsers failed", e);
+            }
+
+            return out;
+        });
+    }
+
+    // -----------------------------------------
+    // Minimal DB row structs + SQL
     // -----------------------------------------
 
     private static final class ProjectRow {
@@ -566,7 +666,7 @@ public final class DbStore extends InMemoryStore {
     }
 
     private static final class ProjectMemberRow {
-        String projectId, memberId;
+        String projectId, memberId, projectRole;
     }
 
     private static final class TaskRow {
@@ -586,12 +686,9 @@ public final class DbStore extends InMemoryStore {
         long at;
     }
 
-    // NOTE: For brevity, these use Statement/ResultSet with simple mapping.
-    // You already have repo classes in /repo; we can refactor to use them next.
-
     private List<ProjectRow> selectProjects(Connection conn) {
-        try (var st = conn.createStatement();
-             var rs = st.executeQuery("""
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("""
                 SELECT id, name, description, stakeholders, phase_template, start_date, end_date, health, status, completed_date, created_at, updated_at
                 FROM projects
                 """)) {
@@ -620,8 +717,8 @@ public final class DbStore extends InMemoryStore {
     }
 
     private List<PhaseRow> selectPhases(Connection conn) {
-        try (var st = conn.createStatement();
-             var rs = st.executeQuery("""
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("""
                 SELECT id, project_id, name, sort_index, start_at, end_at
                 FROM phases
                 ORDER BY project_id, sort_index
@@ -645,8 +742,8 @@ public final class DbStore extends InMemoryStore {
     }
 
     private List<MemberRow> selectMembers(Connection conn) {
-        try (var st = conn.createStatement();
-             var rs = st.executeQuery("SELECT id, name, role FROM members")) {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT id, name, role FROM members")) {
 
             List<MemberRow> out = new ArrayList<>();
             while (rs.next()) {
@@ -663,14 +760,18 @@ public final class DbStore extends InMemoryStore {
     }
 
     private List<ProjectMemberRow> selectProjectMembers(Connection conn) {
-        try (var st = conn.createStatement();
-             var rs = st.executeQuery("SELECT project_id, member_id FROM project_members")) {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("""
+                SELECT project_id, member_id, project_role
+                FROM project_members
+                """)) {
 
             List<ProjectMemberRow> out = new ArrayList<>();
             while (rs.next()) {
                 ProjectMemberRow r = new ProjectMemberRow();
                 r.projectId = rs.getString("project_id");
                 r.memberId = rs.getString("member_id");
+                r.projectRole = rs.getString("project_role");
                 out.add(r);
             }
             return out;
@@ -680,8 +781,8 @@ public final class DbStore extends InMemoryStore {
     }
 
     private List<TaskRow> selectTasks(Connection conn) {
-        try (var st = conn.createStatement();
-             var rs = st.executeQuery("""
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("""
                 SELECT id, project_id, phase_id, title, details, status, priority, assignee_member_id, due_at, sort_index
                 FROM tasks
                 ORDER BY project_id, sort_index
@@ -709,8 +810,8 @@ public final class DbStore extends InMemoryStore {
     }
 
     private List<MilestoneRow> selectMilestones(Connection conn) {
-        try (var st = conn.createStatement();
-             var rs = st.executeQuery("""
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("""
                 SELECT id, project_id, title, target_at, is_done
                 FROM milestones
                 ORDER BY project_id
@@ -733,14 +834,14 @@ public final class DbStore extends InMemoryStore {
     }
 
     private List<ActivityRow> selectRecentActivity(Connection conn, int limit) {
-        try (var ps = conn.prepareStatement("""
+        try (PreparedStatement ps = conn.prepareStatement("""
                 SELECT id, at, project_id, entity_type, entity_id, action, details
                 FROM activity_log
                 ORDER BY at DESC
                 LIMIT ?
                 """)) {
             ps.setInt(1, limit);
-            try (var rs = ps.executeQuery()) {
+            try (ResultSet rs = ps.executeQuery()) {
                 List<ActivityRow> out = new ArrayList<>();
                 while (rs.next()) {
                     ActivityRow r = new ActivityRow();
@@ -761,7 +862,7 @@ public final class DbStore extends InMemoryStore {
     }
 
     private Project buildProject(ProjectRow pr) {
-        Project p = new Project(pr.id, pr.name); // requires ID constructor fix
+        Project p = new Project(pr.id, pr.name);
         p.setDescription(nullToEmpty(pr.description));
         p.setStakeholders(nullToEmpty(pr.stakeholders));
         p.setPhaseTemplate(nullToEmpty(pr.phaseTemplate));
@@ -780,8 +881,7 @@ public final class DbStore extends InMemoryStore {
     }
 
     private void upsertProject(Connection conn, Project p, long now) {
-        // Insert or update
-        try (var ps = conn.prepareStatement("""
+        try (PreparedStatement ps = conn.prepareStatement("""
             INSERT INTO projects (id, name, description, stakeholders, phase_template, start_date, end_date, health, status, completed_date, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
@@ -817,7 +917,7 @@ public final class DbStore extends InMemoryStore {
     }
 
     private void deleteProjectById(Connection conn, String id) {
-        try (var ps = conn.prepareStatement("DELETE FROM projects WHERE id = ?")) {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM projects WHERE id = ?")) {
             ps.setString(1, id);
             ps.executeUpdate();
         } catch (Exception e) {
@@ -826,7 +926,7 @@ public final class DbStore extends InMemoryStore {
     }
 
     private void upsertPhase(Connection conn, Project p, Phase ph, int sort) {
-        try (var ps = conn.prepareStatement("""
+        try (PreparedStatement ps = conn.prepareStatement("""
             INSERT INTO phases (id, project_id, name, sort_index, start_at, end_at, is_done, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
@@ -852,7 +952,7 @@ public final class DbStore extends InMemoryStore {
     }
 
     private void deletePhaseById(Connection conn, String id) {
-        try (var ps = conn.prepareStatement("DELETE FROM phases WHERE id = ?")) {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM phases WHERE id = ?")) {
             ps.setString(1, id);
             ps.executeUpdate();
         } catch (Exception e) {
@@ -860,44 +960,8 @@ public final class DbStore extends InMemoryStore {
         }
     }
 
-    private void upsertMember(Connection conn, Member m) {
-        try (var ps = conn.prepareStatement("""
-            INSERT INTO members (id, name, role, email, created_at, updated_at)
-            VALUES (?, ?, ?, '', ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              name=excluded.name,
-              role=excluded.role,
-              updated_at=excluded.updated_at
-            """)) {
-            long now = System.currentTimeMillis();
-            ps.setString(1, m.getId());
-            ps.setString(2, nullToEmpty(m.getName()));
-            ps.setString(3, m.getRole() == null ? ProjectRole.MEMBER.name() : m.getRole().name());
-            ps.setLong(4, now);
-            ps.setLong(5, now);
-            ps.executeUpdate();
-        } catch (Exception e) {
-            throw new DbException("Failed to upsert member " + m.getId(), e);
-        }
-    }
-
-    private void linkProjectMember(Connection conn, String projectId, String memberId) {
-        try (var ps = conn.prepareStatement("""
-            INSERT INTO project_members (project_id, member_id, project_role, added_at)
-            VALUES (?, ?, '', ?)
-            ON CONFLICT(project_id, member_id) DO NOTHING
-            """)) {
-            ps.setString(1, projectId);
-            ps.setString(2, memberId);
-            ps.setLong(3, System.currentTimeMillis());
-            ps.executeUpdate();
-        } catch (Exception e) {
-            throw new DbException("Failed to link project_member " + projectId + "/" + memberId, e);
-        }
-    }
-
     private void unlinkProjectMember(Connection conn, String projectId, String memberId) {
-        try (var ps = conn.prepareStatement("""
+        try (PreparedStatement ps = conn.prepareStatement("""
             DELETE FROM project_members WHERE project_id = ? AND member_id = ?
             """)) {
             ps.setString(1, projectId);
@@ -909,7 +973,7 @@ public final class DbStore extends InMemoryStore {
     }
 
     private void nullAssigneeForMember(Connection conn, String projectId, String memberId) {
-        try (var ps = conn.prepareStatement("""
+        try (PreparedStatement ps = conn.prepareStatement("""
             UPDATE tasks SET assignee_member_id = NULL
             WHERE project_id = ? AND assignee_member_id = ?
             """)) {
@@ -922,7 +986,7 @@ public final class DbStore extends InMemoryStore {
     }
 
     private void upsertTask(Connection conn, Project p, Task t) {
-        try (var ps = conn.prepareStatement("""
+        try (PreparedStatement ps = conn.prepareStatement("""
             INSERT INTO tasks (id, project_id, phase_id, title, details, status, priority, assignee_member_id, due_at, sort_index, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
@@ -956,7 +1020,7 @@ public final class DbStore extends InMemoryStore {
     }
 
     private void deleteTaskById(Connection conn, String id) {
-        try (var ps = conn.prepareStatement("DELETE FROM tasks WHERE id = ?")) {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM tasks WHERE id = ?")) {
             ps.setString(1, id);
             ps.executeUpdate();
         } catch (Exception e) {
@@ -965,7 +1029,7 @@ public final class DbStore extends InMemoryStore {
     }
 
     private void upsertMilestone(Connection conn, Project p, Milestone ms) {
-        try (var ps = conn.prepareStatement("""
+        try (PreparedStatement ps = conn.prepareStatement("""
             INSERT INTO milestones (id, project_id, title, target_at, is_done, done_at, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
@@ -991,7 +1055,7 @@ public final class DbStore extends InMemoryStore {
     }
 
     private void deleteMilestoneById(Connection conn, String id) {
-        try (var ps = conn.prepareStatement("DELETE FROM milestones WHERE id = ?")) {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM milestones WHERE id = ?")) {
             ps.setString(1, id);
             ps.executeUpdate();
         } catch (Exception e) {
@@ -1000,7 +1064,7 @@ public final class DbStore extends InMemoryStore {
     }
 
     private void appendActivity(Connection conn, long at, String projectId, String entityType, String entityId, String action, String details) {
-        try (var ps = conn.prepareStatement("""
+        try (PreparedStatement ps = conn.prepareStatement("""
             INSERT INTO activity_log (id, at, actor, project_id, entity_type, entity_id, action, details)
             VALUES (?, ?, '', ?, ?, ?, ?, ?)
             """)) {
@@ -1013,7 +1077,6 @@ public final class DbStore extends InMemoryStore {
             ps.setString(7, nullToEmpty(details));
             ps.executeUpdate();
 
-            // also update in-memory activity list on FX thread
             Platform.runLater(() -> {
                 String pn = "-";
                 if (projectId != null) {
@@ -1041,12 +1104,12 @@ public final class DbStore extends InMemoryStore {
     // tiny JDBC utils
     // -----------------------------------------
 
-    private static void bindNullableLong(java.sql.PreparedStatement ps, int idx, Long v) throws Exception {
-        if (v == null) ps.setNull(idx, java.sql.Types.INTEGER);
+    private static void bindNullableLong(PreparedStatement ps, int idx, Long v) throws Exception {
+        if (v == null) ps.setNull(idx, Types.BIGINT);
         else ps.setLong(idx, v);
     }
 
-    private static Long readNullableLong(java.sql.ResultSet rs, String col) throws Exception {
+    private static Long readNullableLong(ResultSet rs, String col) throws Exception {
         long v = rs.getLong(col);
         return rs.wasNull() ? null : v;
     }
@@ -1057,4 +1120,5 @@ public final class DbStore extends InMemoryStore {
     }
 
     private static String nullToEmpty(String s) { return s == null ? "" : s; }
+    private static String safeStr(String s) { return s == null ? "" : s; }
 }

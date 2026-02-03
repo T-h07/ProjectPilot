@@ -5,335 +5,330 @@ import com.projectpilot.data.InMemoryStore;
 import com.projectpilot.data.db.DbManager;
 import com.projectpilot.data.db.auth.GlobalRole;
 import com.projectpilot.data.db.auth.UserAdminService;
+import com.projectpilot.model.Member;
 import com.projectpilot.model.Project;
 import com.projectpilot.model.enums.ProjectRole;
+import com.projectpilot.ui.dialogs.EditUserDialog;
+import javafx.beans.binding.Bindings;
+import javafx.beans.property.ReadOnlyBooleanWrapper;
+import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
-import javafx.concurrent.Task;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Node;                 // ✅ missing before
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 
-import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.Objects;
 
-public class AdminPage extends BorderPane {
+public final class AdminPage extends BorderPane {
+
+    private final UserAdminService users;
+    private final ObservableList<UserAdminService.UserRow> items = FXCollections.observableArrayList();
 
     private final InMemoryStore store;
     private final AppState appState;
-    private final UserAdminService admin;
 
-    private final TableView<UserAdminService.UserRow> usersTable = new TableView<>();
     private final Label status = new Label();
 
-    private final TextField newName = new TextField();
-    private final TextField newUsername = new TextField();
-    private final PasswordField newPassword = new PasswordField();
-    private final ComboBox<GlobalRole> newGlobalRole = new ComboBox<>();
-
-    private final ComboBox<Project> projectPick = new ComboBox<>();
-    private final ComboBox<ProjectRole> projectRolePick = new ComboBox<>();
-    private final TableView<RoleRow> rolesTable = new TableView<>();
-
     public AdminPage(DbManager db, InMemoryStore store, AppState appState) {
-        this.store = store;
-        this.appState = appState;
-        this.admin = new UserAdminService(db);
+        this.users = new UserAdminService(db);
+        this.store = Objects.requireNonNull(store);
+        this.appState = Objects.requireNonNull(appState);
 
         setPadding(new Insets(16));
 
-        setLeft(buildUsersPane());
-        setCenter(buildManagePane());
+        var title = new Label("Admin");
+        title.getStyleClass().add("pp-h1");
 
-        status.getStyleClass().add("muted");
-        setBottom(status);
-        BorderPane.setMargin(status, new Insets(10, 0, 0, 0));
+        var createBox = buildCreateUserBox();
+        var table = buildUsersTable();
 
-        refreshUsers();
-        refreshProjectsList();
+        var top = new VBox(10, title, status);
+        setTop(top);
+
+        var center = new VBox(14, createBox, table);
+        center.setFillWidth(true);
+        setCenter(center);
+
+        reload();
     }
 
-    private Node buildUsersPane() {
-        VBox box = new VBox(10);
-        box.setPrefWidth(420);
+    private Node buildCreateUserBox() {
+        TextField name = new TextField();
+        name.setPromptText("Display name (optional)");
 
-        Label title = new Label("Admin");
-        title.getStyleClass().add("page-title");
+        TextField username = new TextField();
+        username.setPromptText("Username");
 
-        Button refresh = new Button("Refresh");
-        refresh.getStyleClass().add("secondary");
-        refresh.setOnAction(e -> refreshUsers());
+        PasswordField password = new PasswordField();
+        password.setPromptText("Password");
 
-        HBox header = new HBox(10, title, new Region(), refresh);
-        HBox.setHgrow(header.getChildren().get(1), javafx.scene.layout.Priority.ALWAYS);
-        header.setAlignment(Pos.CENTER_LEFT);
+        ComboBox<GlobalRole> globalRole = new ComboBox<>();
+        globalRole.getItems().setAll(GlobalRole.USER, GlobalRole.ADMIN);
+        globalRole.setValue(GlobalRole.USER);
 
-        TableColumn<UserAdminService.UserRow, String> cUser = col("Username", UserAdminService.UserRow::username);
-        TableColumn<UserAdminService.UserRow, String> cName = col("Name", UserAdminService.UserRow::name);
-        TableColumn<UserAdminService.UserRow, String> cRole = col("Global", r -> r.globalRole().name());
-        TableColumn<UserAdminService.UserRow, String> cActive = col("Active", r -> r.active() ? "YES" : "NO");
+        ComboBox<ProjectRole> projectRole = new ComboBox<>();
+        projectRole.getItems().setAll(ProjectRole.LEADER, ProjectRole.MEMBER, ProjectRole.VIEWER);
+        projectRole.setValue(ProjectRole.MEMBER);
 
-        usersTable.getColumns().setAll(cUser, cName, cRole, cActive);
-
-        // ✅ most compatible across JavaFX versions
-        usersTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-
-        usersTable.getSelectionModel().selectedItemProperty().addListener((obs, old, cur) -> {
-            if (cur != null) loadUserRoles(cur);
-        });
-
-        VBox card = new VBox(10, header, usersTable);
-        card.getStyleClass().add("card");
-        card.setPadding(new Insets(12));
-        VBox.setVgrow(usersTable, javafx.scene.layout.Priority.ALWAYS);
-
-        box.getChildren().add(card);
-        return box;
-    }
-
-    private Node buildManagePane() {
-        VBox wrap = new VBox(16);
-        wrap.setPadding(new Insets(0, 0, 0, 16));
-
-        wrap.getChildren().addAll(
-                buildCreateUserCard(),
-                buildUserActionsCard(),
-                buildProjectRolesCard()
+        Label projectRoleLbl = new Label("Project role");
+        var showProjectRole = Bindings.createBooleanBinding(
+                () -> globalRole.getValue() == GlobalRole.USER,
+                globalRole.valueProperty()
         );
 
-        ScrollPane sp = new ScrollPane(wrap);
-        sp.setFitToWidth(true);
-        sp.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        sp.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        sp.setStyle("-fx-background-color: transparent;");
-        return sp;
-    }
+        projectRoleLbl.visibleProperty().bind(showProjectRole);
+        projectRoleLbl.managedProperty().bind(projectRoleLbl.visibleProperty());
+        projectRole.visibleProperty().bind(showProjectRole);
+        projectRole.managedProperty().bind(projectRole.visibleProperty());
 
-    private Node buildCreateUserCard() {
-        VBox card = card("Create User");
+        Label hint = new Label();
+        hint.getStyleClass().add("muted");
+        hint.textProperty().bind(Bindings.createStringBinding(() -> {
+            Project p = appState.getSelectedProject();
+            if (globalRole.getValue() != GlobalRole.USER) return "";
+            if (p == null) return "No project selected — user will be created, but not added to a project.";
+            return "User will be added to current project: " + p.getName();
+        }, globalRole.valueProperty(), appState.selectedProjectProperty()));
+        hint.visibleProperty().bind(showProjectRole);
+        hint.managedProperty().bind(hint.visibleProperty());
 
-        newName.setPromptText("Display name (e.g. Ardi)");
-        newUsername.setPromptText("Username (login)");
-        newPassword.setPromptText("Password");
+        Button create = new Button("Create user");
+        create.setOnAction(e -> {
+            String uname = username.getText() == null ? "" : username.getText().trim();
+            String disp = name.getText() == null ? "" : name.getText().trim();
 
-        newGlobalRole.setItems(FXCollections.observableArrayList(GlobalRole.USER, GlobalRole.ADMIN));
-        newGlobalRole.getSelectionModel().select(GlobalRole.USER);
+            try {
+                users.createUser(disp, uname, password.getText(), globalRole.getValue());
+                reload();
 
-        Button create = new Button("Create");
-        create.getStyleClass().add("primary");
-        create.setOnAction(e -> runAsync("Create user", () -> {
-            admin.createUser(
-                    newName.getText(),
-                    newUsername.getText(),
-                    newPassword.getText(),
-                    newGlobalRole.getValue()
-            );
-            return null;
-        }, v -> {
-            newName.clear();
-            newUsername.clear();
-            newPassword.clear();
-            refreshUsers();
-            setStatus("User created.");
-        }));
+                if (globalRole.getValue() == GlobalRole.USER) {
+                    Project p = appState.getSelectedProject();
+                    if (p != null) {
+                        var created = items.stream()
+                                .filter(r -> r.username() != null && r.username().equalsIgnoreCase(uname))
+                                .findFirst()
+                                .orElse(null);
+
+                        if (created != null) {
+                            boolean already = p.getMembers().stream().anyMatch(m -> created.id().equals(m.getId()));
+                            if (!already) {
+                                String displayName = !disp.isBlank() ? disp : uname;
+
+                                // add to in-memory + (DbStore will persist if store is DbStore)
+                                store.addMember(p, new Member(created.id(), displayName, projectRole.getValue()));
+
+                                // also persist role explicitly (safe even if DbStore already did it)
+                                users.upsertProjectRole(p.getId(), created.id(), projectRole.getValue());
+                            }
+                        }
+                    }
+                }
+
+                name.clear();
+                username.clear();
+                password.clear();
+                globalRole.setValue(GlobalRole.USER);
+                projectRole.setValue(ProjectRole.MEMBER);
+
+                status.setText("✅ User created.");
+            } catch (Exception ex) {
+                status.setText("❌ " + ex.getMessage());
+            }
+        });
 
         GridPane grid = new GridPane();
         grid.setHgap(10);
         grid.setVgap(10);
 
-        grid.add(new Label("Name"), 0, 0);
-        grid.add(newName, 1, 0);
+        int r = 0;
+        grid.addRow(r++, new Label("Name"), name);
+        grid.addRow(r++, new Label("Username"), username);
+        grid.addRow(r++, new Label("Password"), password);
+        grid.addRow(r++, new Label("Global role"), globalRole);
+        grid.addRow(r++, projectRoleLbl, projectRole);
+        grid.add(hint, 1, r++);
 
-        grid.add(new Label("Username"), 0, 1);
-        grid.add(newUsername, 1, 1);
-
-        grid.add(new Label("Password"), 0, 2);
-        grid.add(newPassword, 1, 2);
-
-        grid.add(new Label("Global role"), 0, 3);
-        grid.add(newGlobalRole, 1, 3);
-
-        ColumnConstraints c0 = new ColumnConstraints();
-        c0.setMinWidth(90);
         ColumnConstraints c1 = new ColumnConstraints();
-        c1.setHgrow(javafx.scene.layout.Priority.ALWAYS);
-        grid.getColumnConstraints().setAll(c0, c1);
+        c1.setMinWidth(90);
+        ColumnConstraints c2 = new ColumnConstraints();
+        c2.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().setAll(c1, c2);
 
-        card.getChildren().addAll(grid, create);
-        return card;
+        HBox actions = new HBox(10, create);
+        actions.setAlignment(Pos.CENTER_LEFT);
+
+        VBox box = new VBox(10, new Label("Create login user"), grid, actions);
+        box.setPadding(new Insets(12));
+        box.getStyleClass().add("pp-card");
+        return box;
     }
 
-    private Node buildUserActionsCard() {
-        VBox card = card("Selected User Actions");
+    private Node buildUsersTable() {
+        TableView<UserAdminService.UserRow> table = new TableView<>(items);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
-        PasswordField resetPw = new PasswordField();
-        resetPw.setPromptText("New password");
+        TableColumn<UserAdminService.UserRow, String> colUser = new TableColumn<>("Username");
+        colUser.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue().username()));
 
-        Button reset = new Button("Reset password");
-        reset.getStyleClass().add("secondary");
-        reset.setOnAction(e -> {
-            var u = selectedUser();
-            if (u == null) { setStatus("Select a user first."); return; }
-            runAsync("Reset password", () -> {
-                admin.resetPassword(u.id(), resetPw.getText());
-                return null;
-            }, v -> {
-                resetPw.clear();
-                setStatus("Password reset for " + u.username());
-            });
-        });
+        TableColumn<UserAdminService.UserRow, String> colName = new TableColumn<>("Name");
+        colName.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue().name()));
 
-        Button toggleActive = new Button("Enable/Disable");
-        toggleActive.getStyleClass().add("secondary");
-        toggleActive.setOnAction(e -> {
-            var u = selectedUser();
-            if (u == null) { setStatus("Select a user first."); return; }
-            boolean next = !u.active();
-            runAsync("Toggle active", () -> {
-                admin.setUserActive(u.id(), next);
-                return null;
-            }, v -> refreshUsers());
-        });
+        TableColumn<UserAdminService.UserRow, String> colRole = new TableColumn<>("Role");
+        colRole.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue().globalRole().name()));
 
-        VBox row = new VBox(10, resetPw, new HBox(10, reset, toggleActive));
-        card.getChildren().add(row);
-        return card;
-    }
+        TableColumn<UserAdminService.UserRow, Boolean> colActive = new TableColumn<>("Active");
+        colActive.setCellValueFactory(cd -> new ReadOnlyBooleanWrapper(cd.getValue().active()));
+        colActive.setCellFactory(tc -> new TableCell<>() {
+            private final CheckBox cb = new CheckBox();
+            private boolean internal;
 
-    private Node buildProjectRolesCard() {
-        VBox card = card("Project Roles");
+            {
+                cb.selectedProperty().addListener((obs, old, val) -> {
+                    if (internal) return;
+                    var row = getTableRow() == null ? null : getTableRow().getItem();
+                    if (row == null) return;
 
-        projectRolePick.setItems(FXCollections.observableArrayList(
-                ProjectRole.LEADER, ProjectRole.MEMBER, ProjectRole.VIEWER
-        ));
-        projectRolePick.getSelectionModel().select(ProjectRole.MEMBER);
-
-        projectPick.setPromptText("Pick a project…");
-
-        Button setRole = new Button("Add/Update role");
-        setRole.getStyleClass().add("primary");
-        setRole.setOnAction(e -> {
-            var u = selectedUser();
-            var p = projectPick.getValue();
-            var role = projectRolePick.getValue();
-
-            if (u == null) { setStatus("Select a user first."); return; }
-            if (p == null) { setStatus("Select a project."); return; }
-
-            runAsync("Set project role", () -> {
-                admin.upsertProjectRole(p.getId(), u.id(), role);
-                return null;
-            }, v -> loadUserRoles(u));
-        });
-
-        Button remove = new Button("Remove from project");
-        remove.getStyleClass().add("danger-outline");
-        remove.setOnAction(e -> {
-            var u = selectedUser();
-            var p = projectPick.getValue();
-
-            if (u == null) { setStatus("Select a user first."); return; }
-            if (p == null) { setStatus("Select a project."); return; }
-
-            runAsync("Remove from project", () -> {
-                admin.removeFromProject(p.getId(), u.id());
-                return null;
-            }, v -> loadUserRoles(u));
-        });
-
-        HBox top = new HBox(10, projectPick, projectRolePick, setRole, remove);
-        top.setAlignment(Pos.CENTER_LEFT);
-
-        TableColumn<RoleRow, String> cProj = col("Project", RoleRow::projectName);
-        TableColumn<RoleRow, String> cR = col("Role", r -> r.role().name());
-        rolesTable.getColumns().setAll(cProj, cR);
-        rolesTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
-
-        card.getChildren().addAll(top, rolesTable);
-        return card;
-    }
-
-    private void refreshUsers() {
-        runAsync("Load users", admin::listLoginUsers, users -> {
-            usersTable.setItems(FXCollections.observableArrayList(users));
-            if (!users.isEmpty()) usersTable.getSelectionModel().select(0);
-            setStatus("Users loaded: " + users.size());
-        });
-    }
-
-    private void refreshProjectsList() {
-        List<Project> all = new ArrayList<>();
-        all.addAll(store.getProjects());
-        all.addAll(store.getHistoryProjects());
-
-        Map<String, Project> map = new LinkedHashMap<>();
-        for (Project p : all) map.put(p.getId(), p);
-
-        projectPick.setItems(FXCollections.observableArrayList(map.values()));
-        if (!projectPick.getItems().isEmpty()) projectPick.getSelectionModel().select(0);
-    }
-
-    private void loadUserRoles(UserAdminService.UserRow u) {
-        runAsync("Load roles", () -> admin.rolesForUser(u.id()), map -> {
-            Map<String, Project> byId = new HashMap<>();
-            for (Project p : store.getProjects()) byId.put(p.getId(), p);
-            for (Project p : store.getHistoryProjects()) byId.put(p.getId(), p);
-
-            List<RoleRow> rows = new ArrayList<>();
-            for (var e : map.entrySet()) {
-                Project p = byId.get(e.getKey());
-                String name = (p != null) ? p.getName() : ("(deleted) " + e.getKey());
-                rows.add(new RoleRow(e.getKey(), name, e.getValue()));
+                    try {
+                        users.setUserActive(row.id(), val);
+                        status.setText("✅ Updated active for " + row.username());
+                        reload();
+                    } catch (Exception ex) {
+                        status.setText("❌ " + ex.getMessage());
+                        reload();
+                    }
+                });
             }
-            rows.sort(Comparator.comparing(RoleRow::projectName, String.CASE_INSENSITIVE_ORDER));
-            rolesTable.setItems(FXCollections.observableArrayList(rows));
-        });
-    }
 
-    private UserAdminService.UserRow selectedUser() {
-        return usersTable.getSelectionModel().getSelectedItem();
-    }
-
-    private void setStatus(String msg) {
-        status.setText(msg == null ? "" : msg);
-    }
-
-    // ✅ FIX: use Consumer<T> so lambdas can be "void"
-    private <T> void runAsync(String label, Callable<T> work, Consumer<T> onOk) {
-        Task<T> t = new Task<>() {
-            @Override protected T call() throws Exception { return work.call(); }
-        };
-        t.setOnSucceeded(e -> onOk.accept(t.getValue()));
-        t.setOnFailed(e -> {
-            Throwable ex = t.getException();
-            setStatus(label + " failed: " + (ex == null ? "unknown" : ex.getMessage()));
+            @Override
+            protected void updateItem(Boolean item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty) {
+                    setGraphic(null);
+                    return;
+                }
+                internal = true;
+                cb.setSelected(Boolean.TRUE.equals(item));
+                internal = false;
+                setGraphic(cb);
+            }
         });
 
-        Thread th = new Thread(t, "admin-" + label.replace(' ', '-').toLowerCase());
-        th.setDaemon(true);
-        th.start();
+        TableColumn<UserAdminService.UserRow, Void> colActions = new TableColumn<>("Actions");
+        colActions.setMinWidth(240);
+        colActions.setCellFactory(tc -> new TableCell<>() {
+            private final Button edit = new Button("Edit");
+            private final Button delete = new Button("Delete");
+            private final HBox box = new HBox(10, edit, delete);
+
+            {
+                box.setAlignment(Pos.CENTER_LEFT);
+
+                edit.setOnAction(e -> {
+                    var row = getTableRow() == null ? null : getTableRow().getItem();
+                    if (row == null) return;
+
+                    Project p = appState.getSelectedProject();
+                    String projectName = (p == null) ? "" : p.getName();
+
+                    ProjectRole currentRole = ProjectRole.MEMBER;
+                    if (p != null) {
+                        try {
+                            currentRole = users.rolesForUser(row.id()).getOrDefault(p.getId(), ProjectRole.MEMBER);
+                        } catch (Exception ignored) {
+                            currentRole = ProjectRole.MEMBER;
+                        }
+                    }
+
+                    var dlg = new EditUserDialog(row, projectName, currentRole);
+                    var res = dlg.showAndWait();
+                    if (res.isEmpty()) return;
+
+                    try {
+                        var data = res.get();
+
+                        users.updateUser(
+                                row.id(),
+                                data.displayName(),
+                                data.username(),
+                                data.newPassword(),
+                                data.globalRole(),
+                                data.active()
+                        );
+
+                        ProjectRole roleFinal = (data.projectRole() == null) ? currentRole : data.projectRole();
+
+                        if (p != null) {
+                            users.upsertProjectRole(p.getId(), row.id(), roleFinal);
+
+                            // ✅ IMPORTANT: update existing Member object (don't replace)
+                            for (Member m : p.getMembers()) {
+                                if (row.id().equals(m.getId())) {
+                                    String newName = (data.displayName() == null || data.displayName().isBlank())
+                                            ? data.username()
+                                            : data.displayName();
+
+                                    m.nameProperty().set(newName);
+                                    m.roleProperty().set(roleFinal);
+                                    break;
+                                }
+                            }
+                        }
+
+                        status.setText("✅ Updated " + data.username());
+                        reload();
+                    } catch (Exception ex) {
+                        status.setText("❌ " + ex.getMessage());
+                        reload();
+                    }
+                });
+
+                delete.setOnAction(e -> {
+                    var row = getTableRow() == null ? null : getTableRow().getItem();
+                    if (row == null) return;
+
+                    Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+                    confirm.setTitle("Delete account");
+                    confirm.setHeaderText("Delete login account: " + row.username() + "?");
+                    confirm.setContentText("This removes the login account. Member + project data is kept.");
+                    if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) return;
+
+                    try {
+                        users.deleteUser(row.id());
+                        status.setText("✅ Deleted account for " + row.username());
+                        reload();
+                    } catch (Exception ex) {
+                        status.setText("❌ " + ex.getMessage());
+                    }
+                });
+            }
+
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : box);
+            }
+        });
+
+        table.getColumns().setAll(colUser, colName, colRole, colActive, colActions);
+
+        Button refresh = new Button("Refresh");
+        refresh.setOnAction(e -> reload());
+
+        VBox box = new VBox(10, new HBox(10, new Label("Login users"), refresh), table);
+        box.setPadding(new Insets(12));
+        box.getStyleClass().add("pp-card");
+        VBox.setVgrow(table, Priority.ALWAYS);
+        return box;
     }
 
-    private static VBox card(String title) {
-        Label t = new Label(title);
-        t.getStyleClass().add("section-title");
-
-        VBox v = new VBox(10, t);
-        v.getStyleClass().add("card");
-        v.setPadding(new Insets(14));
-        return v;
+    private void reload() {
+        try {
+            items.setAll(users.listLoginUsers());
+        } catch (Exception ex) {
+            status.setText("❌ Failed to load users: " + ex.getMessage());
+        }
     }
-
-    private static <S> TableColumn<S, String> col(String title, Function<S, String> f) {
-        TableColumn<S, String> c = new TableColumn<>(title);
-        c.setCellValueFactory(cd -> new javafx.beans.property.SimpleStringProperty(
-                Optional.ofNullable(f.apply(cd.getValue())).orElse("")
-        ));
-        return c;
-    }
-
-    private record RoleRow(String projectId, String projectName, ProjectRole role) {}
 }

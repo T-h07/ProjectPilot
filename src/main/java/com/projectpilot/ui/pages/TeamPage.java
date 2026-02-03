@@ -5,17 +5,20 @@ import com.projectpilot.data.InMemoryStore;
 import com.projectpilot.model.Member;
 import com.projectpilot.model.Project;
 import com.projectpilot.model.Task;
-import com.projectpilot.model.enums.ProjectRole;
 import com.projectpilot.model.enums.TaskStatus;
 import javafx.beans.binding.Bindings;
 import javafx.beans.binding.BooleanBinding;
+import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
+import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 
-import java.util.Objects;
+import java.lang.reflect.Method;
+import java.util.*;
 
 public class TeamPage extends VBox {
 
@@ -25,19 +28,25 @@ public class TeamPage extends VBox {
     private final Label header = new Label("Team");
     private final Label sub = new Label("");
 
-    private final TextField nameField = new TextField();
-    private final ComboBox<ProjectRole> roleBox = new ComboBox<>();
-    private final Button addBtn = new Button("Add member");
+    // Directory: add from global users (admin-created)
+    private final TextField directorySearch = new TextField();
+    private final ComboBox<Member> directoryBox = new ComboBox<>();
+    private final Button addFromDirectoryBtn = new Button("Add to project");
     private final Button refreshBtn = new Button("Refresh");
 
     private final ListView<Member> membersList = new ListView<>();
 
     private final Label selectedName = new Label("-");
-    private final ComboBox<ProjectRole> editRoleBox = new ComboBox<>();
+    private final Label selectedRole = new Label("-");
     private final Label openTasksLabel = new Label("-");
     private final Button removeBtn = new Button("Remove member");
 
     private final BooleanBinding canEdit;
+
+    private final ObservableList<Member> directorySource = FXCollections.observableArrayList();
+    private final FilteredList<Member> directoryFiltered = new FilteredList<>(directorySource, m -> true);
+
+    private String dirQuery = "";
 
     public TeamPage(InMemoryStore store, AppState appState) {
         this.store = store;
@@ -54,30 +63,49 @@ public class TeamPage extends VBox {
         header.getStyleClass().add("page-title");
         sub.getStyleClass().add("muted");
 
-        nameField.setPromptText("Member name…");
-        nameField.setPrefWidth(280);
+        directorySearch.setPromptText("Search users...");
+        directorySearch.setPrefWidth(280);
+        directorySearch.textProperty().addListener((obs, ov, nv) -> {
+            dirQuery = (nv == null) ? "" : nv.trim().toLowerCase();
+            updateDirectoryPredicate();
+        });
 
-        roleBox.getItems().setAll(ProjectRole.values());
-        roleBox.getSelectionModel().selectFirst();
-        roleBox.setPrefWidth(180);
+        directoryBox.setPrefWidth(320);
+        directoryBox.setPromptText("Select existing user...");
+        directoryBox.setItems(directoryFiltered);
+        directoryBox.setCellFactory(cb -> new ListCell<>() {
+            @Override protected void updateItem(Member item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : (item.getName() + " • " + safeRole(item)));
+            }
+        });
+        directoryBox.setButtonCell(new ListCell<>() {
+            @Override protected void updateItem(Member item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "Select existing user..." : (item.getName() + " • " + safeRole(item)));
+            }
+        });
 
-        addBtn.getStyleClass().add("primary");
+        addFromDirectoryBtn.getStyleClass().add("primary");
         refreshBtn.getStyleClass().add("secondary");
 
-        // Workers: read-only (disable inputs + buttons)
-        nameField.disableProperty().bind(canEdit.not());
-        roleBox.disableProperty().bind(canEdit.not());
-        addBtn.disableProperty().bind(canEdit.not());
+        // Admin-only actions
+        directorySearch.disableProperty().bind(canEdit.not());
+        directoryBox.disableProperty().bind(canEdit.not());
+        addFromDirectoryBtn.disableProperty().bind(canEdit.not());
         removeBtn.disableProperty().bind(canEdit.not());
-        editRoleBox.disableProperty().bind(canEdit.not());
 
-        HBox addRow = new HBox(10, nameField, roleBox, addBtn, refreshBtn);
-        addRow.setAlignment(Pos.CENTER_LEFT);
+        Label existingLbl = new Label("Add existing admin-created user to project");
+        existingLbl.getStyleClass().add("section-title");
 
-        VBox topCard = new VBox(10, header, sub, addRow);
+        HBox addExistingRow = new HBox(10, directorySearch, directoryBox, addFromDirectoryBtn, refreshBtn);
+        addExistingRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox topCard = new VBox(10, header, sub, existingLbl, addExistingRow);
         topCard.getStyleClass().add("card");
         topCard.setPadding(new Insets(14));
 
+        // Members list
         Label membersTitle = new Label("Members");
         membersTitle.getStyleClass().add("section-title");
 
@@ -85,14 +113,11 @@ public class TeamPage extends VBox {
         membersList.setCellFactory(lv -> new ListCell<>() {
             @Override protected void updateItem(Member item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setText(null);
-                    return;
-                }
+                if (empty || item == null) { setText(null); return; }
+
                 Project p = appState.getSelectedProject();
                 long open = (p == null) ? 0 : openTasksFor(p, item);
-                String role = (item.getRole() == null) ? "-" : item.getRole().toString();
-                setText(item.getName() + "  •  " + role + "  •  open: " + open);
+                setText(item.getName() + "  •  " + safeRole(item) + "  •  open: " + open);
             }
         });
 
@@ -101,13 +126,12 @@ public class TeamPage extends VBox {
         membersCard.setPadding(new Insets(12));
         VBox.setVgrow(membersList, Priority.ALWAYS);
 
+        // Details
         Label detailsTitle = new Label("Member Details");
         detailsTitle.getStyleClass().add("section-title");
 
         selectedName.setStyle("-fx-font-size: 16px; -fx-font-weight: 700;");
-
-        editRoleBox.getItems().setAll(ProjectRole.values());
-        editRoleBox.setPrefWidth(220);
+        selectedRole.getStyleClass().add("muted");
 
         removeBtn.getStyleClass().add("secondary");
 
@@ -119,7 +143,7 @@ public class TeamPage extends VBox {
         form.add(selectedName, 1, 0);
 
         form.add(new Label("Role"), 0, 1);
-        form.add(editRoleBox, 1, 1);
+        form.add(selectedRole, 1, 1);
 
         form.add(new Label("Open tasks"), 0, 2);
         form.add(openTasksLabel, 1, 2);
@@ -137,46 +161,89 @@ public class TeamPage extends VBox {
         getChildren().addAll(topCard, bottom);
         VBox.setVgrow(bottom, Priority.ALWAYS);
 
-        addBtn.setOnAction(e -> addMember());
-        refreshBtn.setOnAction(e -> refresh(appState.getSelectedProject()));
+        // Actions
+        addFromDirectoryBtn.setOnAction(e -> addExistingToProject());
+        refreshBtn.setOnAction(e -> {
+            loadDirectory();
+            refresh(appState.getSelectedProject());
+        });
 
         membersList.getSelectionModel().selectedItemProperty().addListener((obs, oldM, newM) -> showMemberDetails(newM));
-
-        editRoleBox.setOnAction(e -> {
-            if (!canEdit.get()) return;
-
-            Member m = membersList.getSelectionModel().getSelectedItem();
-            if (m == null) return;
-
-            ProjectRole role = editRoleBox.getValue();
-            if (role == null) return;
-
-            m.setRole(role);
-            membersList.refresh();
-        });
-
         removeBtn.setOnAction(e -> removeSelectedMember());
 
+        // Wiring
         appState.selectedProjectProperty().addListener((obs, o, n) -> refresh(n));
-
         store.getProjects().addListener((ListChangeListener<Project>) c -> refresh(appState.getSelectedProject()));
 
-        appState.selectedProjectProperty().addListener((obs, oldP, newP) -> {
-            if (oldP != null) oldP.getTasks().removeListener(tasksListener);
-            if (newP != null) newP.getTasks().addListener(tasksListener);
-        });
-        if (appState.getSelectedProject() != null) {
-            appState.getSelectedProject().getTasks().addListener(tasksListener);
-        }
-
+        // Initial
+        loadDirectory();
         refresh(appState.getSelectedProject());
     }
 
-    private final ListChangeListener<Task> tasksListener = c -> {
-        membersList.refresh();
-        Member m = membersList.getSelectionModel().getSelectedItem();
-        if (m != null) showMemberDetails(m);
-    };
+    private void loadDirectory() {
+        directorySource.clear();
+
+        // Prefer DB-backed directory method
+        int loaded = 0;
+
+        for (String mName : List.of("listDirectoryUsers", "listMembersDirectory", "listUsers")) {
+            try {
+                Method m = store.getClass().getMethod(mName);
+                Object res = m.invoke(store);
+                loaded = addMembersFromUnknownIterable(res);
+                if (loaded > 0) break;
+            } catch (Exception ignored) {}
+        }
+
+        updateDirectoryPredicate();
+        System.out.println("[TeamPage] directory loaded = " + loaded);
+    }
+
+    private int addMembersFromUnknownIterable(Object obj) {
+        if (obj == null) return 0;
+
+        Iterable<?> it;
+        if (obj instanceof Iterable<?> iterable) it = iterable;
+        else if (obj.getClass().isArray()) {
+            List<Object> tmp = new ArrayList<>();
+            int len = java.lang.reflect.Array.getLength(obj);
+            for (int i = 0; i < len; i++) tmp.add(java.lang.reflect.Array.get(obj, i));
+            it = tmp;
+        } else return 0;
+
+        int c = 0;
+        for (Object o : it) {
+            if (o instanceof Member m) {
+                directorySource.add(m);
+                c++;
+            }
+        }
+        return c;
+    }
+
+    private void updateDirectoryPredicate() {
+        Project p = appState.getSelectedProject();
+
+        directoryFiltered.setPredicate(m -> {
+            if (m == null) return false;
+
+            if (dirQuery != null && !dirQuery.isBlank()) {
+                String n = (m.getName() == null) ? "" : m.getName().toLowerCase();
+                if (!n.contains(dirQuery)) return false;
+            }
+
+            // hide users already in project
+            if (p != null && p.getMembers() != null) {
+                String mid = safeId(m);
+                for (Member pm : p.getMembers()) {
+                    if (pm == null) continue;
+                    if (mid != null && mid.equals(safeId(pm))) return false;
+                }
+            }
+
+            return true;
+        });
+    }
 
     private void refresh(Project p) {
         if (p == null) {
@@ -184,15 +251,15 @@ public class TeamPage extends VBox {
             membersList.setItems(null);
             membersList.getSelectionModel().clearSelection();
             showMemberDetails(null);
-            refreshBtn.setDisable(true);
+            updateDirectoryPredicate();
             return;
         }
 
-        sub.setText(p.getName() + "  •  manage members and roles");
-        refreshBtn.setDisable(false);
-
+        sub.setText(p.getName() + "  •  members (admin-assigned roles)");
         membersList.setItems(p.getMembers());
         membersList.refresh();
+
+        updateDirectoryPredicate();
 
         if (!p.getMembers().isEmpty() && membersList.getSelectionModel().getSelectedItem() == null) {
             membersList.getSelectionModel().selectFirst();
@@ -201,33 +268,37 @@ public class TeamPage extends VBox {
         }
     }
 
-    private void addMember() {
+    private void addExistingToProject() {
         if (!canEdit.get()) return;
 
         Project p = appState.getSelectedProject();
         if (p == null) return;
 
-        String name = nameField.getText() == null ? "" : nameField.getText().trim();
-        if (name.isBlank()) {
-            alertInfo("Missing name", "Enter a member name.");
+        Member base = directoryBox.getValue();
+        if (base == null) {
+            alertInfo("No selection", "Pick an existing user first.");
             return;
         }
 
-        ProjectRole role = roleBox.getValue();
-        if (role == null) role = ProjectRole.MEMBER;
+        String baseId = safeId(base);
 
-        boolean exists = p.getMembers().stream().anyMatch(m -> name.equalsIgnoreCase(m.getName()));
+        boolean exists = p.getMembers().stream().anyMatch(m ->
+                baseId != null && baseId.equals(safeId(m))
+        );
         if (exists) {
-            alertInfo("Already exists", "A member with that name already exists.");
+            alertInfo("Already added", "That user is already a member of this project.");
             return;
         }
 
-        Member m = new Member(name, role);
+        // IMPORTANT: role comes from admin-created user (members.role)
+        Member m = new Member(base.getId(), base.getName(), base.getRole());
         store.addMember(p, m);
 
-        nameField.clear();
         membersList.getSelectionModel().select(m);
         membersList.refresh();
+
+        directoryBox.getSelectionModel().clearSelection();
+        updateDirectoryPredicate();
     }
 
     private void removeSelectedMember() {
@@ -250,10 +321,11 @@ public class TeamPage extends VBox {
 
         if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) return;
 
+        String mid = safeId(m);
         for (Task t : p.getTasks()) {
-            if (Objects.equals(t.getAssignee(), m)) {
-                t.setAssignee(null);
-            }
+            Member a = t.getAssignee();
+            if (a == null) continue;
+            if (mid != null && mid.equals(safeId(a))) t.setAssignee(null);
         }
 
         store.removeMember(p, m);
@@ -261,11 +333,10 @@ public class TeamPage extends VBox {
         membersList.getSelectionModel().clearSelection();
         membersList.refresh();
 
-        if (!p.getMembers().isEmpty()) {
-            membersList.getSelectionModel().selectFirst();
-        } else {
-            showMemberDetails(null);
-        }
+        updateDirectoryPredicate();
+
+        if (!p.getMembers().isEmpty()) membersList.getSelectionModel().selectFirst();
+        else showMemberDetails(null);
     }
 
     private void showMemberDetails(Member m) {
@@ -273,23 +344,24 @@ public class TeamPage extends VBox {
 
         if (m == null || p == null) {
             selectedName.setText("-");
-            editRoleBox.getSelectionModel().clearSelection();
+            selectedRole.setText("-");
             openTasksLabel.setText("-");
             return;
         }
 
         selectedName.setText(m.getName());
-
-        if (m.getRole() != null) editRoleBox.getSelectionModel().select(m.getRole());
-        else editRoleBox.getSelectionModel().selectFirst();
-
+        selectedRole.setText(safeRole(m));
         openTasksLabel.setText(String.valueOf(openTasksFor(p, m)));
     }
 
     private long openTasksFor(Project p, Member m) {
+        String mid = safeId(m);
         return p.getTasks().stream()
                 .filter(t -> t.getStatus() != TaskStatus.DONE)
-                .filter(t -> Objects.equals(t.getAssignee(), m))
+                .filter(t -> {
+                    Member a = t.getAssignee();
+                    return a != null && mid != null && mid.equals(safeId(a));
+                })
                 .count();
     }
 
@@ -299,5 +371,22 @@ public class TeamPage extends VBox {
         a.setHeaderText(header);
         a.setContentText(text);
         a.showAndWait();
+    }
+
+    private static String safeId(Member m) {
+        try {
+            String id = m.getId();
+            return (id == null || id.isBlank()) ? null : id;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String safeRole(Member m) {
+        try {
+            return (m.getRole() == null) ? "-" : m.getRole().name();
+        } catch (Exception e) {
+            return "-";
+        }
     }
 }

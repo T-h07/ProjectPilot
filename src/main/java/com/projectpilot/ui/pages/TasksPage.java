@@ -105,11 +105,11 @@ public class TasksPage extends VBox {
             Project p = appState.getSelectedProject();
             if (p == null) return;
 
-            if (p.getMembers().isEmpty()) {
+            if (p.getMembers() == null || p.getMembers().isEmpty()) {
                 Alert a = new Alert(Alert.AlertType.INFORMATION);
-                a.setTitle("No members yet");
-                a.setHeaderText("Add at least one member first");
-                a.setContentText("Go to Team, add members, then create tasks.");
+                a.setTitle("No project members yet");
+                a.setHeaderText("Add at least one project member first");
+                a.setContentText("Members are per-project. Go to Team and add users/members to this project, then create tasks.");
                 a.showAndWait();
                 return;
             }
@@ -256,8 +256,9 @@ public class TasksPage extends VBox {
             header.setText("Tasks (no project selected)");
             taskSource.clear();
 
-            phaseBox.getItems().clear();
-            assigneeBox.getItems().clear();
+            // ✅ detach live lists
+            phaseBox.setItems(FXCollections.observableArrayList());
+            assigneeBox.setItems(FXCollections.observableArrayList());
 
             bindTask(null);
             return;
@@ -265,8 +266,9 @@ public class TasksPage extends VBox {
 
         header.setText("Tasks — " + p.getName());
 
-        phaseBox.getItems().setAll(p.getPhases());
-        assigneeBox.getItems().setAll(p.getMembers());
+        // ✅ keep ComboBoxes live (auto-update if members/phases change while page is open)
+        phaseBox.setItems(p.getPhases());
+        assigneeBox.setItems(p.getMembers());
 
         rebuildTaskSource(p);
         p.getTasks().addListener(projectTasksListener);

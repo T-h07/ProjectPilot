@@ -9,21 +9,20 @@ import javafx.scene.layout.BorderPane;
 
 public class MainLayout extends BorderPane {
 
-    public MainLayout(Router router, InMemoryStore store, AppState appState) {
+    public MainLayout(Router router, InMemoryStore store, AppState appState, Runnable onLogout) {
         TopBar topBar = new TopBar(store, appState);
 
-        // ✅ pass appState so Sidebar can show Admin only for admins
-        Sidebar sidebar = new Sidebar(page -> appState.setCurrentPage(page), appState);
+        Sidebar sidebar = new Sidebar(page -> appState.setCurrentPage(page), onLogout, appState);
+
 
         setTop(topBar);
         setLeft(sidebar);
 
-        // initial page
         setCenter(router.navigate(appState.getCurrentPage()));
 
-        // react to navigation
         appState.currentPageProperty().addListener((obs, oldV, newV) -> {
             setCenter(router.navigate(newV));
         });
     }
 }
+

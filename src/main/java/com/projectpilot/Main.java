@@ -18,6 +18,7 @@ import javafx.scene.Scene;
 import javafx.scene.layout.StackPane;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
+import com.projectpilot.ui.pages.create.CreateHubPage;
 
 public class Main extends Application {
 
@@ -94,16 +95,28 @@ public class Main extends Application {
         router.register(PageId.TEAM, () -> new TeamPage(store, appState));
         router.register(PageId.HISTORY, () -> new HistoryPage(store, appState));
         router.register(PageId.EXPORT_REPORT, () -> new ExportReportPage(store, appState));
+        router.register(PageId.CREATE, () -> new CreateHubPage(db, store, appState));
+
 
         // ✅ Admin route only for admins
         if (appState.isAdmin()) {
             router.register(PageId.ADMIN, () -> new AdminPage(db, store, appState));
         }
 
-        MainLayout appRoot = new MainLayout(router, store, appState);
+        MainLayout appRoot = new MainLayout(router, store, appState, this::logout);
         appRoot.getStyleClass().add("pp-root");
         scene.setRoot(appRoot);
     }
+    private void logout() {
+        shutdownDbStore();              // avoid leaking db writer thread
+        if (appState != null) {
+            appState.setSession(null);  // important: UI permissions depend on this
+            appState.setSelectedProject(null);
+        }
+        showLogin();                    // go back to login screen
+    }
+
+
 
     @Override
     public void stop() {
