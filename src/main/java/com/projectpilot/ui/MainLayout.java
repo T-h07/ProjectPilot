@@ -5,25 +5,43 @@ import com.projectpilot.core.PageId;
 import com.projectpilot.core.Router;
 import com.projectpilot.data.InMemoryStore;
 import com.projectpilot.security.AccessPolicy;
+import com.projectpilot.service.NotificationService;
 import com.projectpilot.ui.components.Sidebar;
 import com.projectpilot.ui.components.TopBar;
+import com.projectpilot.ui.dialogs.NotificationsDialog;
 import com.projectpilot.ui.pages.AccessDeniedPage;
+import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.layout.BorderPane;
+import javafx.stage.Window;
 
 public class MainLayout extends BorderPane {
 
     private final Router router;
     private final AppState appState;
+    private final InMemoryStore store;
 
     private final Sidebar sidebar;
     private final AccessPolicy policy = new AccessPolicy();
 
-    public MainLayout(Router router, InMemoryStore store, AppState appState, Runnable onLogout) {
-        this.router = router;
-        this.appState = appState;
+    private final NotificationService notifications;
 
-        TopBar topBar = new TopBar(store, appState);
+    // ensure login dialog shows only once per session instance
+    private Object lastShownSessionRef = null;
+
+    // ✅ Keep your existing 4-arg constructor so Main.java compiles
+    public MainLayout(Router router, InMemoryStore store, AppState appState, Runnable onLogout) {
+        this(router, store, appState, new NotificationService(store, appState), onLogout);
+    }
+
+    // Optional injection constructor (nice for testing / future refactor)
+    public MainLayout(Router router, InMemoryStore store, AppState appState, NotificationService notifications, Runnable onLogout) {
+        this.router = router;
+        this.store = store;
+        this.appState = appState;
+        this.notifications = notifications;
+
+        TopBar topBar = new TopBar(store, appState, notifications);
         sidebar = new Sidebar(page -> appState.setCurrentPage(page), onLogout, appState);
 
         setTop(topBar);
@@ -40,6 +58,7 @@ public class MainLayout extends BorderPane {
         appState.sessionProperty().addListener((obs, o, n) -> {
             sidebar.rebuild();
             render(appState.getCurrentPage());
+            maybeShowLoginNotifications();
         });
 
         appState.selectedProjectProperty().addListener((obs, o, n) -> {
@@ -50,6 +69,25 @@ public class MainLayout extends BorderPane {
         appState.currentProjectRoleProperty().addListener((obs, o, n) -> {
             sidebar.rebuild();
             render(appState.getCurrentPage());
+        });
+
+        // If scene becomes available later, try showing login notifications then
+        sceneProperty().addListener((obs, o, n) -> maybeShowLoginNotifications());
+    }
+
+    private void maybeShowLoginNotifications() {
+        if (appState.getSession() == null) return;
+        if (appState.getSession() == lastShownSessionRef) return;
+
+        Window owner = (getScene() == null) ? null : getScene().getWindow();
+        if (owner == null) return;
+
+        lastShownSessionRef = appState.getSession();
+
+        // Build notifications for this user + show “What’s new” dialog
+        Platform.runLater(() -> {
+            notifications.rebuildNow();
+            NotificationsDialog.showLogin(owner, notifications);
         });
     }
 

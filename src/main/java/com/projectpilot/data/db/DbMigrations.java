@@ -6,7 +6,7 @@ import java.util.Set;
 
 final class DbMigrations {
 
-    private static final int LATEST = 3;
+    private static final int LATEST = 5;
 
     private DbMigrations() {}
 
@@ -21,25 +21,30 @@ final class DbMigrations {
                 SqlScriptRunner.run(conn, SchemaSql.v3());
                 setUserVersion(conn, 3);
                 version = 3;
-            } else if (version == 1) {
+            }
+
+            if (version == 1) {
                 migrate1to2(conn);
                 setUserVersion(conn, 2);
                 version = 2;
-
-                migrate2to3(conn);
-                setUserVersion(conn, 3);
-                version = 3;
-            } else if (version == 2) {
-                migrate2to3(conn);
-                setUserVersion(conn, 3);
-                version = 3;
-            } else if (version > LATEST) {
-                throw new SQLException("Database version (" + version + ") is newer than app supports (" + LATEST + ")");
             }
 
-            // ✅ IMPORTANT: repair step (covers early v3 DBs / stale schema_v3.sql)
-            if (version == 3) {
+            if (version == 2) {
+                migrate2to3(conn);
+                setUserVersion(conn, 3);
+                version = 3;
+            }
+
+            if (version == 3 || version == 4) {
+                // repair step (covers early v3 DBs / stale schema_v3.sql)
                 migrate2to3(conn); // idempotent: CREATE TABLE IF NOT EXISTS + ensureColumn
+                migrate3to5(conn);
+                setUserVersion(conn, 5);
+                version = 5;
+            }
+
+            if (version > LATEST) {
+                throw new SQLException("Database version (" + version + ") is newer than app supports (" + LATEST + ")");
             }
 
             conn.commit();
@@ -99,6 +104,12 @@ final class DbMigrations {
             st.execute("CREATE INDEX IF NOT EXISTS idx_auth_users_username ON auth_users(username)");
             st.execute("CREATE INDEX IF NOT EXISTS idx_activity_actor_member ON activity_log(actor_member_id)");
         }
+    }
+
+    // ---------------- v3 -> v5 ----------------
+
+    private static void migrate3to5(Connection conn) throws SQLException {
+        SqlScriptRunner.run(conn, SchemaSql.v5());
     }
 
     // ---------------- helpers ----------------

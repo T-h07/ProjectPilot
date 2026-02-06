@@ -13,8 +13,7 @@ import java.sql.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 
 import static com.projectpilot.data.db.DbDates.*;
 
@@ -40,7 +39,16 @@ public final class DbStore extends InMemoryStore {
     }
 
     public void shutdown() {
+        flushWrites(3, TimeUnit.SECONDS);
         dbExec.shutdown();
+        try {
+            if (!dbExec.awaitTermination(3, TimeUnit.SECONDS)) {
+                dbExec.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            dbExec.shutdownNow();
+        }
     }
 
     // -----------------------------------------
@@ -115,13 +123,15 @@ public final class DbStore extends InMemoryStore {
                     t.setPriority(safeEnum(Priority.class, tr.priority, Priority.MEDIUM));
                     if (tr.dueAt != null) t.setDueDate(fromEpochMillisToLocalDate(tr.dueAt));
 
-                    if (tr.assigneeMemberId != null) {
+                    String aid = (tr.assigneeMemberId == null) ? null : tr.assigneeMemberId.trim();
+                    if (aid != null && !aid.isBlank()) {
                         Member ass = p.getMembers().stream()
-                                .filter(x -> x.getId().equals(tr.assigneeMemberId))
+                                .filter(x -> x != null && x.getId() != null && x.getId().trim().equals(aid))
                                 .findFirst()
                                 .orElse(null);
                         t.setAssignee(ass);
                     }
+
                     if (tr.phaseId != null) {
                         Phase ph = phaseById.get(tr.phaseId);
                         t.setPhase(ph);
@@ -199,6 +209,7 @@ public final class DbStore extends InMemoryStore {
         submitWrite(() -> db.tx(conn -> {
             upsertProject(conn, p, now);
             appendActivity(conn, now, p.getId(), "PROJECT", p.getId(), "CREATE", "Project created");
+            persistInitialProjectContent(conn, p);
             return null;
         }));
 
@@ -561,8 +572,48 @@ public final class DbStore extends InMemoryStore {
                 job.run();
             } catch (Exception ex) {
                 System.err.println("[DB] write failed: " + ex.getMessage());
+                ex.printStackTrace();
             }
         });
+    }
+
+    private void persistInitialProjectContent(Connection conn, Project p) {
+        if (p == null) return;
+
+        for (Member m : p.getMembers()) {
+            if (m == null) continue;
+            upsertMemberIdentity(conn, m);
+            upsertProjectMemberRole(conn, p.getId(), m.getId(), m.getRole());
+        }
+
+        int phaseIdx = 0;
+        for (Phase ph : p.getPhases()) {
+            if (ph == null) continue;
+            upsertPhase(conn, p, ph, phaseIdx++);
+        }
+
+        for (Task t : p.getTasks()) {
+            if (t == null) continue;
+            upsertTask(conn, p, t);
+        }
+
+        for (Milestone ms : p.getMilestones()) {
+            if (ms == null) continue;
+            upsertMilestone(conn, p, ms);
+        }
+    }
+
+    private void flushWrites(long timeout, TimeUnit unit) {
+        try {
+            Future<?> f = dbExec.submit(() -> {});
+            f.get(timeout, unit);
+        } catch (RejectedExecutionException ignored) {
+            // already shutting down
+        } catch (TimeoutException e) {
+            System.err.println("[DB] flush timeout: " + e.getMessage());
+        } catch (Exception e) {
+            System.err.println("[DB] flush failed: " + e.getMessage());
+        }
     }
 
     // -----------------------------------------

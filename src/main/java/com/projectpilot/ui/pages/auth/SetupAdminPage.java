@@ -32,6 +32,9 @@ public class SetupAdminPage extends BorderPane {
         TextField username = new TextField();
         username.setPromptText("Username (e.g., admin)");
 
+        TextField email = new TextField();
+        email.setPromptText("Email (Gmail)");
+
         PasswordField password = new PasswordField();
         password.setPromptText("Password (min 6 chars)");
 
@@ -58,10 +61,16 @@ public class SetupAdminPage extends BorderPane {
                 error.setVisible(true);
                 return;
             }
+            String em = email.getText() == null ? "" : email.getText().trim();
+            if (em.isBlank() || !em.contains("@")) {
+                error.setText("Enter a valid email.");
+                error.setVisible(true);
+                return;
+            }
 
             Task<UserSession> t = new Task<>() {
                 @Override protected UserSession call() {
-                    return auth.createInitialAdmin(name.getText(), username.getText(), password.getText());
+                    return auth.createInitialAdmin(name.getText(), username.getText(), email.getText(), password.getText());
                 }
             };
 
@@ -89,7 +98,7 @@ public class SetupAdminPage extends BorderPane {
             new Thread(t, "auth-setup-admin").start();
         });
 
-        card.getChildren().addAll(title, sub, name, username, password, confirm, new VBox(6, create, spinner), error);
+        card.getChildren().addAll(title, sub, name, username, email, password, confirm, new VBox(6, create, spinner), error);
 
         setCenter(card);
         BorderPane.setAlignment(card, Pos.CENTER);

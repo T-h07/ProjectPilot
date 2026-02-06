@@ -10,7 +10,8 @@ final class SchemaSql {
 
     static String v1() { return readResource("/db/schema_v1.sql"); }
     static String v2() { return readResource("/db/schema_v2.sql"); }
-    static String v3() { return readResource("/db/schema_v3.sql"); } // ✅ NEW
+    static String v3() { return readResource("/db/schema_v3.sql"); }
+    static String v5() { return readResource("/db/schema_v5.sql"); }
 
     private static String readResource(String path) {
         try (InputStream in = SchemaSql.class.getResourceAsStream(path)) {

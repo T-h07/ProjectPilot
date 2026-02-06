@@ -62,6 +62,9 @@ public final class AdminPage extends BorderPane {
         TextField username = new TextField();
         username.setPromptText("Username");
 
+        TextField email = new TextField();
+        email.setPromptText("Email (Gmail)");
+
         PasswordField password = new PasswordField();
         password.setPromptText("Password");
 
@@ -99,9 +102,14 @@ public final class AdminPage extends BorderPane {
         create.setOnAction(e -> {
             String uname = username.getText() == null ? "" : username.getText().trim();
             String disp = name.getText() == null ? "" : name.getText().trim();
+            String em = email.getText() == null ? "" : email.getText().trim();
 
             try {
-                users.createUser(disp, uname, password.getText(), globalRole.getValue());
+                if (em.isBlank() || !em.contains("@")) {
+                    throw new IllegalArgumentException("Valid email is required.");
+                }
+
+                users.createUserWithEmailAndUsername(disp, uname, em, password.getText(), globalRole.getValue());
                 reload();
 
                 if (globalRole.getValue() == GlobalRole.USER) {
@@ -129,6 +137,7 @@ public final class AdminPage extends BorderPane {
 
                 name.clear();
                 username.clear();
+                email.clear();
                 password.clear();
                 globalRole.setValue(GlobalRole.USER);
                 projectRole.setValue(ProjectRole.MEMBER);
@@ -146,6 +155,7 @@ public final class AdminPage extends BorderPane {
         int r = 0;
         grid.addRow(r++, new Label("Name"), name);
         grid.addRow(r++, new Label("Username"), username);
+        grid.addRow(r++, new Label("Email"), email);
         grid.addRow(r++, new Label("Password"), password);
         grid.addRow(r++, new Label("Global role"), globalRole);
         grid.addRow(r++, projectRoleLbl, projectRole);
@@ -170,11 +180,31 @@ public final class AdminPage extends BorderPane {
         TableView<UserAdminService.UserRow> table = new TableView<>(items);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
+        TableColumn<UserAdminService.UserRow, String> colId = new TableColumn<>("ID");
+        colId.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue().id()));
+        colId.setMinWidth(220);
+        colId.setCellFactory(tc -> new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setTooltip(null);
+                    return;
+                }
+                setText(shortId(item));
+                setTooltip(new Tooltip(item));
+            }
+        });
+
         TableColumn<UserAdminService.UserRow, String> colUser = new TableColumn<>("Username");
         colUser.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue().username()));
 
         TableColumn<UserAdminService.UserRow, String> colName = new TableColumn<>("Name");
         colName.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue().name()));
+
+        TableColumn<UserAdminService.UserRow, String> colEmail = new TableColumn<>("Email");
+        colEmail.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue().email()));
 
         TableColumn<UserAdminService.UserRow, String> colRole = new TableColumn<>("Role");
         colRole.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue().globalRole().name()));
@@ -253,6 +283,7 @@ public final class AdminPage extends BorderPane {
                                 row.id(),
                                 data.displayName(),
                                 data.username(),
+                                data.email(),
                                 data.newPassword(),
                                 data.globalRole(),
                                 data.active()
@@ -312,7 +343,7 @@ public final class AdminPage extends BorderPane {
             }
         });
 
-        table.getColumns().setAll(colUser, colName, colRole, colActive, colActions);
+        table.getColumns().setAll(colId, colUser, colName, colEmail, colRole, colActive, colActions);
 
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> reload());
@@ -330,5 +361,12 @@ public final class AdminPage extends BorderPane {
         } catch (Exception ex) {
             status.setText("❌ Failed to load users: " + ex.getMessage());
         }
+    }
+
+    private static String shortId(String id) {
+        if (id == null) return "";
+        String s = id.trim();
+        if (s.length() <= 12) return s;
+        return s.substring(0, 8) + "..." + s.substring(s.length() - 4);
     }
 }

@@ -16,7 +16,7 @@ public final class UserAdminService {
         this.db = db;
     }
 
-    public record UserRow(String id, String username, String name, GlobalRole globalRole, boolean active) {}
+    public record UserRow(String id, String username, String name, String email, GlobalRole globalRole, boolean active) {}
 
     public List<UserRow> listLoginUsers() {
         return db.tx(conn -> {
@@ -26,6 +26,7 @@ public final class UserAdminService {
                         au.member_id,
                         au.username,
                         COALESCE(m.name, '') AS display_name,
+                        COALESCE(m.email, '') AS email,
                         au.global_role,
                         au.is_active
                     FROM auth_users au
@@ -40,6 +41,7 @@ public final class UserAdminService {
                     String id = rs.getString("member_id");
                     String username = rs.getString("username");
                     String name = rs.getString("display_name");
+                    String email = rs.getString("email");
                     String gr = rs.getString("global_role");
                     boolean active = rs.getInt("is_active") == 1;
 
@@ -47,7 +49,7 @@ public final class UserAdminService {
                     try { role = GlobalRole.valueOf(gr == null ? "USER" : gr); }
                     catch (Exception ignored) { role = GlobalRole.USER; }
 
-                    out.add(new UserRow(id, username, name, role, active));
+                    out.add(new UserRow(id, username, name, email, role, active));
                 }
                 return out;
             } catch (Exception e) {
@@ -71,6 +73,7 @@ public final class UserAdminService {
             String userId,
             String displayName,
             String username,
+            String email,
             String newPasswordOrNull,
             GlobalRole newRole,
             boolean active
@@ -83,6 +86,10 @@ public final class UserAdminService {
         final GlobalRole roleFinal = (newRole == null) ? GlobalRole.USER : newRole;
         final String dispTrim = (displayName == null) ? "" : displayName.trim();
         final String dispFinal = dispTrim.isBlank() ? u : dispTrim;
+        final String emailFinal = (email == null) ? "" : email.trim();
+        if (!emailFinal.isBlank() && !emailFinal.contains("@")) {
+            throw new IllegalArgumentException("Valid email is required");
+        }
 
         final long now = System.currentTimeMillis();
         final String pwTrim = (newPasswordOrNull == null) ? "" : newPasswordOrNull.trim();
@@ -111,13 +118,14 @@ public final class UserAdminService {
                     }
                 }
 
-                // Update members display name
+                // Update members display name + email
                 try (PreparedStatement ps = conn.prepareStatement(
-                        "UPDATE members SET name = ?, updated_at = ? WHERE id = ?"
+                        "UPDATE members SET name = ?, email = ?, updated_at = ? WHERE id = ?"
                 )) {
                     ps.setString(1, dispFinal);
-                    ps.setLong(2, now);
-                    ps.setString(3, userId);
+                    ps.setString(2, emailFinal);
+                    ps.setLong(3, now);
+                    ps.setString(4, userId);
                     ps.executeUpdate();
                 }
 
@@ -181,13 +189,27 @@ public final class UserAdminService {
         String ln = lastName == null ? "" : lastName.trim();
         String em = email == null ? "" : email.trim();
 
-        if (em.isBlank()) throw new IllegalArgumentException("Email is required");
+        if (em.isBlank() || !em.contains("@")) throw new IllegalArgumentException("Email is required");
         if (password == null || password.isBlank()) throw new IllegalArgumentException("Password is required");
 
         String display = (fn + " " + ln).trim();
         if (display.isBlank()) display = em;
 
         createUserInternal(display, em, em, password, role);
+    }
+
+    /**
+     * Create a new login user with a separate email field.
+     */
+    public void createUserWithEmailAndUsername(String displayName, String username, String email, String password, GlobalRole role) {
+        String u = username == null ? "" : username.trim();
+        String em = email == null ? "" : email.trim();
+        if (u.isBlank()) throw new IllegalArgumentException("Username is required");
+        if (em.isBlank()) throw new IllegalArgumentException("Email is required");
+        if (!em.contains("@")) throw new IllegalArgumentException("Valid email is required");
+        if (password == null || password.isBlank()) throw new IllegalArgumentException("Password is required");
+
+        createUserInternal(displayName, u, em, password, role);
     }
 
     /**

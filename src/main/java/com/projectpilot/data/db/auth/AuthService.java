@@ -50,9 +50,10 @@ public final class AuthService {
         });
     }
 
-    public UserSession createInitialAdmin(String displayName, String username, String password) {
+    public UserSession createInitialAdmin(String displayName, String username, String email, String password) {
         if (displayName == null || displayName.isBlank()) throw new AuthException("Enter name.");
         if (username == null || username.isBlank()) throw new AuthException("Enter username.");
+        if (email == null || email.isBlank() || !email.contains("@")) throw new AuthException("Enter a valid email.");
         if (password == null || password.isBlank()) throw new AuthException("Enter password.");
 
         return db.tx(conn -> {
@@ -65,7 +66,7 @@ public final class AuthService {
                 long now = System.currentTimeMillis();
 
                 // 1) create a member row (so auth_users.member_id FK is valid)
-                insertMemberIfMissing(conn, memberId, displayName.trim(), now);
+                insertMemberIfMissing(conn, memberId, displayName.trim(), email.trim(), now);
 
                 // 2) create auth row
                 String hash = hasher.hash(password);
@@ -83,7 +84,7 @@ public final class AuthService {
 
     // ---- helpers ----
 
-    private static void insertMemberIfMissing(Connection conn, String memberId, String name, long now) {
+    private static void insertMemberIfMissing(Connection conn, String memberId, String name, String email, long now) {
         // members table (v2) columns:
         // id, name, role, email, created_at, updated_at
         // (If your members table differs, tell me and I’ll adjust.)
@@ -104,7 +105,7 @@ public final class AuthService {
             ins.setString(1, memberId);
             ins.setString(2, name);
             ins.setString(3, "ADMIN"); // this is your ProjectRole enum default area; it won't control login role
-            ins.setString(4, "");
+            ins.setString(4, email == null ? "" : email.trim());
             ins.setLong(5, now);
             ins.setLong(6, now);
             ins.executeUpdate();

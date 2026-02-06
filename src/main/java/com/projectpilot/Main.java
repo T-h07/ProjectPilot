@@ -20,6 +20,8 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
 
+import java.io.InputStream;
+
 public class Main extends Application {
 
     private DbManager db;
@@ -40,8 +42,8 @@ public class Main extends Application {
 
         auth = new AuthService(db);
 
-        Font.loadFont(getClass().getResourceAsStream("/fonts/Inter-Regular.ttf"), 12);
-        Font.loadFont(getClass().getResourceAsStream("/fonts/Inter-SemiBold.ttf"), 12);
+        loadFont("/fonts/Inter-Regular.ttf", 12);
+        loadFont("/fonts/Inter-SemiBold.ttf", 12);
 
         scene = new Scene(new StackPane(), 1200, 800);
         scene.getStylesheets().add(getClass().getResource("/css/app.css").toExternalForm());
@@ -118,6 +120,18 @@ public class Main extends Application {
 
     private void shutdownDbStore() {
         if (store instanceof DbStore ds) ds.shutdown();
+    }
+
+    private void loadFont(String path, double size) {
+        try (InputStream in = getClass().getResourceAsStream(path)) {
+            if (in == null) {
+                System.err.println("[UI] Missing font resource: " + path);
+                return;
+            }
+            Font.loadFont(in, size);
+        } catch (Exception e) {
+            System.err.println("[UI] Failed to load font: " + path + " (" + e.getMessage() + ")");
+        }
     }
 
     public static void main(String[] args) {

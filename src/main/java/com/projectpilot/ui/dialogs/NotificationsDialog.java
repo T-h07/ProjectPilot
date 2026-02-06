@@ -38,6 +38,7 @@ public final class NotificationsDialog {
         dialog.initOwner(owner);
         dialog.initModality(Modality.NONE);
         dialog.setTitle(title);
+        DialogTheme.apply(dialog);
 
         // ✅ apply your dialog theme (same as CreateTaskDialog)
         try { DialogTheme.apply(dialog); } catch (Exception ignored) {}

@@ -10,6 +10,8 @@ import javafx.scene.Node;
 public class AddMemberDialog extends Dialog<Member> {
 
     public AddMemberDialog() {
+        DialogTheme.apply(this);
+
         setTitle("Add Member");
         setHeaderText("Add a project member");
 

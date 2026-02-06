@@ -14,6 +14,7 @@ public final class EditUserDialog extends Dialog<EditUserDialog.Data> {
     public record Data(
             String displayName,
             String username,
+            String email,
             String newPassword,     // blank => keep existing
             GlobalRole globalRole,
             boolean active,
@@ -39,11 +40,21 @@ public final class EditUserDialog extends Dialog<EditUserDialog.Data> {
         Label title = new Label("Edit: " + safe(row.username()));
         title.getStyleClass().add("pp-dialog-title");
 
+        String fullId = safe(row.id());
+        Label idValue = new Label(shortId(fullId));
+        idValue.getStyleClass().add("muted");
+        if (!fullId.isBlank()) {
+            idValue.setTooltip(new Tooltip(fullId));
+        }
+
         TextField name = new TextField(safe(row.name()));
         name.setPromptText("Display name");
 
         TextField username = new TextField(safe(row.username()));
         username.setPromptText("Username");
+
+        TextField email = new TextField(safe(row.email()));
+        email.setPromptText("Email (Gmail)");
 
         PasswordField newPassword = new PasswordField();
         newPassword.setPromptText("New password (leave blank to keep)");
@@ -93,8 +104,10 @@ public final class EditUserDialog extends Dialog<EditUserDialog.Data> {
         grid.setVgap(12);
 
         int r = 0;
+        grid.addRow(r++, new Label("User ID"), idValue);
         grid.addRow(r++, new Label("Name"), name);
         grid.addRow(r++, new Label("Username"), username);
+        grid.addRow(r++, new Label("Email"), email);
         grid.addRow(r++, new Label("New password"), newPassword);
         grid.addRow(r++, new Label("Confirm"), confirm);
         grid.addRow(r++, new Label("Global role"), globalRole);
@@ -127,6 +140,12 @@ public final class EditUserDialog extends Dialog<EditUserDialog.Data> {
                 e.consume();
                 return;
             }
+            String em = safe(email.getText()).trim();
+            if (!em.isBlank() && !em.contains("@")) {
+                showWarn("Invalid input", "Enter a valid email.");
+                e.consume();
+                return;
+            }
             String pw = safe(newPassword.getText());
             String cf = safe(confirm.getText());
             if (!pw.isBlank() && !pw.equals(cf)) {
@@ -140,17 +159,25 @@ public final class EditUserDialog extends Dialog<EditUserDialog.Data> {
 
             String disp = safe(name.getText()).trim();
             String u = safe(username.getText()).trim();
+            String em = safe(email.getText()).trim();
             String pw = safe(newPassword.getText()); // blank => keep existing
 
             GlobalRole gr = globalRole.getValue() == null ? GlobalRole.USER : globalRole.getValue();
             ProjectRole pr = projectRole.getValue() == null ? ProjectRole.MEMBER : projectRole.getValue();
 
-            return new Data(disp, u, pw, gr, active.isSelected(), pr);
+            return new Data(disp, u, em, pw, gr, active.isSelected(), pr);
         });
     }
 
     private static String safe(String s) {
         return s == null ? "" : s;
+    }
+
+    private static String shortId(String id) {
+        if (id == null) return "";
+        String s = id.trim();
+        if (s.length() <= 12) return s;
+        return s.substring(0, 8) + "..." + s.substring(s.length() - 4);
     }
 
     private static void showWarn(String title, String msg) {

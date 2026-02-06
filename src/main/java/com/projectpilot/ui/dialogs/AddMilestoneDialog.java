@@ -11,6 +11,8 @@ import java.time.LocalDate;
 public class AddMilestoneDialog extends Dialog<Milestone> {
 
     public AddMilestoneDialog() {
+        DialogTheme.apply(this);
+
         setTitle("Add Milestone");
         setHeaderText("Create a milestone");
 

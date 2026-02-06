@@ -46,7 +46,7 @@ public class ReportService {
 
         sb.append("<h1>").append(esc(p.getName())).append("</h1>");
         sb.append("<div class='muted'>")
-                .append(esc(p.getStartDate().toString())).append(" → ").append(esc(p.getEndDate().toString()))
+                .append(esc(safeDate(p.getStartDate()))).append(" â†’ ").append(esc(safeDate(p.getEndDate())))
                 .append("</div>");
 
         sb.append("<div class='card'>");
@@ -98,7 +98,7 @@ public class ReportService {
                     .append("<span class='badge ").append(m.completedProperty().get() ? "done" : "").append("'>")
                     .append(state).append("</span>")
                     .append("</td><td>").append(esc(m.nameProperty().get()))
-                    .append("</td><td>").append(esc(m.dueDateProperty().get().toString()))
+                    .append("</td><td>").append(esc(safeDate(m.dueDateProperty().get())))
                     .append("</td></tr>");
         }
         sb.append("</table></div>");
@@ -157,8 +157,13 @@ public class ReportService {
         return (int) Math.round((total / tasks.size()) * 100.0);
     }
 
+    private String safeDate(java.time.LocalDate d) {
+        return d == null ? "-" : d.format(dateFmt);
+    }
+
     private String esc(String s) {
         if (s == null) return "";
         return s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;");
     }
 }
+

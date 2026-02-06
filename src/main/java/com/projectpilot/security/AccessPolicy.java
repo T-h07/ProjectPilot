@@ -52,15 +52,43 @@ public final class AccessPolicy {
         };
     }
 
+    /**
+     * IMPORTANT:
+     * For "My Tasks" + project visibility to work, this must return the SAME id as Member.getId().
+     * Some builds store member_id on the UserSession under a different accessor.
+     */
     public String memberId(AppState appState) {
         UserSession s = (appState == null) ? null : appState.getSession();
         if (s == null) return null;
 
-        String id = s.id();
-        if (id == null) return null;
+        // Try common member-id accessors first
+        String v = readStringViaReflection(s,
+                "memberId", "getMemberId",
+                "member_id", "getMember_id",
+                "memberUUID", "getMemberUUID"
+        );
 
-        String v = id.trim();
+        // Fallback to id()
+        if (v == null || v.isBlank()) v = s.id();
+
+        return normalizeId(v);
+    }
+
+    private static String normalizeId(String s) {
+        if (s == null) return null;
+        String v = s.trim();
         return v.isEmpty() ? null : v;
+    }
+
+    private static String readStringViaReflection(Object obj, String... methodNames) {
+        for (String name : methodNames) {
+            try {
+                var m = obj.getClass().getMethod(name);
+                Object out = m.invoke(obj);
+                if (out instanceof String str && !str.isBlank()) return str;
+            } catch (Exception ignored) {}
+        }
+        return null;
     }
 
     /** Admin can view all. Non-admin can view only projects where they exist in members list. */

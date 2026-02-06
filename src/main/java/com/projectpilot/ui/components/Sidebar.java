@@ -20,6 +20,7 @@ public class Sidebar extends VBox {
     public Sidebar(Consumer<PageId> onNavigate, Runnable onLogout, AppState appState) {
         setPadding(new Insets(14));
         setSpacing(10);
+        getStyleClass().add("sidebar");
 
         Button dashboard = nav("Dashboard", PageId.DASHBOARD, onNavigate);
         Button projects   = nav("Projects", PageId.PROJECTS, onNavigate);
