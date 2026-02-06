@@ -17,7 +17,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 
 import java.time.format.DateTimeFormatter;
-
+import com.projectpilot.security.AccessPolicy;
 public class ProjectOverviewPage extends VBox {
 
     private final InMemoryStore store;
@@ -45,6 +45,7 @@ public class ProjectOverviewPage extends VBox {
 
     private final TableView<Phase> phaseTable = new TableView<>();
     private final ListView<Milestone> milestoneList = new ListView<>();
+    private final AccessPolicy policy = new AccessPolicy();
 
     private Project boundProject;
 
@@ -55,8 +56,10 @@ public class ProjectOverviewPage extends VBox {
         this.appState = appState;
 
         this.canEdit = Bindings.createBooleanBinding(
-                () -> appState.sessionProperty().get() != null && appState.isAdmin(),
-                appState.sessionProperty()
+                () -> policy.canEditProjectOverview(appState),
+                appState.sessionProperty(),
+                appState.selectedProjectProperty(),
+                appState.currentProjectRoleProperty()
         );
 
         setPadding(new Insets(16));

@@ -6,6 +6,7 @@ import com.projectpilot.model.ActivityItem;
 import com.projectpilot.model.Project;
 import com.projectpilot.model.Task;
 import com.projectpilot.model.enums.TaskStatus;
+import com.projectpilot.security.AccessPolicy;
 import com.projectpilot.ui.dialogs.CreateTaskDialog;
 import javafx.beans.binding.Bindings;
 import javafx.collections.ListChangeListener;
@@ -17,6 +18,8 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
+import java.util.Set;
 
 public class DashboardPage extends BorderPane {
 
@@ -24,22 +27,22 @@ public class DashboardPage extends BorderPane {
 
     private final InMemoryStore store;
     private final AppState appState;
+    private final AccessPolicy policy = new AccessPolicy();
 
-    // Top bar
     private final Label title = new Label("ProjectPilot");
     private final TextField search = new TextField();
     private final Button newBtn = new Button("New");
     private final Button refreshBtn = new Button("Refresh");
 
-    // Metric tiles
     private final MetricTile projectsTile = new MetricTile("Projects", "0");
     private final MetricTile activeTasksTile = new MetricTile("Active Tasks", "0");
     private final MetricTile blockedTile = new MetricTile("Blocked", "0");
     private final MetricTile completionTile = new MetricTile("Completion", "0%");
 
-    // Activity table
     private final TableView<ActivityItem> activityTable = new TableView<>();
     private final FilteredList<ActivityItem> filteredActivity;
+
+    private String activityQuery = "";
 
     public DashboardPage(InMemoryStore store, AppState appState) {
         this.store = store;
@@ -48,7 +51,6 @@ public class DashboardPage extends BorderPane {
 
         setPadding(new Insets(14));
 
-        // --- Top bar ---
         title.getStyleClass().add("page-title");
         title.setStyle("-fx-font-size: 18px; -fx-font-weight: 700;");
 
@@ -58,19 +60,26 @@ public class DashboardPage extends BorderPane {
         newBtn.getStyleClass().add("primary");
         refreshBtn.getStyleClass().add("secondary");
 
+        newBtn.visibleProperty().bind(Bindings.createBooleanBinding(
+                () -> policy.isAdmin(appState) || policy.canCreateTasks(appState),
+                appState.sessionProperty(),
+                appState.currentProjectRoleProperty(),
+                appState.selectedProjectProperty()
+        ));
+        newBtn.managedProperty().bind(newBtn.visibleProperty());
+
         Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
+
 
         HBox topBar = new HBox(12, title, spacer, search, newBtn, refreshBtn);
         topBar.setAlignment(Pos.CENTER_LEFT);
         topBar.getStyleClass().add("card");
         topBar.setPadding(new Insets(12));
 
-        // --- Metrics row ---
         HBox metrics = new HBox(12, projectsTile, activeTasksTile, blockedTile, completionTile);
         metrics.setPadding(new Insets(12, 0, 0, 0));
 
-        // --- Activity card ---
         VBox activityCard = new VBox(10);
         activityCard.getStyleClass().add("card");
         activityCard.setPadding(new Insets(12));
@@ -89,22 +98,19 @@ public class DashboardPage extends BorderPane {
         setTop(topBar);
         setCenter(center);
 
-        // --- Wiring ---
-        search.textProperty().addListener((obs, oldV, newV) -> applyActivityFilter(newV));
+        search.textProperty().addListener((obs, oldV, newV) -> {
+            activityQuery = (newV == null) ? "" : newV;
+            applyActivityFilter(activityQuery);
+        });
 
         refreshBtn.setOnAction(e -> refreshAll());
         newBtn.setOnAction(e -> showQuickCreateMenu(newBtn));
 
-        // Auto-refresh when projects list changes
         store.getProjects().addListener((ListChangeListener<Project>) c -> refreshAll());
-
-        // Auto-refresh when activity changes
         store.getActivity().addListener((ListChangeListener<ActivityItem>) c -> refreshAll());
-
-        // Auto-refresh when selected project changes
         appState.selectedProjectProperty().addListener((obs, oldV, newV) -> refreshAll());
+        appState.sessionProperty().addListener((obs, oldV, newV) -> refreshAll());
 
-        // Initial
         refreshAll();
     }
 
@@ -115,7 +121,6 @@ public class DashboardPage extends BorderPane {
         activityTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         activityTable.setFixedCellSize(38);
 
-        // Placeholder (theme-friendly)
         Label ph = new Label("No activity yet.");
         ph.getStyleClass().add("muted");
         activityTable.setPlaceholder(ph);
@@ -149,14 +154,22 @@ public class DashboardPage extends BorderPane {
         activityTable.getColumns().setAll(timeCol, projectCol, msgCol);
     }
 
-    // ✅ This was missing / out of scope in your file (caused "cannot find symbol" at the listener)
     private void applyActivityFilter(String query) {
         String q = (query == null) ? "" : query.trim().toLowerCase();
-        if (q.isBlank()) {
-            filteredActivity.setPredicate(a -> true);
-            return;
-        }
+
         filteredActivity.setPredicate(a -> {
+            if (a == null) return false;
+
+            // role filter
+            if (!policy.isAdmin(appState)) {
+                String pn = safe(a.getProjectName());
+                boolean allowed = store.getProjects().stream().anyMatch(p -> p != null && p.getName() != null
+                        && p.getName().equals(pn) && policy.canViewProject(appState, p));
+                if (!allowed) return false;
+            }
+
+            if (q.isBlank()) return true;
+
             String p = safe(a.getProjectName()).toLowerCase();
             String m = safe(a.getMessage()).toLowerCase();
             return p.contains(q) || m.contains(q);
@@ -164,7 +177,7 @@ public class DashboardPage extends BorderPane {
     }
 
     private void refreshAll() {
-        int projects = store.getProjects().size();
+        int projectsVisible = 0;
 
         int totalTasks = 0;
         int done = 0;
@@ -172,7 +185,17 @@ public class DashboardPage extends BorderPane {
         int active = 0;
 
         for (Project p : store.getProjects()) {
+            if (p == null) continue;
+            if (!policy.canViewProject(appState, p)) continue;
+
+            projectsVisible++;
+
             for (Task t : p.getTasks()) {
+                if (t == null) continue;
+
+                // USER requirement: only things assigned to them
+                if (!policy.isAdmin(appState) && !policy.isAssignedToMe(appState, t)) continue;
+
                 totalTasks++;
                 TaskStatus s = t.getStatus();
                 if (s == TaskStatus.DONE) done++;
@@ -183,26 +206,38 @@ public class DashboardPage extends BorderPane {
 
         int completionPct = (totalTasks == 0) ? 0 : (int) Math.round((done * 100.0) / totalTasks);
 
-        projectsTile.setValue(Integer.toString(projects));
+        projectsTile.setValue(Integer.toString(projectsVisible));
         activeTasksTile.setValue(Integer.toString(active));
         blockedTile.setValue(Integer.toString(blocked));
         completionTile.setValue(completionPct + "%");
+
+        // refresh activity predicate too (membership may have changed)
+        applyActivityFilter(activityQuery);
     }
 
     private void showQuickCreateMenu(Button anchor) {
         ContextMenu menu = new ContextMenu();
 
-        MenuItem newProject = new MenuItem("New Project");
-        newProject.setOnAction(e -> quickCreateProject());
+        if (policy.isAdmin(appState)) {
+            MenuItem newProject = new MenuItem("New Project");
+            newProject.setOnAction(e -> quickCreateProject());
+            menu.getItems().add(newProject);
+        }
 
-        MenuItem newTask = new MenuItem("New Task (Selected Project)");
-        newTask.setOnAction(e -> quickCreateTaskForSelected());
+        if (policy.canCreateTasks(appState) || policy.isAdmin(appState)) {
+            MenuItem newTask = new MenuItem("New Task (Selected Project)");
+            newTask.setOnAction(e -> quickCreateTaskForSelected());
+            menu.getItems().add(newTask);
+        }
 
-        menu.getItems().addAll(newProject, newTask);
+        if (menu.getItems().isEmpty()) return;
+
         menu.show(anchor, Side.BOTTOM, 0, 4);
     }
 
     private void quickCreateProject() {
+        if (!policy.isAdmin(appState)) return;
+
         TextInputDialog d = new TextInputDialog();
         d.setTitle("New Project");
         d.setHeaderText("Create a project");
@@ -217,13 +252,15 @@ public class DashboardPage extends BorderPane {
     }
 
     private void quickCreateTaskForSelected() {
+        if (!policy.canCreateTasks(appState) && !policy.isAdmin(appState)) return;
+
         Project p = appState.getSelectedProject();
         if (p == null) {
             alertInfo("No project selected", "Select a project first, then create a task.");
             return;
         }
         if (p.getMembers().isEmpty()) {
-            alertInfo("No members yet", "Go to Projects → Add Member, then create tasks and assign them.");
+            alertInfo("No members yet", "Go to Team, add members to the project, then create tasks.");
             return;
         }
 
@@ -243,7 +280,6 @@ public class DashboardPage extends BorderPane {
         return s == null ? "" : s;
     }
 
-    // Simple metric tile
     private static class MetricTile extends VBox {
         private final Label label = new Label();
         private final Label value = new Label();

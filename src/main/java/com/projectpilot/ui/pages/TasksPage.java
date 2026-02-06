@@ -8,10 +8,13 @@ import com.projectpilot.model.Project;
 import com.projectpilot.model.Task;
 import com.projectpilot.model.enums.Priority;
 import com.projectpilot.model.enums.TaskStatus;
+import com.projectpilot.security.AccessPolicy;
 import com.projectpilot.ui.components.ProjectPicker;
 import com.projectpilot.ui.dialogs.CreateTaskDialog;
 import javafx.beans.binding.Bindings;
 import javafx.beans.binding.BooleanBinding;
+import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
@@ -28,6 +31,10 @@ import java.util.Set;
 
 public class TasksPage extends VBox {
 
+    private final InMemoryStore store;
+    private final AppState appState;
+    private final AccessPolicy policy = new AccessPolicy();
+
     private final Label header = new Label("Tasks");
 
     private final ObservableList<Task> taskSource = FXCollections.observableArrayList();
@@ -40,6 +47,8 @@ public class TasksPage extends VBox {
 
     private Task bound;
 
+    private final ObjectProperty<Task> selectedTask = new SimpleObjectProperty<>();
+
     private final TextField titleField = new TextField();
     private final TextArea descField = new TextArea();
     private final ComboBox<TaskStatus> statusBox = new ComboBox<>();
@@ -51,28 +60,62 @@ public class TasksPage extends VBox {
 
     private Project boundProject;
 
-    private final Set<Task> statusHooked = new HashSet<>();
-    private final BooleanBinding canEdit;
+    private final Set<Task> hooked = new HashSet<>();
+
+    private final BooleanBinding canCreate;
+    private final BooleanBinding canSeeAll;
+    private final BooleanBinding canEditSelected;
+    private final BooleanBinding canEditMeta;
+    private final BooleanBinding canReassign;
 
     private final ListChangeListener<Task> projectTasksListener = c -> {
         if (boundProject == null) return;
 
         while (c.next()) {
-            if (c.wasAdded()) {
-                for (Task t : c.getAddedSubList()) attachStatusListenerOnce(t);
-            }
-            if (c.wasRemoved()) {
-                statusHooked.removeAll(c.getRemoved());
-            }
+            if (c.wasAdded()) for (Task t : c.getAddedSubList()) hookTaskOnce(t);
+            if (c.wasRemoved()) hooked.removeAll(c.getRemoved());
         }
-
         rebuildTaskSource(boundProject);
     };
 
     public TasksPage(InMemoryStore store, AppState appState) {
-        this.canEdit = Bindings.createBooleanBinding(
-                () -> appState.sessionProperty().get() != null && appState.isAdmin(),
-                appState.sessionProperty()
+        this.store = store;
+        this.appState = appState;
+
+        this.canCreate = Bindings.createBooleanBinding(
+                () -> policy.canCreateTasks(appState),
+                appState.sessionProperty(),
+                appState.selectedProjectProperty(),
+                appState.currentProjectRoleProperty()
+        );
+
+        this.canSeeAll = Bindings.createBooleanBinding(
+                () -> policy.canSeeAllProjectTasks(appState),
+                appState.sessionProperty(),
+                appState.selectedProjectProperty(),
+                appState.currentProjectRoleProperty()
+        );
+
+        this.canEditSelected = Bindings.createBooleanBinding(
+                () -> policy.canEditTask(appState, selectedTask.get()),
+                appState.sessionProperty(),
+                appState.selectedProjectProperty(),
+                appState.currentProjectRoleProperty(),
+                selectedTask
+        );
+
+        this.canEditMeta = Bindings.createBooleanBinding(
+                () -> policy.canEditTaskMeta(appState),
+                appState.sessionProperty(),
+                appState.selectedProjectProperty(),
+                appState.currentProjectRoleProperty()
+        );
+
+        this.canReassign = Bindings.createBooleanBinding(
+                () -> policy.canReassignTasks(appState),
+                appState.sessionProperty(),
+                appState.selectedProjectProperty(),
+                appState.currentProjectRoleProperty()
         );
 
         setPadding(new Insets(16));
@@ -90,17 +133,18 @@ public class TasksPage extends VBox {
         Region spacer = new Region();
         HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
 
+
         showDone.setSelected(false);
         showDone.setStyle("-fx-text-fill: white;");
         showDone.selectedProperty().addListener((obs, ov, nv) -> applyFilterPreserveSelection());
 
         Button newTask = new Button("New Task");
         newTask.getStyleClass().add("primary");
-        newTask.visibleProperty().bind(canEdit);
+        newTask.visibleProperty().bind(canCreate);
         newTask.managedProperty().bind(newTask.visibleProperty());
 
         newTask.setOnAction(e -> {
-            if (!canEdit.get()) return;
+            if (!canCreate.get()) return;
 
             Project p = appState.getSelectedProject();
             if (p == null) return;
@@ -109,7 +153,7 @@ public class TasksPage extends VBox {
                 Alert a = new Alert(Alert.AlertType.INFORMATION);
                 a.setTitle("No project members yet");
                 a.setHeaderText("Add at least one project member first");
-                a.setContentText("Members are per-project. Go to Team and add users/members to this project, then create tasks.");
+                a.setContentText("Go to Team and add users/members to this project, then create tasks.");
                 a.showAndWait();
                 return;
             }
@@ -117,7 +161,8 @@ public class TasksPage extends VBox {
             CreateTaskDialog d = new CreateTaskDialog(p);
             d.showAndWait().ifPresent(t -> {
                 store.addTask(p, t);
-                attachStatusListenerOnce(t);
+                hookTaskOnce(t);
+                rebuildTaskSource(p);
                 applyFilterPreserveSelection();
                 tasksList.getSelectionModel().select(t);
             });
@@ -135,7 +180,10 @@ public class TasksPage extends VBox {
 
         tasksList.setPrefWidth(420);
         tasksList.setItems(filteredTasks);
-        tasksList.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> bindTask(newV));
+        tasksList.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> {
+            selectedTask.set(newV);
+            bindTask(newV);
+        });
 
         statusBox.getItems().setAll(TaskStatus.values());
         priorityBox.getItems().setAll(Priority.values());
@@ -146,9 +194,7 @@ public class TasksPage extends VBox {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
         duePicker.setPromptText("yyyy-MM-dd");
         duePicker.setConverter(new StringConverter<>() {
-            @Override public String toString(LocalDate date) {
-                return date == null ? "" : fmt.format(date);
-            }
+            @Override public String toString(LocalDate date) { return date == null ? "" : fmt.format(date); }
             @Override public LocalDate fromString(String s) {
                 if (s == null) return null;
                 String v = s.trim();
@@ -190,7 +236,6 @@ public class TasksPage extends VBox {
         form.setVgap(10);
 
         int r = 0;
-
         form.add(new Label("Title"), 0, r);
         form.add(titleField, 1, r++);
 
@@ -234,14 +279,18 @@ public class TasksPage extends VBox {
         refresh(appState.getSelectedProject());
         appState.selectedProjectProperty().addListener((obs, oldV, newV) -> refresh(newV));
 
-        // Worker mode: disable editors (still shows values)
-        titleField.disableProperty().bind(canEdit.not());
-        descField.disableProperty().bind(canEdit.not());
-        statusBox.disableProperty().bind(canEdit.not());
-        priorityBox.disableProperty().bind(canEdit.not());
-        duePicker.disableProperty().bind(canEdit.not());
-        phaseBox.disableProperty().bind(canEdit.not());
-        assigneeBox.disableProperty().bind(canEdit.not());
+        // Editing rules:
+        // - Meta (title/priority/phase/assignee): Admin/Leader only
+        // - Own task edits (status/desc/due): Admin/Leader or Member (assigned to them)
+        titleField.disableProperty().bind(canEditMeta.not());
+        priorityBox.disableProperty().bind(canEditMeta.not());
+        phaseBox.disableProperty().bind(canEditMeta.not());
+        assigneeBox.disableProperty().bind(canReassign.not());
+
+        BooleanBinding canEditOwnFields = canEditSelected; // includes admin/leader + member for own tasks
+        descField.disableProperty().bind(canEditOwnFields.not());
+        statusBox.disableProperty().bind(canEditOwnFields.not());
+        duePicker.disableProperty().bind(canEditOwnFields.not());
     }
 
     private void refresh(Project p) {
@@ -250,23 +299,19 @@ public class TasksPage extends VBox {
         }
 
         boundProject = p;
-        statusHooked.clear();
+        hooked.clear();
 
         if (p == null) {
             header.setText("Tasks (no project selected)");
             taskSource.clear();
-
-            // ✅ detach live lists
             phaseBox.setItems(FXCollections.observableArrayList());
             assigneeBox.setItems(FXCollections.observableArrayList());
-
             bindTask(null);
             return;
         }
 
-        header.setText("Tasks — " + p.getName());
+        header.setText(canSeeAll.get() ? ("Tasks — " + p.getName()) : ("My Tasks — " + p.getName()));
 
-        // ✅ keep ComboBoxes live (auto-update if members/phases change while page is open)
         phaseBox.setItems(p.getPhases());
         assigneeBox.setItems(p.getMembers());
 
@@ -281,8 +326,13 @@ public class TasksPage extends VBox {
         Task selected = tasksList.getSelectionModel().getSelectedItem();
         int selectedIndex = tasksList.getSelectionModel().getSelectedIndex();
 
-        taskSource.setAll(p.getTasks());
-        for (Task t : p.getTasks()) attachStatusListenerOnce(t);
+        if (canSeeAll.get()) {
+            taskSource.setAll(p.getTasks());
+        } else {
+            taskSource.setAll(p.getTasks().stream().filter(t -> policy.isAssignedToMe(appState, t)).toList());
+        }
+
+        for (Task t : p.getTasks()) hookTaskOnce(t);
 
         applyFilter();
 
@@ -295,6 +345,27 @@ public class TasksPage extends VBox {
             tasksList.getSelectionModel().clearSelection();
             bindTask(null);
         }
+    }
+
+    private void hookTaskOnce(Task t) {
+        if (t == null) return;
+        if (!hooked.add(t)) return;
+
+        // status changes can hide DONE tasks from list
+        try {
+            t.statusProperty().addListener((obs, ov, nv) -> {
+                applyFilterPreserveSelection();
+                // if USER is in “my tasks only”, also re-check visibility
+                if (!canSeeAll.get()) rebuildTaskSource(boundProject);
+            });
+        } catch (Exception ignored) {}
+
+        // assignee changes affect “my tasks only”
+        try {
+            t.assigneeProperty().addListener((obs, ov, nv) -> {
+                if (!canSeeAll.get()) rebuildTaskSource(boundProject);
+            });
+        } catch (Exception ignored) {}
     }
 
     private void applyFilterPreserveSelection() {
@@ -342,31 +413,6 @@ public class TasksPage extends VBox {
                     || phase.contains(query)
                     || assignee.contains(query);
         });
-    }
-
-    private void attachStatusListenerOnce(Task t) {
-        if (t == null) return;
-        if (!statusHooked.add(t)) return;
-
-        try {
-            t.statusProperty().addListener((obs, ov, nv) -> {
-                boolean willHide = (!showDone.isSelected() && nv == TaskStatus.DONE);
-                Task selected = tasksList.getSelectionModel().getSelectedItem();
-                int selectedIndex = tasksList.getSelectionModel().getSelectedIndex();
-
-                applyFilter();
-
-                if (willHide && selected == t) {
-                    if (!filteredTasks.isEmpty()) {
-                        int idx = Math.min(Math.max(selectedIndex, 0), filteredTasks.size() - 1);
-                        tasksList.getSelectionModel().select(idx);
-                    } else {
-                        tasksList.getSelectionModel().clearSelection();
-                        bindTask(null);
-                    }
-                }
-            });
-        } catch (Exception ignored) {}
     }
 
     private void bindTask(Task t) {

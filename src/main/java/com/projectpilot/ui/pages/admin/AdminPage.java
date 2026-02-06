@@ -154,7 +154,7 @@ public final class AdminPage extends BorderPane {
         ColumnConstraints c1 = new ColumnConstraints();
         c1.setMinWidth(90);
         ColumnConstraints c2 = new ColumnConstraints();
-        c2.setHgrow(Priority.ALWAYS);
+        c2.setHgrow(javafx.scene.layout.Priority.ALWAYS);
         grid.getColumnConstraints().setAll(c1, c2);
 
         HBox actions = new HBox(10, create);

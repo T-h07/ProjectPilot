@@ -8,6 +8,7 @@ import com.projectpilot.data.db.DbManager;
 import com.projectpilot.data.db.DbStore;
 import com.projectpilot.data.db.auth.AuthService;
 import com.projectpilot.data.db.auth.UserSession;
+import com.projectpilot.security.AccessPolicy;
 import com.projectpilot.ui.MainLayout;
 import com.projectpilot.ui.pages.*;
 import com.projectpilot.ui.pages.admin.AdminPage;
@@ -18,7 +19,6 @@ import javafx.scene.Scene;
 import javafx.scene.layout.StackPane;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
-import com.projectpilot.ui.pages.create.CreateHubPage;
 
 public class Main extends Application {
 
@@ -30,31 +30,27 @@ public class Main extends Application {
 
     private Scene scene;
 
+    private final AccessPolicy policy = new AccessPolicy();
+
     @Override
     public void start(Stage stage) {
         db = DbManager.defaultManager();
-        db.init(); // ✅ runs migrations (v3 auth tables included)
+        db.init();
         System.out.println("DB PATH = " + db.dbFile());
-
 
         auth = new AuthService(db);
 
         Font.loadFont(getClass().getResourceAsStream("/fonts/Inter-Regular.ttf"), 12);
         Font.loadFont(getClass().getResourceAsStream("/fonts/Inter-SemiBold.ttf"), 12);
 
-        // One scene; we swap roots (auth pages -> main layout)
         scene = new Scene(new StackPane(), 1200, 800);
         scene.getStylesheets().add(getClass().getResource("/css/app.css").toExternalForm());
 
         stage.setTitle("ProjectPilot");
         stage.setScene(scene);
 
-        // ✅ Auth flow
-        if (auth.needsInitialAdmin()) {
-            showSetup();
-        } else {
-            showLogin();
-        }
+        if (auth.needsInitialAdmin()) showSetup();
+        else showLogin();
 
         stage.setOnCloseRequest(e -> shutdownDbStore());
         stage.show();
@@ -73,18 +69,18 @@ public class Main extends Application {
     }
 
     private void onLoginSuccess(UserSession session) {
-        // Build store AFTER login (shared DB, but gated UI)
         store = new DbStore(db);
 
         appState = new AppState();
         appState.setSession(session);
 
-        // Pick selected project from active projects if available; else from history
-        if (!store.getProjects().isEmpty()) {
-            appState.setSelectedProject(store.getProjects().get(0));
-        } else if (!store.getHistoryProjects().isEmpty()) {
-            appState.setSelectedProject(store.getHistoryProjects().get(0));
-        }
+        // Pick first project the user is allowed to see
+        var initial = store.getProjects().stream()
+                .filter(p -> policy.canViewProject(appState, p))
+                .findFirst()
+                .orElse(null);
+
+        appState.setSelectedProject(initial);
 
         Router router = new Router();
         router.register(PageId.DASHBOARD, () -> new DashboardPage(store, appState));
@@ -95,10 +91,8 @@ public class Main extends Application {
         router.register(PageId.TEAM, () -> new TeamPage(store, appState));
         router.register(PageId.HISTORY, () -> new HistoryPage(store, appState));
         router.register(PageId.EXPORT_REPORT, () -> new ExportReportPage(store, appState));
-        router.register(PageId.CREATE, () -> new CreateHubPage(db, store, appState));
 
-
-        // ✅ Admin route only for admins
+        // Create hub: ADMIN only (this is why you saw the Create page before)
         if (appState.isAdmin()) {
             router.register(PageId.ADMIN, () -> new AdminPage(db, store, appState));
         }
@@ -107,16 +101,15 @@ public class Main extends Application {
         appRoot.getStyleClass().add("pp-root");
         scene.setRoot(appRoot);
     }
+
     private void logout() {
-        shutdownDbStore();              // avoid leaking db writer thread
+        shutdownDbStore();
         if (appState != null) {
-            appState.setSession(null);  // important: UI permissions depend on this
+            appState.setSession(null);
             appState.setSelectedProject(null);
         }
-        showLogin();                    // go back to login screen
+        showLogin();
     }
-
-
 
     @Override
     public void stop() {

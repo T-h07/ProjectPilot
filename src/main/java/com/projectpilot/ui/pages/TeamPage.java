@@ -19,6 +19,7 @@ import javafx.scene.layout.*;
 
 import java.lang.reflect.Method;
 import java.util.*;
+import com.projectpilot.security.AccessPolicy;
 
 public class TeamPage extends VBox {
 
@@ -40,6 +41,7 @@ public class TeamPage extends VBox {
     private final Label selectedRole = new Label("-");
     private final Label openTasksLabel = new Label("-");
     private final Button removeBtn = new Button("Remove member");
+    private final AccessPolicy policy = new AccessPolicy();
 
     private final BooleanBinding canEdit;
 
@@ -53,8 +55,10 @@ public class TeamPage extends VBox {
         this.appState = appState;
 
         this.canEdit = Bindings.createBooleanBinding(
-                () -> appState.sessionProperty().get() != null && appState.isAdmin(),
-                appState.sessionProperty()
+                () -> policy.canManageTeam(appState),
+                appState.sessionProperty(),
+                appState.selectedProjectProperty(),
+                appState.currentProjectRoleProperty()
         );
 
         setPadding(new Insets(16));
@@ -329,11 +333,14 @@ public class TeamPage extends VBox {
         }
 
         store.removeMember(p, m);
+        appState.refreshCurrentProjectRole();
+
 
         membersList.getSelectionModel().clearSelection();
         membersList.refresh();
 
         updateDirectoryPredicate();
+
 
         if (!p.getMembers().isEmpty()) membersList.getSelectionModel().selectFirst();
         else showMemberDetails(null);

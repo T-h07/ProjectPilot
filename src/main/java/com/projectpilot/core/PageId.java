@@ -9,6 +9,5 @@ public enum PageId {
     TEAM,
     HISTORY,
     EXPORT_REPORT,
-    CREATE,
     ADMIN
 }

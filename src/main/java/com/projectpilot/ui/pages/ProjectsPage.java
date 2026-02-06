@@ -4,31 +4,34 @@ import com.projectpilot.core.AppState;
 import com.projectpilot.data.InMemoryStore;
 import com.projectpilot.model.Member;
 import com.projectpilot.model.Project;
+import com.projectpilot.model.enums.ProjectRole;
+import com.projectpilot.security.AccessPolicy;
+import com.projectpilot.ui.dialogs.CreateProjectDialog;
 import javafx.beans.InvalidationListener;
+import javafx.beans.binding.Bindings;
+import javafx.beans.binding.BooleanBinding;
 import javafx.collections.ListChangeListener;
 import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import com.projectpilot.ui.dialogs.CreateProjectDialog;
 
-import java.time.format.DateTimeFormatter;
+import java.util.IdentityHashMap;
+import java.util.Map;
 
 public class ProjectsPage extends BorderPane {
 
-    private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-
     private final InMemoryStore store;
     private final AppState appState;
+    private final AccessPolicy policy = new AccessPolicy();
 
-    // left
     private final Label header = new Label("Projects");
     private final Button newProjectBtn = new Button("New Project");
-    private final ListView<Project> projectsList = new ListView<>();
-    private final FilteredList<Project> activeProjects;
 
-    // right
+    private final ListView<Project> projectsList = new ListView<>();
+    private final FilteredList<Project> visibleProjects;
+
     private final Label detailsTitle = new Label("Project Details");
     private final Label nameLabel = new Label("-");
     private final Label datesLabel = new Label("-");
@@ -43,46 +46,60 @@ public class ProjectsPage extends BorderPane {
 
     private final InvalidationListener projectStatusListener = obs -> refreshFilters();
 
+    // refresh when membership changes
+    private final Map<Project, ListChangeListener<?>> memberHooks = new IdentityHashMap<>();
+
+    private final BooleanBinding canCreateProject;
+    private final BooleanBinding canMarkDone;
+    private final BooleanBinding canDelete;
+
     public ProjectsPage(InMemoryStore store, AppState appState) {
         this.store = store;
         this.appState = appState;
 
         setPadding(new Insets(16));
 
-        // Filter ACTIVE projects only
-        activeProjects = new FilteredList<>(store.getProjects(), p -> p.getStatus() == Project.ProjectStatus.ACTIVE);
+        visibleProjects = new FilteredList<>(store.getProjects(), p -> policy.canViewProject(appState, p));
 
-        // Hook status listeners so filter updates when status changes
-        store.getProjects().forEach(this::hookProject);
-        store.getProjects().addListener((ListChangeListener<Project>) c -> {
-            while (c.next()) {
-                if (c.wasAdded()) c.getAddedSubList().forEach(this::hookProject);
-                if (c.wasRemoved()) c.getRemoved().forEach(this::unhookProject);
-            }
-            refreshFilters();
-        });
+        canCreateProject = Bindings.createBooleanBinding(
+                () -> policy.canCreateProject(appState),
+                appState.sessionProperty()
+        );
 
-        // LEFT PANEL
+        canMarkDone = Bindings.createBooleanBinding(
+                () -> policy.canMarkProjectDone(appState),
+                appState.sessionProperty(),
+                appState.currentProjectRoleProperty(),
+                appState.selectedProjectProperty()
+        );
+
+        canDelete = Bindings.createBooleanBinding(
+                () -> policy.canDeleteProject(appState),
+                appState.sessionProperty()
+        );
+
+        hookProjectLists();
+
+        // LEFT
         header.getStyleClass().add("page-title");
         header.setStyle("-fx-font-size: 28px; -fx-font-weight: 800;");
+
         newProjectBtn.getStyleClass().add("primary");
+        newProjectBtn.visibleProperty().bind(canCreateProject);
+        newProjectBtn.managedProperty().bind(newProjectBtn.visibleProperty());
         newProjectBtn.setOnAction(e -> createProject());
 
         VBox leftTop = new VBox(10, header, newProjectBtn);
         leftTop.setAlignment(Pos.TOP_LEFT);
 
-        projectsList.setItems(activeProjects);
+        projectsList.setItems(visibleProjects);
         projectsList.getStyleClass().add("card");
         projectsList.setPrefWidth(360);
 
         projectsList.setCellFactory(lv -> new ListCell<>() {
             @Override protected void updateItem(Project item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setText(null);
-                    return;
-                }
-                setText(item.getName());
+                setText(empty || item == null ? null : item.getName());
             }
         });
 
@@ -90,7 +107,7 @@ public class ProjectsPage extends BorderPane {
         VBox.setVgrow(projectsList, Priority.ALWAYS);
         left.setPrefWidth(420);
 
-        // RIGHT PANEL (details)
+        // RIGHT
         detailsTitle.getStyleClass().add("page-title");
         detailsTitle.setStyle("-fx-font-size: 28px; -fx-font-weight: 800;");
 
@@ -108,20 +125,20 @@ public class ProjectsPage extends BorderPane {
         membersList.setCellFactory(lv -> new ListCell<>() {
             @Override protected void updateItem(Member m, boolean empty) {
                 super.updateItem(m, empty);
-                if (empty || m == null) {
-                    setText(null);
-                    return;
-                }
-                // Expecting Member has getName() + getRole()
+                if (empty || m == null) { setText(null); return; }
                 String role = (m.getRole() == null) ? "-" : m.getRole().toString();
                 setText(m.getName() + "  •  " + role);
             }
         });
 
         markDoneBtn.getStyleClass().add("primary");
+        markDoneBtn.visibleProperty().bind(canMarkDone);
+        markDoneBtn.managedProperty().bind(markDoneBtn.visibleProperty());
         markDoneBtn.setOnAction(e -> markSelectedDone());
 
         deleteBtn.getStyleClass().add("secondary");
+        deleteBtn.visibleProperty().bind(canDelete);
+        deleteBtn.managedProperty().bind(deleteBtn.visibleProperty());
         deleteBtn.setOnAction(e -> deleteSelected());
 
         HBox actions = new HBox(10, markDoneBtn, deleteBtn);
@@ -142,29 +159,60 @@ public class ProjectsPage extends BorderPane {
 
         HBox root = new HBox(14, left, rightCard);
         HBox.setHgrow(rightCard, Priority.ALWAYS);
-
         setCenter(root);
 
-        // Selection wiring
         projectsList.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> {
             appState.setSelectedProject(n);
-            refreshDetails(n);
+            refreshDetails(appState.getSelectedProject());
         });
 
-        // initial selection
-        if (!activeProjects.isEmpty()) {
-            projectsList.getSelectionModel().select(0);
-        } else {
+        // session/membership changes can invalidate selection -> re-apply
+        appState.sessionProperty().addListener((obs, o, n) -> {
+            refreshFilters();
+            pickFirstIfNeeded();
+        });
+
+        // initial
+        refreshFilters();
+        pickFirstIfNeeded();
+    }
+
+    private void hookProjectLists() {
+        store.getProjects().forEach(this::hookProject);
+        store.getProjects().addListener((ListChangeListener<Project>) c -> {
+            while (c.next()) {
+                if (c.wasAdded()) c.getAddedSubList().forEach(this::hookProject);
+                if (c.wasRemoved()) c.getRemoved().forEach(this::unhookProject);
+            }
+            refreshFilters();
+            pickFirstIfNeeded();
+        });
+    }
+
+    private void refreshFilters() {
+        visibleProjects.setPredicate(p -> policy.canViewProject(appState, p));
+
+        Project sel = projectsList.getSelectionModel().getSelectedItem();
+        if (sel != null && !visibleProjects.contains(sel)) {
+            projectsList.getSelectionModel().clearSelection();
+            appState.setSelectedProject(null);
             refreshDetails(null);
         }
     }
 
-    private void refreshFilters() {
-        activeProjects.setPredicate(p -> p.getStatus() == Project.ProjectStatus.ACTIVE);
-        // keep selection valid
-        Project sel = projectsList.getSelectionModel().getSelectedItem();
-        if (sel != null && sel.getStatus() != Project.ProjectStatus.ACTIVE) {
-            projectsList.getSelectionModel().clearSelection();
+    private void pickFirstIfNeeded() {
+        if (appState.getSelectedProject() != null && visibleProjects.contains(appState.getSelectedProject())) {
+            projectsList.getSelectionModel().select(appState.getSelectedProject());
+            refreshDetails(appState.getSelectedProject());
+            return;
+        }
+
+        if (!visibleProjects.isEmpty()) {
+            projectsList.getSelectionModel().select(0);
+            Project p = projectsList.getSelectionModel().getSelectedItem();
+            appState.setSelectedProject(p);
+            refreshDetails(appState.getSelectedProject());
+        } else {
             appState.setSelectedProject(null);
             refreshDetails(null);
         }
@@ -176,15 +224,11 @@ public class ProjectsPage extends BorderPane {
             datesLabel.setText("-");
             summaryLabel.setText("-");
             membersList.setItems(null);
-            markDoneBtn.setDisable(true);
-            deleteBtn.setDisable(true);
             return;
         }
 
         nameLabel.setText(p.getName());
-
-        String dates = safeDate(p.getStartDate()) + " → " + safeDate(p.getEndDate());
-        datesLabel.setText(dates);
+        datesLabel.setText(safeDate(p.getStartDate()) + " → " + safeDate(p.getEndDate()));
 
         long tasks = p.getTasks().size();
         long phases = p.getPhases().size();
@@ -192,178 +236,102 @@ public class ProjectsPage extends BorderPane {
         summaryLabel.setText("Tasks: " + tasks + " | Phases: " + phases + " | Milestones: " + milestones);
 
         membersList.setItems(p.getMembers());
-
-        markDoneBtn.setDisable(false);
-        deleteBtn.setDisable(false);
     }
 
     private void createProject() {
-        CreateProjectDialog d = new CreateProjectDialog();
+        if (!policy.canCreateProject(appState)) return;
 
+        CreateProjectDialog d = new CreateProjectDialog();
         d.showAndWait().ifPresent(p -> {
-            // ensure ACTIVE (dialog already sets template + phases + details)
             p.setStatus(Project.ProjectStatus.ACTIVE);
 
             store.createProject(p);
 
-            // ✅ FIX: new projects must have at least 1 member so TasksPage won't block
+            // Ensure project has at least 1 member (creator) so tasks can be created immediately.
             ensureCreatorIsMember(p);
 
             appState.setSelectedProject(p);
-
-            // select in list (will appear because ACTIVE)
+            refreshFilters();
             projectsList.getSelectionModel().select(p);
         });
     }
 
     private void ensureCreatorIsMember(Project p) {
         if (p == null) return;
-
-        // already has members -> do nothing
         if (p.getMembers() != null && !p.getMembers().isEmpty()) return;
 
-        String displayName = sessionDisplayName();
-        if (displayName == null || displayName.isBlank()) displayName = "System";
-
-        Member creator = createMemberBestEffort(displayName, "LEADER");
-        if (creator == null) creator = createMemberBestEffort(displayName, "MEMBER");
-        if (creator == null) return;
-
-        // If you have store.addMember(p, creator) use that instead.
-        // Otherwise, adding to the project list should trigger your write-through hooks.
-        p.getMembers().add(creator);
-    }
-
-    private String sessionDisplayName() {
         var s = appState.getSession();
-        if (s == null) return null;
+        if (s == null) return;
 
-        // Prefer username() if your UserSession record has it
-        try {
-            Object v = s.getClass().getMethod("username").invoke(s);
-            if (v != null) return v.toString();
-        } catch (Exception ignored) {}
+        String id = s.id();
+        String name = (s.displayName() != null && !s.displayName().isBlank()) ? s.displayName() : s.username();
+        if (name == null || name.isBlank()) name = "System";
 
-        // fallback options if your record uses a different component name
-        try {
-            Object v = s.getClass().getMethod("userName").invoke(s);
-            if (v != null) return v.toString();
-        } catch (Exception ignored) {}
-
-        try {
-            Object v = s.getClass().getMethod("name").invoke(s);
-            if (v != null) return v.toString();
-        } catch (Exception ignored) {}
-
-        return null;
-    }
-
-    /**
-     * Robust member creation:
-     * - tries Member(String)
-     * - tries Member()
-     * - sets name via setName(...) or nameProperty().set(...)
-     * - sets role via setRole(enum) or roleProperty().set(enum) if possible
-     */
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private static Member createMemberBestEffort(String name, String roleName) {
-        Member m = null;
-
-        // ctor Member(String)
-        try { m = Member.class.getConstructor(String.class).newInstance(name); }
-        catch (Exception ignored) {}
-
-        // ctor Member()
-        if (m == null) {
-            try { m = Member.class.getConstructor().newInstance(); }
-            catch (Exception ignored) {}
-        }
-        if (m == null) return null;
-
-        // set name
-        try {
-            Member.class.getMethod("setName", String.class).invoke(m, name);
-        } catch (Exception ignored) {
-            try {
-                Object prop = Member.class.getMethod("nameProperty").invoke(m);
-                prop.getClass().getMethod("set", String.class).invoke(prop, name);
-            } catch (Exception ignored2) {}
-        }
-
-        // set role (enum)
-        try {
-            var getRole = Member.class.getMethod("getRole");
-            Class<?> roleType = getRole.getReturnType();
-            if (roleType.isEnum()) {
-                Object enumVal = Enum.valueOf((Class<? extends Enum>) roleType, roleName);
-
-                // try setRole(enum)
-                try {
-                    Member.class.getMethod("setRole", roleType).invoke(m, enumVal);
-                } catch (Exception ignored) {
-                    // try roleProperty().set(enum)
-                    try {
-                        Object prop = Member.class.getMethod("roleProperty").invoke(m);
-                        prop.getClass().getMethod("set", roleType).invoke(prop, enumVal);
-                    } catch (Exception ignored2) {}
-                }
-            }
-        } catch (Exception ignored) {}
-
-        return m;
+        Member creator = new Member(id, name, ProjectRole.LEADER);
+        store.addMember(p, creator);
     }
 
     private void markSelectedDone() {
+        if (!policy.canMarkProjectDone(appState)) return;
+
         Project p = projectsList.getSelectionModel().getSelectedItem();
         if (p == null) return;
 
         Alert a = new Alert(Alert.AlertType.CONFIRMATION);
         a.setTitle("ProjectPilot");
         a.setHeaderText("Mark project as DONE?");
-        a.setContentText("This will move it to History. You can still keep tasks for reference.");
+        a.setContentText("This will move it to History.");
         var res = a.showAndWait();
         if (res.isEmpty() || res.get() != ButtonType.OK) return;
 
-        // MVP: mark done with a simple “System” marker (upgrade later to real user/member)
         store.markProjectDone(p);
 
-        // After predicate refresh, it disappears from ACTIVE list automatically.
         refreshFilters();
-        refreshDetails(null);
+        pickFirstIfNeeded();
     }
 
     private void deleteSelected() {
+        if (!policy.canDeleteProject(appState)) return;
+
         Project p = projectsList.getSelectionModel().getSelectedItem();
         if (p == null) return;
 
         Alert a = new Alert(Alert.AlertType.CONFIRMATION);
         a.setTitle("ProjectPilot");
         a.setHeaderText("Delete project?");
-        a.setContentText("This is permanent. The project and its tasks will be removed.");
+        a.setContentText("This is permanent.");
         var res = a.showAndWait();
         if (res.isEmpty() || res.get() != ButtonType.OK) return;
 
-        store.getProjects().remove(p);
+        store.deleteProject(p);
 
-        if (appState.getSelectedProject() == p) {
-            appState.setSelectedProject(null);
-        }
-
-        if (!activeProjects.isEmpty()) {
-            projectsList.getSelectionModel().select(0);
-        } else {
-            refreshDetails(null);
-        }
+        refreshFilters();
+        pickFirstIfNeeded();
     }
 
     private void hookProject(Project p) {
         if (p == null) return;
+
         p.statusProperty().addListener(projectStatusListener);
+
+        if (!memberHooks.containsKey(p)) {
+            ListChangeListener<?> l = c -> refreshFilters();
+            try {
+                p.getMembers().addListener((ListChangeListener) l);
+                memberHooks.put(p, l);
+            } catch (Exception ignored) {}
+        }
     }
 
     private void unhookProject(Project p) {
         if (p == null) return;
+
         p.statusProperty().removeListener(projectStatusListener);
+
+        ListChangeListener<?> l = memberHooks.remove(p);
+        if (l != null) {
+            try { p.getMembers().removeListener((ListChangeListener) l); } catch (Exception ignored) {}
+        }
     }
 
     private static Label key(String t) {

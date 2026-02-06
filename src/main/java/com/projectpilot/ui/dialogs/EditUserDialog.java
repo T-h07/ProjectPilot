@@ -105,7 +105,7 @@ public final class EditUserDialog extends Dialog<EditUserDialog.Data> {
         ColumnConstraints c1 = new ColumnConstraints();
         c1.setMinWidth(130);
         ColumnConstraints c2 = new ColumnConstraints();
-        c2.setHgrow(Priority.ALWAYS);
+        c2.setHgrow(javafx.scene.layout.Priority.ALWAYS);
         grid.getColumnConstraints().setAll(c1, c2);
 
         VBox content = new VBox(12, title, grid);
