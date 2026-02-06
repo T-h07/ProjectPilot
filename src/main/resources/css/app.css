@@ -687,4 +687,160 @@
     -fx-text-fill: white;
     -fx-fill: white;
 }
+.notif-bell {
+    -fx-background-radius: 10;
+    -fx-padding: 6 10;
+}
+
+.notif-badge {
+    -fx-background-color: #ff3b30;
+    -fx-text-fill: white;
+    -fx-font-size: 11px;
+    -fx-padding: 1 6;
+    -fx-background-radius: 999;
+    -fx-translate-x: 8;
+    -fx-translate-y: -8;
+}
+
+.notif-popover {
+    -fx-background-color: rgba(20,20,24,0.98);
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(255,255,255,0.08);
+    -fx-border-radius: 14;
+}
+
+.notif-title {
+    -fx-font-size: 16px;
+    -fx-text-fill: white;
+    -fx-font-weight: 700;
+}
+
+.notif-section-title {
+    -fx-text-fill: rgba(255,255,255,0.65);
+    -fx-font-size: 12px;
+    -fx-padding: 8 0 2 0;
+}
+
+.notif-item {
+    -fx-background-color: rgba(255,255,255,0.04);
+    -fx-background-radius: 12;
+}
+
+.notif-item.unread {
+    -fx-background-color: rgba(120,80,255,0.14);
+    -fx-border-color: rgba(120,80,255,0.25);
+    -fx-border-radius: 12;
+}
+
+.notif-item-title {
+    -fx-text-fill: white;
+    -fx-font-weight: 700;
+}
+
+.notif-item-body {
+    -fx-text-fill: rgba(255,255,255,0.75);
+}
+
+.notif-time {
+    -fx-text-fill: rgba(255,255,255,0.55);
+    -fx-font-size: 11px;
+}
+
+.notif-icon {
+    -fx-font-size: 16px;
+}
+
+.notif-view, .notif-mark, .notif-markall {
+    -fx-background-radius: 10;
+    -fx-padding: 6 10;
+}
+
+.notif-empty {
+    -fx-text-fill: rgba(255,255,255,0.7);
+    -fx-padding: 14;
+}
+.notif-bell {
+    -fx-background-radius: 10;
+    -fx-padding: 6 10;
+}
+
+.notif-badge {
+    -fx-background-color: #ff4d4d;
+    -fx-text-fill: white;
+    -fx-font-size: 10px;
+    -fx-padding: 1 6;
+    -fx-background-radius: 999;
+    -fx-translate-x: 8;
+    -fx-translate-y: -6;
+}
+
+.notif-card {
+    -fx-background-color: rgba(255,255,255,0.06);
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+}
+
+.notif-urgent {
+    -fx-border-color: rgba(255, 77, 77, 0.8);
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+}
+
+.notif-section-title {
+    -fx-font-weight: bold;
+    -fx-opacity: 0.9;
+}
+
+.notif-title { -fx-font-weight: bold; }
+.notif-detail { -fx-opacity: 0.85; }
+.notif-time { -fx-opacity: 0.7; }
+.notif-empty { -fx-opacity: 0.6; }
+/* ===== Notifications filter segmented buttons ===== */
+
+.notif-popover .notif-seg {
+    -fx-padding: 2;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+
+    -fx-background-color: rgba(255,255,255,0.06);
+    -fx-border-color: rgba(255,255,255,0.14);
+    -fx-border-width: 1;
+}
+
+.notif-popover .notif-seg-btn {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+
+    -fx-text-fill: rgba(255,255,255,0.82);
+    -fx-font-weight: 600;
+
+    -fx-padding: 7 14;
+    -fx-cursor: hand;
+
+    /* kill default focus glow */
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.notif-popover .notif-seg-btn:hover {
+    -fx-background-color: rgba(255,255,255,0.08);
+}
+
+.notif-popover .notif-seg-btn:selected {
+    /* use your app's accent-ish look */
+    -fx-background-color: rgba(60, 190, 255, 0.16);
+    -fx-border-color: rgba(60, 190, 255, 0.55);
+    -fx-border-width: 1;
+    -fx-text-fill: white;
+}
+
+.notif-popover .notif-seg-btn.left {
+    -fx-background-radius: 10 0 0 10;
+    -fx-border-radius: 10 0 0 10;
+}
+
+.notif-popover .notif-seg-btn.right {
+    -fx-background-radius: 0 10 10 0;
+    -fx-border-radius: 0 10 10 0;
+}
 
