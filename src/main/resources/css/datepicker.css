@@ -1,0 +1,104 @@
+/* =========================
+   DatePicker popup (GLOBAL)
+   Fix white overlay + missing month text + double arrows
+   ========================= */
+
+.date-picker-popup {
+    -fx-background-color: #0f172a;
+    -fx-background-insets: 0;
+    -fx-background-radius: 14;
+
+    -fx-border-color: rgba(255,255,255,0.10);
+    -fx-border-insets: 0;
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+
+    -fx-padding: 10;
+
+    /* remove the light/white looking outer shadow */
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.70), 26, 0.25, 0, 10);
+}
+
+/* The popup contains a root container (VBox)  force it dark too */
+.date-picker-popup > * {
+    -fx-background-color: #0f172a;
+    -fx-background-insets: 0;
+}
+
+/* The actual calendar grid was staying white  this is the big fix */
+.date-picker-popup > * > .calendar-grid {
+    -fx-background-color: #0f172a;
+    -fx-background-insets: 0;
+}
+
+/* Month/Year header bar */
+.date-picker-popup > * > .month-year-pane {
+    -fx-background-color: rgba(14, 26, 46, 0.95);
+    -fx-background-insets: 0;
+    -fx-background-radius: 12;
+    -fx-padding: 8 10;
+}
+
+/* Month/Year are SPINNERS (not labels)  style their text */
+.date-picker-popup > * > .month-year-pane .spinner {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+.date-picker-popup > * > .month-year-pane .spinner .text-field {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: rgba(255,255,255,0.92);
+    -fx-font-weight: 700;
+    -fx-alignment: CENTER;
+}
+
+/* Hide the extra spinner arrows (these cause the double arrows) */
+.date-picker-popup > * > .month-year-pane .spinner .increment-arrow-button,
+.date-picker-popup > * > .month-year-pane .spinner .decrement-arrow-button,
+.date-picker-popup > * > .month-year-pane .spinner .increment-arrow,
+.date-picker-popup > * > .month-year-pane .spinner .decrement-arrow {
+    -fx-opacity: 0;
+    -fx-padding: 0;
+    -fx-min-width: 0;
+    -fx-pref-width: 0;
+    -fx-max-width: 0;
+    -fx-min-height: 0;
+    -fx-pref-height: 0;
+    -fx-max-height: 0;
+}
+
+/* Prev/Next month buttons */
+.date-picker-popup > * > .month-year-pane .button {
+    -fx-background-color: rgba(17, 27, 51, 0.85);
+    -fx-border-color: rgba(255,255,255,0.10);
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-padding: 6 10;
+}
+.date-picker-popup > * > .month-year-pane .button:hover {
+    -fx-background-color: rgba(30, 41, 59, 0.90);
+}
+
+/* Day names row */
+.date-picker-popup .day-name-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: rgba(255,255,255,0.70);
+    -fx-font-weight: 700;
+}
+
+/* Day cells */
+.date-picker-popup .day-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: rgba(255,255,255,0.90);
+    -fx-background-radius: 10;
+}
+.date-picker-popup .day-cell:hover {
+    -fx-background-color: rgba(255,255,255,0.06);
+}
+.date-picker-popup .day-cell:selected {
+    -fx-background-color: rgba(59,130,246,0.35);
+    -fx-text-fill: #ffffff;
+}
+.date-picker-popup .day-cell:disabled {
+    -fx-text-fill: rgba(255,255,255,0.25);
+}

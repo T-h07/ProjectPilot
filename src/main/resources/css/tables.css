@@ -1,0 +1,112 @@
+/* =========================
+   Dashboard: Recent Activity table (.pp-table)
+   ========================= */
+
+.pp-root .pp-table {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+
+    -fx-control-inner-background: rgba(10, 18, 32, 0.85);
+    -fx-control-inner-background-alt: rgba(10, 18, 32, 0.65);
+
+    -fx-table-cell-border-color: transparent;
+    -fx-table-header-border-color: transparent;
+
+    /* selection */
+    -fx-selection-bar: #2f5ea8;
+    -fx-selection-bar-non-focused: rgba(47,94,168,0.70);
+}
+
+/* Remove default white layers */
+.pp-root .pp-table .virtual-flow,
+.pp-root .pp-table .corner,
+.pp-root .pp-table .clipped-container,
+.pp-root .pp-table .sheet {
+    -fx-background-color: transparent;
+}
+
+/* Header */
+.pp-root .pp-table .column-header-background {
+    -fx-background-color: rgba(14, 26, 46, 0.95);
+    -fx-background-insets: 0;
+}
+
+.pp-root .pp-table .column-header,
+.pp-root .pp-table .filler {
+    -fx-background-color: transparent;
+    -fx-border-color: rgba(255,255,255,0.08);
+    -fx-border-width: 0 0 1 0;
+}
+
+.pp-root .pp-table .column-header .label {
+    -fx-text-fill: rgba(255,255,255,0.85);
+    -fx-font-weight: 700;
+}
+
+/* Rows */
+.pp-root .pp-table .table-row-cell {
+    -fx-background-color: rgba(10, 18, 32, 0.65);
+    -fx-background-insets: 0;
+}
+.pp-root .pp-table .table-row-cell:odd {
+    -fx-background-color: rgba(10, 18, 32, 0.50);
+}
+
+/* Cells */
+.pp-root .pp-table .table-cell {
+    -fx-text-fill: rgba(255,255,255,0.90);
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 6 12 6 12;
+    -fx-alignment: CENTER_LEFT;
+}
+
+/* Hover */
+.pp-root .pp-table .table-row-cell:filled:hover {
+    -fx-background-color: rgba(255,255,255,0.04);
+}
+
+/* Selection background */
+.pp-root .pp-table .table-row-cell:filled:selected,
+.pp-root .pp-table .table-row-cell:filled:selected:hover {
+    -fx-background-color: -fx-selection-bar;
+}
+
+/* Selection text (force full white and full opacity) */
+.pp-root .pp-table .table-row-cell:filled:selected .table-cell {
+    -fx-text-fill: #ffffff;
+    -fx-opacity: 1;
+}
+.pp-root .pp-table .table-row-cell:filled:selected .text {
+    -fx-fill: #ffffff;
+    -fx-opacity: 1;
+}
+
+/* Optional: soften scrollbars inside pp-table */
+.pp-root .pp-table .scroll-bar:vertical,
+.pp-root .pp-table .scroll-bar:horizontal { -fx-background-color: transparent; }
+
+.pp-root .pp-table .scroll-bar .track { -fx-background-color: rgba(255,255,255,0.05); }
+.pp-root .pp-table .scroll-bar .thumb { -fx-background-color: rgba(255,255,255,0.18); }
+
+/* HARD OVERRIDE: force white body text in pp-table */
+.pp-root .table-view.pp-table .table-row-cell:filled .table-cell {
+    -fx-text-fill: #ffffff;
+    -fx-opacity: 1;
+}
+.pp-root .table-view.pp-table .table-row-cell:filled .table-cell .text {
+    -fx-fill: #ffffff;
+    -fx-opacity: 1;
+}
+.pp-root .table-view.pp-table .table-row-cell:filled:selected .table-cell,
+.pp-root .table-view.pp-table .table-row-cell:filled:selected:hover .table-cell {
+    -fx-text-fill: #ffffff;
+    -fx-opacity: 1;
+}
+.pp-root .table-view.pp-table .table-row-cell:filled:selected .table-cell .text,
+.pp-root .table-view.pp-table .table-row-cell:filled:selected:hover .table-cell .text {
+    -fx-fill: #ffffff;
+    -fx-opacity: 1;
+}
+

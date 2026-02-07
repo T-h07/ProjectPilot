@@ -221,6 +221,15 @@ public final class DbStore extends InMemoryStore {
         new TeamService(db).assignTeamToProject(teamId, projectId);
     }
 
+    public java.util.List<String> listTeamNamesForMemberInProject(String memberId, String projectId) {
+        try {
+            return new TeamService(db).listTeamNamesForMemberInProject(memberId, projectId);
+        } catch (Exception e) {
+            System.err.println("[DbStore] listTeamNamesForMemberInProject() failed: " + e.getMessage());
+            return java.util.List.of();
+        }
+    }
+
     // -----------------------------------------
     // Write-through overrides
     // -----------------------------------------

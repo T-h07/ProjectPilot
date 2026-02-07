@@ -51,9 +51,17 @@ public final class AdminPage extends BorderPane {
         var top = new VBox(10, title, status);
         setTop(top);
 
-        var center = new VBox(14, createBox, teamBox, table);
-        center.setFillWidth(true);
-        setCenter(center);
+        var content = new VBox(14, createBox, teamBox, table);
+        content.setFillWidth(true);
+
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.getStyleClass().add("pp-scroll");
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroll.setPadding(new Insets(0, 0, 8, 0));
+
+        setCenter(scroll);
 
         reload();
     }

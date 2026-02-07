@@ -1,6 +1,11 @@
 package com.projectpilot.service;
 
-import com.projectpilot.model.*;
+import com.projectpilot.model.ActivityItem;
+import com.projectpilot.model.Member;
+import com.projectpilot.model.Milestone;
+import com.projectpilot.model.Phase;
+import com.projectpilot.model.Project;
+import com.projectpilot.model.Task;
 import com.projectpilot.model.enums.TaskStatus;
 
 import java.time.format.DateTimeFormatter;
@@ -8,17 +13,25 @@ import java.util.Comparator;
 import java.util.List;
 
 public class ReportService {
-
-    private final ProgressService progressService = new ProgressService();
     private final DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     public String generateHtml(Project p, List<ActivityItem> activity) {
-        int pct = progressService.projectProgressPercent(p);
+        return generateHtml(p, activity, ReportOptions.defaults());
+    }
 
-        long todo = p.getTasks().stream().filter(t -> t.getStatus() == TaskStatus.TODO).count();
-        long ip = p.getTasks().stream().filter(t -> t.getStatus() == TaskStatus.IN_PROGRESS).count();
-        long blocked = p.getTasks().stream().filter(t -> t.getStatus() == TaskStatus.BLOCKED).count();
-        long done = p.getTasks().stream().filter(t -> t.getStatus() == TaskStatus.DONE).count();
+    public String generateHtml(Project p, List<ActivityItem> activity, ReportOptions opts) {
+        ReportOptions o = ReportOptions.orDefault(opts);
+
+        List<Task> tasks = ReportFilters.filterTasks(p, o);
+        List<Milestone> milestones = ReportFilters.filterMilestones(p, o);
+        List<ActivityItem> activityFiltered = ReportFilters.filterActivity(activity, o);
+        String filterSummary = ReportFilters.describeFilters(p, o);
+
+        int pct = ReportFilters.progressPercent(tasks);
+        long todo = ReportFilters.countStatus(tasks, TaskStatus.TODO);
+        long ip = ReportFilters.countStatus(tasks, TaskStatus.IN_PROGRESS);
+        long blocked = ReportFilters.countStatus(tasks, TaskStatus.BLOCKED);
+        long done = ReportFilters.countStatus(tasks, TaskStatus.DONE);
 
         StringBuilder sb = new StringBuilder();
         sb.append("""
@@ -46,73 +59,110 @@ public class ReportService {
 
         sb.append("<h1>").append(esc(p.getName())).append("</h1>");
         sb.append("<div class='muted'>")
-                .append(esc(safeDate(p.getStartDate()))).append(" â†’ ").append(esc(safeDate(p.getEndDate())))
+                .append(esc(safeDate(p.getStartDate()))).append(" -> ").append(esc(safeDate(p.getEndDate())))
                 .append("</div>");
 
-        sb.append("<div class='card'>");
-        sb.append("<div><b>Progress:</b> ").append(pct).append("%</div>");
-        sb.append("<div class='muted'>TODO: ").append(todo)
-                .append(" | IN PROGRESS: ").append(ip)
-                .append(" | BLOCKED: ").append(blocked)
-                .append(" | DONE: ").append(done)
-                .append("</div>");
-        sb.append("</div>");
-
-        // Phase breakdown
-        sb.append("<div class='card'><h3>Phases</h3><table><tr><th>Phase</th><th>Progress</th><th>Open Tasks</th></tr>");
-        for (Phase ph : p.getPhases()) {
-            int phPct = phaseProgressPercent(p, ph);
-            long open = p.getTasks().stream()
-                    .filter(t -> t.getPhase() == ph)
-                    .filter(t -> t.getStatus() != TaskStatus.DONE)
-                    .count();
-            sb.append("<tr><td>").append(esc(ph.getName())).append("</td><td>")
-                    .append(phPct).append("%</td><td>").append(open).append("</td></tr>");
+        if (!"All data".equals(filterSummary)) {
+            sb.append("<div class='muted'>Filters: ").append(esc(filterSummary)).append("</div>");
         }
-        sb.append("</table></div>");
 
-        // Tasks grouped by status
-        sb.append("<div class='card'><h3>Tasks</h3>");
-        appendTaskSection(sb, "TODO", p.getTasks().stream().filter(t -> t.getStatus() == TaskStatus.TODO).toList());
-        appendTaskSection(sb, "IN PROGRESS", p.getTasks().stream().filter(t -> t.getStatus() == TaskStatus.IN_PROGRESS).toList());
-        appendTaskSection(sb, "BLOCKED", p.getTasks().stream().filter(t -> t.getStatus() == TaskStatus.BLOCKED).toList());
-        appendTaskSection(sb, "DONE", p.getTasks().stream().filter(t -> t.getStatus() == TaskStatus.DONE).toList());
-        sb.append("</div>");
-
-        // Team
-        sb.append("<div class='card'><h3>Team</h3><table><tr><th>Member</th><th>Open Tasks</th></tr>");
-        for (Member m : p.getMembers()) {
-            long open = p.getTasks().stream()
-                    .filter(t -> t.getAssignee() != null && t.getAssignee() == m)
-                    .filter(t -> t.getStatus() != TaskStatus.DONE)
-                    .count();
-            sb.append("<tr><td>").append(esc(m.getName())).append("</td><td>").append(open).append("</td></tr>");
+        if (o.includeSummary()) {
+            sb.append("<div class='card'>");
+            sb.append("<div><b>Progress:</b> ").append(pct).append("%</div>");
+            sb.append("<div class='muted'>Tasks (filtered): TODO: ").append(todo)
+                    .append(" | IN PROGRESS: ").append(ip)
+                    .append(" | BLOCKED: ").append(blocked)
+                    .append(" | DONE: ").append(done)
+                    .append("</div>");
+            sb.append("</div>");
         }
-        sb.append("</table></div>");
 
-        // Milestones
-        sb.append("<div class='card'><h3>Milestones</h3><table><tr><th>Status</th><th>Milestone</th><th>Due</th></tr>");
-        for (Milestone m : p.getMilestones()) {
-            String state = m.completedProperty().get() ? "Done" : "Pending";
-            sb.append("<tr><td>")
-                    .append("<span class='badge ").append(m.completedProperty().get() ? "done" : "").append("'>")
-                    .append(state).append("</span>")
-                    .append("</td><td>").append(esc(m.nameProperty().get()))
-                    .append("</td><td>").append(esc(safeDate(m.dueDateProperty().get())))
-                    .append("</td></tr>");
+        if (o.includePhases()) {
+            sb.append("<div class='card'><h3>Phases</h3>");
+            if (p.getPhases().isEmpty()) {
+                sb.append("<div class='muted'>No phases.</div>");
+            } else {
+                sb.append("<table><tr><th>Phase</th><th>Progress</th><th>Open Tasks</th></tr>");
+                for (Phase ph : p.getPhases()) {
+                    List<Task> phTasks = tasks.stream().filter(t -> t.getPhase() == ph).toList();
+                    int phPct = ReportFilters.progressPercent(phTasks);
+                    long open = phTasks.stream().filter(t -> t.getStatus() != TaskStatus.DONE).count();
+                    sb.append("<tr><td>").append(esc(ph.getName())).append("</td><td>")
+                            .append(phPct).append("%</td><td>").append(open).append("</td></tr>");
+                }
+                sb.append("</table>");
+            }
+            sb.append("</div>");
         }
-        sb.append("</table></div>");
 
-        // Recent activity (last 10)
-        sb.append("<div class='card'><h3>Recent Activity</h3><table><tr><th>Time</th><th>Project</th><th>Event</th></tr>");
-        activity.stream().limit(10).forEach(a -> {
-            sb.append("<tr><td>")
-                    .append(esc(a.getTime().format(DateTimeFormatter.ofPattern("HH:mm"))))
-                    .append("</td><td>").append(esc(a.getProjectName()))
-                    .append("</td><td>").append(esc(a.getMessage()))
-                    .append("</td></tr>");
-        });
-        sb.append("</table></div>");
+        if (o.includeTasks()) {
+            sb.append("<div class='card'><h3>Tasks</h3>");
+            if (tasks.isEmpty()) {
+                sb.append("<div class='muted'>No tasks match the current filters.</div>");
+            } else {
+                appendTaskSection(sb, "TODO", tasks.stream().filter(t -> t.getStatus() == TaskStatus.TODO).toList());
+                appendTaskSection(sb, "IN PROGRESS", tasks.stream().filter(t -> t.getStatus() == TaskStatus.IN_PROGRESS).toList());
+                appendTaskSection(sb, "BLOCKED", tasks.stream().filter(t -> t.getStatus() == TaskStatus.BLOCKED).toList());
+                appendTaskSection(sb, "DONE", tasks.stream().filter(t -> t.getStatus() == TaskStatus.DONE).toList());
+            }
+            sb.append("</div>");
+        }
+
+        if (o.includeTeam()) {
+            sb.append("<div class='card'><h3>Team</h3>");
+            if (p.getMembers().isEmpty()) {
+                sb.append("<div class='muted'>No members.</div>");
+            } else {
+                sb.append("<table><tr><th>Member</th><th>Open Tasks</th></tr>");
+                for (Member m : p.getMembers()) {
+                    long open = tasks.stream()
+                            .filter(t -> t.getAssignee() != null && t.getAssignee() == m)
+                            .filter(t -> t.getStatus() != TaskStatus.DONE)
+                            .count();
+                    sb.append("<tr><td>").append(esc(m.getName())).append("</td><td>").append(open).append("</td></tr>");
+                }
+                sb.append("</table>");
+            }
+            sb.append("</div>");
+        }
+
+        if (o.includeMilestones()) {
+            sb.append("<div class='card'><h3>Milestones</h3>");
+            if (milestones.isEmpty()) {
+                sb.append("<div class='muted'>No milestones.</div>");
+            } else {
+                sb.append("<table><tr><th>Status</th><th>Milestone</th><th>Due</th></tr>");
+                for (Milestone m : milestones) {
+                    String state = m.completedProperty().get() ? "Done" : "Pending";
+                    sb.append("<tr><td>")
+                            .append("<span class='badge ").append(m.completedProperty().get() ? "done" : "").append("'>")
+                            .append(state).append("</span>")
+                            .append("</td><td>").append(esc(m.nameProperty().get()))
+                            .append("</td><td>").append(esc(safeDate(m.dueDateProperty().get())))
+                            .append("</td></tr>");
+                }
+                sb.append("</table>");
+            }
+            sb.append("</div>");
+        }
+
+        if (o.includeActivity()) {
+            sb.append("<div class='card'><h3>Recent Activity</h3>");
+            if (activityFiltered.isEmpty()) {
+                sb.append("<div class='muted'>No activity.</div>");
+            } else {
+                sb.append("<table><tr><th>Time</th><th>Project</th><th>Event</th></tr>");
+                activityFiltered.stream().limit(o.activityLimit()).forEach(a -> {
+                    sb.append("<tr><td>")
+                            .append(esc(a.getTime().format(DateTimeFormatter.ofPattern("HH:mm"))))
+                            .append("</td><td>").append(esc(a.getProjectName()))
+                            .append("</td><td>").append(esc(a.getMessage()))
+                            .append("</td></tr>");
+                });
+                sb.append("</table>");
+            }
+            sb.append("</div>");
+        }
 
         sb.append("</body></html>");
         return sb.toString();
@@ -141,22 +191,6 @@ public class ReportService {
         sb.append("</table>");
     }
 
-    private int phaseProgressPercent(Project p, Phase phase) {
-        var tasks = p.getTasks().stream().filter(t -> t.getPhase() == phase).toList();
-        if (tasks.isEmpty()) return 0;
-
-        double total = 0;
-        for (var t : tasks) {
-            total += switch (t.getStatus()) {
-                case TODO -> 0.0;
-                case IN_PROGRESS -> 0.5;
-                case BLOCKED -> 0.25;
-                case DONE -> 1.0;
-            };
-        }
-        return (int) Math.round((total / tasks.size()) * 100.0);
-    }
-
     private String safeDate(java.time.LocalDate d) {
         return d == null ? "-" : d.format(dateFmt);
     }
@@ -166,4 +200,3 @@ public class ReportService {
         return s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;");
     }
 }
-

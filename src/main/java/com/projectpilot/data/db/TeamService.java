@@ -112,6 +112,37 @@ public final class TeamService {
         });
     }
 
+    public List<String> listTeamNamesForMemberInProject(String memberId, String projectId) {
+        if (memberId == null || memberId.isBlank()) return List.of();
+        if (projectId == null || projectId.isBlank()) return List.of();
+
+        return db.tx(conn -> {
+            try (PreparedStatement ps = conn.prepareStatement(
+                    """
+                    SELECT t.name
+                    FROM teams t
+                    JOIN team_members tm ON tm.team_id = t.id AND tm.member_id = ?
+                    JOIN project_teams pt ON pt.team_id = t.id AND pt.project_id = ?
+                    ORDER BY lower(t.name)
+                    """
+            )) {
+                ps.setString(1, memberId);
+                ps.setString(2, projectId);
+
+                List<String> out = new ArrayList<>();
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        String name = rs.getString("name");
+                        if (name != null && !name.isBlank()) out.add(name);
+                    }
+                }
+                return out;
+            } catch (Exception e) {
+                throw new DbException("List member teams failed", e);
+            }
+        });
+    }
+
     public void createTeam(String name, String leaderId, List<TeamMemberSpec> members) {
         String nm = name == null ? "" : name.trim();
         String leader = leaderId == null ? "" : leaderId.trim();

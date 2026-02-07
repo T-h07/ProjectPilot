@@ -1,0 +1,256 @@
+/* ---- Inputs (TextField / TextArea base) ---- */
+.pp-root .text-field,
+.pp-root .text-area {
+    -fx-background-color: rgba(17, 27, 51, 0.9);
+    -fx-text-fill: -pp-text;
+    -fx-prompt-text-fill: rgba(230,237,247,0.45);
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-padding: 8 10;
+}
+
+/* TextArea: remove inner white panel + keep dark content */
+.pp-root .text-area,
+.pp-root .text-area:focused {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: rgba(17, 27, 51, 0.55);
+    -fx-background-insets: 0;
+}
+
+.pp-root .text-area .content {
+    -fx-background-color: rgba(17, 27, 51, 0.55);
+    -fx-background-insets: 0;
+    -fx-background-radius: 12;
+}
+
+.pp-root .text-area > .scroll-pane,
+.pp-root .text-area > .scroll-pane > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+.pp-root .text-area .text { -fx-fill: -pp-text; }
+
+.pp-root .text-area:focused { -fx-border-color: rgba(59,130,246,0.55); }
+
+/* Optional helper class you used in code */
+.pp-root .pp-textarea .content {
+    -fx-background-color: rgba(17, 27, 51, 0.55);
+}
+
+/* ---- ComboBox ---- */
+.pp-root .combo-box-base {
+    -fx-background-color: rgba(17, 27, 51, 0.9);
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-padding: 4 8;
+}
+
+.pp-root .combo-box .list-cell { -fx-text-fill: -pp-text; }
+
+/* ComboBox popup (dropdown) - solid (no transparency) */
+.pp-root .combo-box-popup .list-view {
+    -fx-background-color: #0f172a;
+    -fx-control-inner-background: #0f172a;
+    -fx-background-insets: 0;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: rgba(255,255,255,0.10);
+    -fx-border-width: 1;
+    -fx-padding: 6;
+}
+
+.pp-root .combo-box-popup .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -pp-text;
+    -fx-padding: 10 12;
+}
+
+.pp-root .combo-box-popup .list-cell:filled:hover {
+    -fx-background-color: rgba(255,255,255,0.06);
+}
+
+.pp-root .combo-box-popup .list-cell:filled:selected {
+    -fx-background-color: rgba(59,130,246,0.22);
+}
+
+.pp-root .combo-box-popup {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.55), 22, 0.2, 0, 8);
+}
+
+/* ---- Spinner ---- */
+.pp-root .pp-spinner {
+    -fx-background-color: rgba(17, 27, 51, 0.9);
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+}
+
+.pp-root .pp-spinner .text-field {
+    -fx-background-color: transparent;
+    -fx-text-fill: -pp-text;
+    -fx-prompt-text-fill: rgba(230,237,247,0.45);
+}
+
+.pp-root .pp-spinner .increment-arrow-button,
+.pp-root .pp-spinner .decrement-arrow-button {
+    -fx-background-color: rgba(17, 27, 51, 0.9);
+    -fx-border-color: -pp-border;
+    -fx-border-width: 0 0 0 1;
+}
+
+.pp-root .pp-spinner .increment-arrow,
+.pp-root .pp-spinner .decrement-arrow {
+    -fx-background-color: rgba(230,237,247,0.85);
+}
+
+/* ---- Buttons ---- */
+.pp-root .button {
+    -fx-background-color: rgba(17, 27, 51, 0.85);
+    -fx-text-fill: -pp-text;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+}
+
+.pp-root .button:hover { -fx-background-color: rgba(30, 41, 59, 0.9); }
+.pp-root .button:pressed { -fx-background-color: rgba(30, 41, 59, 0.7); }
+
+.pp-root .button.primary {
+    -fx-background-color: linear-gradient(to bottom, -pp-accent, -pp-accent2);
+    -fx-border-color: rgba(255,255,255,0.10);
+}
+/* ---- Small buttons (tables) ---- */
+.pp-root .button.sm {
+    -fx-padding: 6 10;
+    -fx-font-size: 12px;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+
+/* ---- Danger outline button (good on dark tables) ---- */
+.pp-root .button.danger-outline {
+    -fx-background-color: transparent;
+    -fx-text-fill: rgba(239,68,68,0.95);
+    -fx-border-color: rgba(239,68,68,0.55);
+    -fx-border-width: 1;
+}
+
+.pp-root .button.danger-outline:hover {
+    -fx-background-color: rgba(239,68,68,0.14);
+}
+
+.pp-root .button.danger-outline:pressed {
+    -fx-background-color: rgba(239,68,68,0.22);
+}
+
+.pp-root .button.primary:hover { -fx-opacity: 0.95; }
+
+/* ---- CheckBox ---- */
+.pp-root .check-box {
+    -fx-text-fill: -pp-text;
+}
+
+.pp-root .check-box .text {
+    -fx-fill: -pp-text;
+}
+
+/* Sidebar nav buttons */
+.pp-root .nav-button {
+    -fx-background-color: rgba(17, 27, 51, 0.70);
+    -fx-text-fill: -pp-text;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: rgba(255,255,255,0.06);
+    -fx-padding: 12 12;
+}
+
+.pp-root .nav-button:hover { -fx-background-color: rgba(30, 41, 59, 0.75); }
+
+.pp-root .nav-button-active {
+    -fx-background-color: rgba(59, 130, 246, 0.18);
+    -fx-border-color: rgba(59, 130, 246, 0.55);
+}
+
+/* ---- Scrollbars (basic) ---- */
+.pp-root .scroll-bar:vertical .thumb,
+.pp-root .scroll-bar:horizontal .thumb {
+    -fx-background-color: rgba(255,255,255,0.12);
+    -fx-background-radius: 10;
+}
+
+/* ---- ListView ---- */
+.pp-root .list-view {
+    -fx-background-color: rgba(17, 27, 51, 0.55);
+    -fx-control-inner-background: rgba(17, 27, 51, 0.55);
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-border-width: 1;
+    -fx-padding: 8;
+}
+
+.pp-root .list-view .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -pp-text;
+    -fx-padding: 10 12;
+}
+
+.pp-root .list-view .list-cell:filled:hover {
+    -fx-background-color: rgba(255,255,255,0.04);
+}
+
+.pp-root .list-view .list-cell:filled:selected {
+    -fx-background-color: rgba(59, 130, 246, 0.18);
+    -fx-text-fill: -pp-text;
+}
+
+.pp-root .list-view .virtual-flow { -fx-background-color: transparent; }
+
+/* ---- TableView base (general tables) ---- */
+.pp-root .table-view {
+    -fx-background-color: rgba(17, 27, 51, 0.55);
+    -fx-control-inner-background: rgba(17, 27, 51, 0.55);
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-border-width: 1;
+    -fx-padding: 8;
+}
+
+.pp-root .table-view .column-header-background {
+    -fx-background-color: rgba(15, 23, 42, 0.95);
+    -fx-background-radius: 14 14 0 0;
+}
+
+.pp-root .table-view .column-header,
+.pp-root .table-view .filler {
+    -fx-background-color: transparent;
+    -fx-border-color: rgba(255,255,255,0.06);
+    -fx-border-width: 0 0 1 0;
+}
+
+.pp-root .table-view .column-header .label {
+    -fx-text-fill: rgba(230,237,247,0.85);
+    -fx-font-weight: 700;
+}
+
+.pp-root .table-row-cell { -fx-background-color: transparent; }
+.pp-root .table-row-cell:filled:hover { -fx-background-color: rgba(255,255,255,0.04); }
+.pp-root .table-row-cell:filled:selected { -fx-background-color: rgba(59, 130, 246, 0.18); }
+
+/* ---- Metric tiles ---- */
+.pp-root .metric-tile {
+    -fx-background-color: rgba(255,255,255,0.04);
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(255,255,255,0.06);
+    -fx-border-radius: 14;
+}
+

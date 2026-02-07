@@ -1,0 +1,45 @@
+/* =========================
+   ProjectPilot Dark Theme
+   (SCOPED: app nodes under .pp-root, but tokens are GLOBAL so popups work)
+   ========================= */
+
+/* ---- GLOBAL TOKENS (needed for Popups like DatePicker) ---- */
+.root {
+    -fx-font-family: "Segoe UI", "Inter", "SF Pro Display", "Arial";
+    -fx-font-size: 13px;
+
+    /* Palette */
+    -pp-bg: #0b1220;
+    -pp-bg2: #070b14;
+    -pp-surface: #0f172a;
+    -pp-card: #111b33;
+    -pp-card2: #0f1930;
+    -pp-border: rgba(255,255,255,0.08);
+
+    -pp-text: #e6edf7;
+    -pp-muted: rgba(230,237,247,0.70);
+
+    -pp-accent: #3b82f6;
+    -pp-accent2: #2563eb;
+}
+
+/* ---- App background only for your root container ---- */
+.pp-root {
+    -fx-background-color: linear-gradient(to bottom, -pp-bg, -pp-bg2);
+}
+
+/* ---- Text ---- */
+.pp-root .label { -fx-text-fill: -pp-text; }
+
+.pp-root .page-title {
+    -fx-font-size: 28px;
+    -fx-font-weight: 700;
+}
+
+.pp-root .section-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+}
+
+.pp-root .muted { -fx-text-fill: -pp-muted; }
+

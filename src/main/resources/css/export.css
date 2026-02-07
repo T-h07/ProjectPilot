@@ -1,0 +1,12 @@
+/* ---- Export page ---- */
+.pp-root .export-preview {
+    -fx-background-color: #f8fafc;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: rgba(15, 23, 42, 0.18);
+    -fx-border-width: 1;
+}
+
+.pp-root .export-preview .web-view {
+    -fx-background-color: transparent;
+}

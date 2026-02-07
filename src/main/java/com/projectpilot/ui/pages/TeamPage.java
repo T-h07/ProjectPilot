@@ -31,6 +31,7 @@ public class TeamPage extends VBox {
 
     private final Label header = new Label("Team");
     private final Label sub = new Label("");
+    private final Label myTeams = new Label("");
 
     // Directory: add from global users (admin-created)
     private final TextField directorySearch = new TextField();
@@ -75,6 +76,7 @@ public class TeamPage extends VBox {
 
         header.getStyleClass().add("page-title");
         sub.getStyleClass().add("muted");
+        myTeams.getStyleClass().add("muted");
 
         directorySearch.setPromptText("Search users...");
         directorySearch.setPrefWidth(280);
@@ -144,7 +146,7 @@ public class TeamPage extends VBox {
         HBox addTeamRow = new HBox(10, teamBox, assignTeamBtn);
         addTeamRow.setAlignment(Pos.CENTER_LEFT);
 
-        VBox topCard = new VBox(10, header, sub, existingLbl, addExistingRow, teamLbl, addTeamRow, teamStatus);
+        VBox topCard = new VBox(10, header, sub, myTeams, existingLbl, addExistingRow, teamLbl, addTeamRow, teamStatus);
         topCard.getStyleClass().add("card");
         topCard.setPadding(new Insets(14));
 
@@ -304,9 +306,37 @@ public class TeamPage extends VBox {
         });
     }
 
+    private void updateMyTeams(Project p) {
+        myTeams.setText("");
+        if (p == null) return;
+        if (!(store instanceof DbStore ds)) return;
+
+        String myId = null;
+        try {
+            var s = appState.getSession();
+            myId = (s == null) ? null : s.id();
+        } catch (Exception ignored) {}
+
+        if (myId == null || myId.isBlank()) return;
+
+        try {
+            List<String> names = ds.listTeamNamesForMemberInProject(myId, p.getId());
+            if (names.isEmpty()) {
+                myTeams.setText("Your team: -");
+            } else if (names.size() == 1) {
+                myTeams.setText("Your team: " + names.get(0));
+            } else {
+                myTeams.setText("Your teams: " + String.join(", ", names));
+            }
+        } catch (Exception e) {
+            myTeams.setText("Your team: -");
+        }
+    }
+
     private void refresh(Project p) {
         if (p == null) {
             sub.setText("No project selected");
+            myTeams.setText("");
             membersList.setItems(null);
             membersList.getSelectionModel().clearSelection();
             showMemberDetails(null);
@@ -318,6 +348,7 @@ public class TeamPage extends VBox {
         membersList.setItems(p.getMembers());
         membersList.refresh();
 
+        updateMyTeams(p);
         updateDirectoryPredicate();
 
         if (!p.getMembers().isEmpty() && membersList.getSelectionModel().getSelectedItem() == null) {
@@ -408,6 +439,7 @@ public class TeamPage extends VBox {
             updateDirectoryPredicate();
             appState.refreshCurrentProjectRole();
 
+            updateMyTeams(p);
             teamStatus.setText("Assigned team: " + team.name());
             teamBox.getSelectionModel().clearSelection();
         } catch (Exception ex) {

@@ -1,0 +1,87 @@
+/* =========================
+   GANTT
+   ========================= */
+
+.pp-root .gantt-card {
+    -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-border-width: 1;
+    -fx-padding: 12;
+}
+
+.pp-root .gantt-scroll {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+.pp-root .gantt-scroll > .viewport { -fx-background-color: transparent; }
+
+.pp-root .gantt-sheet {
+    -fx-background-color: rgba(10, 18, 32, 0.75);
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-border-width: 1;
+    -fx-padding: 10;
+}
+
+/* Header row */
+.pp-root .gantt-header-row {
+    -fx-background-color: rgba(14, 26, 46, 0.95);
+    -fx-background-radius: 12;
+    -fx-padding: 8 10;
+    -fx-border-color: rgba(255,255,255,0.08);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+}
+
+.pp-root .gantt-header-label {
+    -fx-text-fill: rgba(255,255,255,0.85);
+    -fx-font-weight: 700;
+}
+
+/* Rows */
+.pp-root .gantt-row {
+    -fx-padding: 6 10;
+    -fx-background-radius: 10;
+}
+.pp-root .gantt-row:odd { -fx-background-color: rgba(255,255,255,0.03); }
+.pp-root .gantt-row:hover { -fx-background-color: rgba(255,255,255,0.05); }
+
+.pp-root .gantt-task-label { -fx-text-fill: rgba(255,255,255,0.92); }
+.pp-root .gantt-task-muted { -fx-text-fill: rgba(255,255,255,0.60); }
+
+/* Bars */
+.pp-root .gantt-bar {
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 10, 0.2, 0, 3);
+}
+.pp-root .gantt-bar.todo {        -fx-background-color: rgba(148,163,184,0.75); }
+.pp-root .gantt-bar.inprogress {  -fx-background-color: rgba(59,130,246,0.85); }
+.pp-root .gantt-bar.blocked {     -fx-background-color: rgba(239,68,68,0.85); }
+.pp-root .gantt-bar.done {        -fx-background-color: rgba(34,197,94,0.80); }
+
+/* Gantt vertical tick lines (subtle) */
+.pp-root .gantt-tick { -fx-background-color: rgba(255,255,255,0.06); }
+
+/* Gantt: hide scrollbar arrows (still scrollable) */
+.pp-root .gantt-scroll .scroll-bar .increment-arrow,
+.pp-root .gantt-scroll .scroll-bar .decrement-arrow {
+    -fx-opacity: 0;
+    -fx-padding: 0;
+}
+.pp-root .gantt-scroll .scroll-bar .increment-button,
+.pp-root .gantt-scroll .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-opacity: 0;
+}
+.pp-root .gantt-scroll .scroll-bar .track { -fx-background-color: rgba(255,255,255,0.05); }
+.pp-root .gantt-scroll .scroll-bar .thumb { -fx-background-color: rgba(255,255,255,0.18); }
+
+/* Gantt: checkbox text color */
+.pp-root .gantt-check .text { -fx-fill: rgba(255,255,255,0.92); }
+.pp-root .gantt-check { -fx-text-fill: rgba(255,255,255,0.92); }
+

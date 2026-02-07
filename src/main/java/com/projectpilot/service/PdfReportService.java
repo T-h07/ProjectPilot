@@ -1,6 +1,11 @@
 package com.projectpilot.service;
 
-import com.projectpilot.model.*;
+import com.projectpilot.model.ActivityItem;
+import com.projectpilot.model.Member;
+import com.projectpilot.model.Milestone;
+import com.projectpilot.model.Phase;
+import com.projectpilot.model.Project;
+import com.projectpilot.model.Task;
 import com.projectpilot.model.enums.TaskStatus;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -18,14 +23,12 @@ import java.util.List;
 
 public class PdfReportService {
 
-    private final ProgressService progressService = new ProgressService();
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
     private static final PDRectangle PAGE = PDRectangle.A4;
     private static final float MARGIN = 48f;
 
-    // PDFBox 3 fonts (no PDType1Font.HELVETICA constants anymore)
     private static final PDFont FONT = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
     private static final PDFont FONT_BOLD = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
 
@@ -35,130 +38,135 @@ public class PdfReportService {
     private static final float LEADING = 14f;
 
     public void exportProjectReport(Project p, List<ActivityItem> activity, File outFile) throws IOException {
+        exportProjectReport(p, activity, outFile, ReportOptions.defaults());
+    }
+
+    public void exportProjectReport(Project p, List<ActivityItem> activity, File outFile, ReportOptions opts) throws IOException {
+        ReportOptions o = ReportOptions.orDefault(opts);
+
+        List<Task> tasks = ReportFilters.filterTasks(p, o);
+        List<Milestone> milestones = ReportFilters.filterMilestones(p, o);
+        List<ActivityItem> activityFiltered = ReportFilters.filterActivity(activity, o);
+        String filterSummary = ReportFilters.describeFilters(p, o);
+
         try (PDDocument doc = new PDDocument()) {
             PageWriter w = new PageWriter(doc);
 
-
-
-            w.h1("ProjectPilot — Project Health Report");
+            w.h1("ProjectPilot - Project Health Report");
             w.spacer(6);
             w.h2(p.getName());
-            w.text("Date range: " + safe(p.getStartDate()) + " → " + safe(p.getEndDate()));
+            w.text("Date range: " + safe(p.getStartDate()) + " -> " + safe(p.getEndDate()));
             w.text("Exported: " + java.time.LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
-            w.spacer(10);
-
-            int pct = progressService.projectProgressPercent(p);
-            long todo = count(p, TaskStatus.TODO);
-            long ip = count(p, TaskStatus.IN_PROGRESS);
-            long blocked = count(p, TaskStatus.BLOCKED);
-            long done = count(p, TaskStatus.DONE);
-
-            w.h2("Overall Status");
-            w.text("Progress: " + pct + "%");
-            w.text("Tasks: TODO " + todo + " | IN PROGRESS " + ip + " | BLOCKED " + blocked + " | DONE " + done);
-            w.text("Members: " + p.getMembers().size() + " | Phases: " + p.getPhases().size() + " | Milestones: " + p.getMilestones().size());
-            w.spacer(10);
-
-            w.h2("Phases");
-            for (Phase ph : p.getPhases()) {
-                int phPct = phaseProgressPercent(p, ph);
-                long open = p.getTasks().stream()
-                        .filter(t -> t.getPhase() == ph)
-                        .filter(t -> t.getStatus() != TaskStatus.DONE)
-                        .count();
-                w.text("• " + ph.getName() + " — " + phPct + "%, open tasks: " + open);
+            if (!"All data".equals(filterSummary)) {
+                w.text("Filters: " + filterSummary);
             }
             w.spacer(10);
 
-            w.h2("Milestones");
-            if (p.getMilestones().isEmpty()) {
-                w.text("No milestones.");
-            } else {
-                for (Milestone m : p.getMilestones()) {
-                    String status = m.completedProperty().get() ? "DONE" : "PENDING";
-                    String due = (m.dueDateProperty().get() == null) ? "-" : m.dueDateProperty().get().format(DATE);
-                    w.text("• [" + status + "] " + m.nameProperty().get() + " (due " + due + ")");
-                }
+            int pct = ReportFilters.progressPercent(tasks);
+            long todo = ReportFilters.countStatus(tasks, TaskStatus.TODO);
+            long ip = ReportFilters.countStatus(tasks, TaskStatus.IN_PROGRESS);
+            long blocked = ReportFilters.countStatus(tasks, TaskStatus.BLOCKED);
+            long done = ReportFilters.countStatus(tasks, TaskStatus.DONE);
+
+            if (o.includeSummary()) {
+                w.h2("Overall Status");
+                w.text("Progress: " + pct + "%");
+                w.text("Tasks (filtered): TODO " + todo + " | IN PROGRESS " + ip + " | BLOCKED " + blocked + " | DONE " + done);
+                w.text("Members: " + p.getMembers().size() + " | Phases: " + p.getPhases().size() + " | Milestones: " + p.getMilestones().size());
+                w.spacer(10);
             }
-            w.spacer(10);
 
-            w.h2("Team Workload");
-            if (p.getMembers().isEmpty()) {
-                w.text("No members.");
-            } else {
-                for (Member m : p.getMembers()) {
-                    long open = p.getTasks().stream()
-                            .filter(t -> t.getAssignee() != null && t.getAssignee() == m)
-                            .filter(t -> t.getStatus() != TaskStatus.DONE)
-                            .count();
-                    w.text("• " + m.getName() + " — open tasks: " + open);
-                }
-            }
-            w.spacer(10);
-
-            w.h2("Tasks (Detailed)");
-            var sorted = p.getTasks().stream()
-                    .sorted(Comparator
-                            .comparing(Task::getStatus)
-                            .thenComparing(Task::getDueDate, Comparator.nullsLast(Comparator.naturalOrder())))
-                    .toList();
-
-            if (sorted.isEmpty()) {
-                w.text("No tasks.");
-            } else {
-                for (Task t : sorted) {
-                    String ph = t.getPhase() == null ? "-" : t.getPhase().getName();
-                    String asg = t.getAssignee() == null ? "-" : t.getAssignee().getName();
-                    String due = t.getDueDate() == null ? "-" : t.getDueDate().format(DATE);
-
-                    w.text("• " + safe(t.getTitle()));
-                    w.text("   Status: " + t.getStatus() + " | Priority: " + t.getPriority()
-                            + " | Phase: " + ph + " | Assignee: " + asg + " | Due: " + due);
-
-                    String desc = t.getDescription();
-                    if (desc != null && !desc.isBlank()) {
-                        w.textWrapped("   Description: " + desc.trim());
+            if (o.includePhases()) {
+                w.h2("Phases");
+                if (p.getPhases().isEmpty()) {
+                    w.text("No phases.");
+                } else {
+                    for (Phase ph : p.getPhases()) {
+                        List<Task> phTasks = tasks.stream().filter(t -> t.getPhase() == ph).toList();
+                        int phPct = ReportFilters.progressPercent(phTasks);
+                        long open = phTasks.stream().filter(t -> t.getStatus() != TaskStatus.DONE).count();
+                        w.text("- " + ph.getName() + " - " + phPct + "%, open tasks: " + open);
                     }
-                    w.spacer(6);
                 }
+                w.spacer(10);
             }
 
-            w.spacer(6);
-            w.h2("Recent Activity (latest 10)");
-            if (activity == null || activity.isEmpty()) {
-                w.text("No activity yet.");
-            } else {
-                int limit = Math.min(10, activity.size());
-                for (int i = 0; i < limit; i++) {
-                    ActivityItem a = activity.get(i);
-                    w.text("• " + a.getTime().format(TIME) + " — [" + a.getProjectName() + "] " + a.getMessage());
+            if (o.includeMilestones()) {
+                w.h2("Milestones");
+                if (milestones.isEmpty()) {
+                    w.text("No milestones.");
+                } else {
+                    for (Milestone m : milestones) {
+                        String status = m.completedProperty().get() ? "DONE" : "PENDING";
+                        String due = (m.dueDateProperty().get() == null) ? "-" : m.dueDateProperty().get().format(DATE);
+                        w.text("- [" + status + "] " + m.nameProperty().get() + " (due " + due + ")");
+                    }
                 }
+                w.spacer(10);
             }
 
+            if (o.includeTeam()) {
+                w.h2("Team Workload");
+                if (p.getMembers().isEmpty()) {
+                    w.text("No members.");
+                } else {
+                    for (Member m : p.getMembers()) {
+                        long open = tasks.stream()
+                                .filter(t -> t.getAssignee() != null && t.getAssignee() == m)
+                                .filter(t -> t.getStatus() != TaskStatus.DONE)
+                                .count();
+                        w.text("- " + m.getName() + " - open tasks: " + open);
+                    }
+                }
+                w.spacer(10);
+            }
+
+            if (o.includeTasks()) {
+                w.h2("Tasks (Detailed)");
+                var sorted = tasks.stream()
+                        .sorted(Comparator
+                                .comparing(Task::getStatus)
+                                .thenComparing(Task::getDueDate, Comparator.nullsLast(Comparator.naturalOrder())))
+                        .toList();
+
+                if (sorted.isEmpty()) {
+                    w.text("No tasks.");
+                } else {
+                    for (Task t : sorted) {
+                        String ph = t.getPhase() == null ? "-" : t.getPhase().getName();
+                        String asg = t.getAssignee() == null ? "-" : t.getAssignee().getName();
+                        String due = t.getDueDate() == null ? "-" : t.getDueDate().format(DATE);
+
+                        w.text("- " + safe(t.getTitle()));
+                        w.text("   Status: " + t.getStatus() + " | Priority: " + t.getPriority()
+                                + " | Phase: " + ph + " | Assignee: " + asg + " | Due: " + due);
+
+                        String desc = t.getDescription();
+                        if (desc != null && !desc.isBlank()) {
+                            w.textWrapped("   Description: " + desc.trim());
+                        }
+                        w.spacer(6);
+                    }
+                }
+                w.spacer(6);
+            }
+
+            if (o.includeActivity()) {
+                w.h2("Recent Activity (latest " + o.activityLimit() + ")");
+                if (activityFiltered.isEmpty()) {
+                    w.text("No activity yet.");
+                } else {
+                    int limit = Math.min(o.activityLimit(), activityFiltered.size());
+                    for (int i = 0; i < limit; i++) {
+                        ActivityItem a = activityFiltered.get(i);
+                        w.text("- " + a.getTime().format(TIME) + " - [" + a.getProjectName() + "] " + a.getMessage());
+                    }
+                }
+            }
 
             w.close();
             doc.save(outFile);
         }
-    }
-
-    private long count(Project p, TaskStatus status) {
-        return p.getTasks().stream().filter(t -> t.getStatus() == status).count();
-    }
-
-    private int phaseProgressPercent(Project p, Phase phase) {
-        var tasks = p.getTasks().stream().filter(t -> t.getPhase() == phase).toList();
-        if (tasks.isEmpty()) return 0;
-
-        double total = 0;
-        for (var t : tasks) {
-            total += switch (t.getStatus()) {
-                case TODO -> 0.0;
-                case IN_PROGRESS -> 0.5;
-                case BLOCKED -> 0.25;
-                case DONE -> 1.0;
-            };
-        }
-        return (int) Math.round((total / tasks.size()) * 100.0);
     }
 
     private String safe(Object o) {
@@ -182,31 +190,19 @@ public class PdfReportService {
         private static String pdfSafe(String s) {
             if (s == null) return "";
 
-            // Common replacements
-            s = s.replace("→", "->")
-                    .replace("—", "-")
-                    .replace("–", "-")
-                    .replace("•", "-")
-                    .replace("\u2018", "'").replace("\u2019", "'")
-                    .replace("\u201C", "\"").replace("\u201D", "\"");
-
-            // Hard safety: keep printable ASCII only
             StringBuilder out = new StringBuilder(s.length());
             for (int i = 0; i < s.length(); i++) {
                 char ch = s.charAt(i);
-
-                // normalize whitespace
                 if (ch == '\n' || ch == '\r' || ch == '\t') {
                     out.append(' ');
-                    continue;
+                } else if (ch >= 32 && ch <= 126) {
+                    out.append(ch);
+                } else {
+                    out.append('?');
                 }
-
-                if (ch >= 32 && ch <= 126) out.append(ch);
-                else out.append('?'); // any other unicode becomes '?'
             }
             return out.toString();
         }
-
 
         void newPage() throws IOException {
             close();
@@ -236,7 +232,6 @@ public class PdfReportService {
             cs.setFont(font, size);
             cs.newLineAtOffset(x, y);
             cs.showText(pdfSafe(s));
-
             cs.endText();
             y -= LEADING;
         }

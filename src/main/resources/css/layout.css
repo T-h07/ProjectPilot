@@ -1,0 +1,105 @@
+/* ---- Layout containers ---- */
+.pp-root .topbar {
+    -fx-background-color: rgba(15, 23, 42, 0.75);
+    -fx-border-color: rgba(255,255,255,0.06);
+    -fx-border-width: 0 0 1 0;
+}
+
+/* Scroll containers */
+.pp-root .pp-scroll,
+.pp-root .pp-scroll > .viewport,
+.pp-root .pp-scroll > .corner {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+/* ---- Topbar user ---- */
+.pp-root .topbar-userbox {
+    -fx-alignment: center-right;
+}
+
+.pp-root .topbar-user {
+    -fx-font-weight: 600;
+}
+
+.pp-root .profile-btn {
+    -fx-background-color: transparent;
+    -fx-padding: 2;
+}
+
+.pp-root .profile-avatar {
+    -fx-background-color: rgba(59, 130, 246, 0.18);
+    -fx-background-radius: 999;
+    -fx-border-color: rgba(255,255,255,0.12);
+    -fx-border-radius: 999;
+    -fx-border-width: 1;
+    -fx-min-width: 28;
+    -fx-min-height: 28;
+    -fx-pref-width: 28;
+    -fx-pref-height: 28;
+    -fx-alignment: center;
+}
+
+.pp-root .profile-btn:hover .profile-avatar {
+    -fx-background-color: rgba(59, 130, 246, 0.28);
+}
+
+.pp-root .profile-initials {
+    -fx-font-weight: 700;
+    -fx-font-size: 12px;
+}
+
+.profile-menu-popup {
+    -pp-text: #e6edf7;
+    -pp-muted: rgba(230,237,247,0.70);
+    -pp-card: #111b33;
+    -pp-card2: #0f1930;
+    -fx-background-color: #0f172a;
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(255,255,255,0.08);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 6;
+}
+
+.profile-menu-popup .custom-menu-item {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.profile-menu-card {
+    -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: rgba(255,255,255,0.08);
+    -fx-border-width: 1;
+    -fx-padding: 10;
+}
+
+.profile-title {
+    -fx-font-weight: 700;
+    -fx-font-size: 14px;
+    -fx-text-fill: -pp-text;
+}
+
+.profile-line {
+    -fx-text-fill: -pp-muted;
+}
+
+.pp-root .sidebar {
+    -fx-background-color: rgba(15, 23, 42, 0.55);
+    -fx-border-color: rgba(255,255,255,0.06);
+    -fx-border-width: 0 1 0 0;
+}
+
+/* ---- Cards ---- */
+.pp-root .card {
+    -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-border-width: 1;
+    -fx-padding: 16;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 18, 0.20, 0, 6);
+}
+
