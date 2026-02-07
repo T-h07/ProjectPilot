@@ -27,6 +27,14 @@
     -fx-padding: 10;
 }
 
+/* Range strip line */
+.pp-root .gantt-range-line {
+    -fx-background-color: rgba(255,255,255,0.18);
+    -fx-min-height: 1;
+    -fx-pref-height: 1;
+    -fx-max-height: 1;
+}
+
 /* Header row */
 .pp-root .gantt-header-row {
     -fx-background-color: rgba(14, 26, 46, 0.95);
@@ -49,9 +57,46 @@
 }
 .pp-root .gantt-row:odd { -fx-background-color: rgba(255,255,255,0.03); }
 .pp-root .gantt-row:hover { -fx-background-color: rgba(255,255,255,0.05); }
+.pp-root .gantt-row-selected { -fx-background-color: rgba(59,130,246,0.16); }
 
 .pp-root .gantt-task-label { -fx-text-fill: rgba(255,255,255,0.92); }
 .pp-root .gantt-task-muted { -fx-text-fill: rgba(255,255,255,0.60); }
+
+/* Phase rows */
+.pp-root .gantt-phase-row {
+    -fx-background-color: rgba(59,130,246,0.10);
+    -fx-background-radius: 10;
+    -fx-padding: 8 10;
+    -fx-border-color: rgba(59,130,246,0.28);
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+}
+
+.pp-root .gantt-phase-toggle {
+    -fx-background-color: rgba(15, 23, 42, 0.70);
+    -fx-text-fill: -pp-text;
+    -fx-border-color: rgba(255,255,255,0.10);
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 2 6;
+    -fx-font-size: 11px;
+}
+
+.pp-root .gantt-phase-title {
+    -fx-font-weight: 700;
+}
+
+.pp-root .gantt-phase-progress {
+    -fx-background-color: rgba(255,255,255,0.08);
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 0;
+}
+
+.pp-root .gantt-phase-progress-fill {
+    -fx-background-color: rgba(59,130,246,0.85);
+    -fx-background-radius: 999;
+}
 
 /* Bars */
 .pp-root .gantt-bar {
@@ -64,8 +109,57 @@
 .pp-root .gantt-bar.blocked {     -fx-background-color: rgba(239,68,68,0.85); }
 .pp-root .gantt-bar.done {        -fx-background-color: rgba(34,197,94,0.80); }
 
+.pp-root .gantt-bar.prio-low { -fx-border-color: rgba(148,163,184,0.55); -fx-border-width: 1; }
+.pp-root .gantt-bar.prio-medium { -fx-border-color: rgba(59,130,246,0.50); -fx-border-width: 1; }
+.pp-root .gantt-bar.prio-high { -fx-border-color: rgba(251,191,36,0.75); -fx-border-width: 1.6; }
+
+.pp-root .gantt-bar.critical {
+    -fx-border-color: rgba(253,224,71,0.95);
+    -fx-border-width: 2;
+    -fx-effect: dropshadow(gaussian, rgba(253,224,71,0.35), 14, 0.25, 0, 0);
+}
+
 /* Gantt vertical tick lines (subtle) */
 .pp-root .gantt-tick { -fx-background-color: rgba(255,255,255,0.06); }
+
+/* Dependency lines */
+.pp-root .gantt-dep-line { -fx-stroke: rgba(255,255,255,0.28); -fx-stroke-width: 1.2; }
+.pp-root .gantt-dep-arrow { -fx-fill: rgba(255,255,255,0.28); }
+
+/* Today line */
+.pp-root .gantt-today-line { -fx-stroke: rgba(253,224,71,0.85); -fx-stroke-width: 1.2; }
+
+/* Legend dots */
+.pp-root .gantt-legend-dot {
+    -fx-min-width: 10;
+    -fx-min-height: 10;
+    -fx-max-width: 10;
+    -fx-max-height: 10;
+    -fx-background-radius: 999;
+}
+.pp-root .gantt-legend-dot.legend-todo { -fx-background-color: rgba(148,163,184,0.85); }
+.pp-root .gantt-legend-dot.legend-inprogress { -fx-background-color: rgba(59,130,246,0.95); }
+.pp-root .gantt-legend-dot.legend-blocked { -fx-background-color: rgba(239,68,68,0.95); }
+.pp-root .gantt-legend-dot.legend-done { -fx-background-color: rgba(34,197,94,0.90); }
+.pp-root .gantt-legend-dot.legend-prio-low { -fx-background-color: rgba(148,163,184,0.55); }
+.pp-root .gantt-legend-dot.legend-prio-medium { -fx-background-color: rgba(59,130,246,0.55); }
+.pp-root .gantt-legend-dot.legend-prio-high { -fx-background-color: rgba(251,191,36,0.85); }
+.pp-root .gantt-legend-dot.legend-critical {
+    -fx-background-color: rgba(253,224,71,0.95);
+    -fx-border-color: rgba(15,23,42,0.65);
+    -fx-border-width: 1;
+}
+
+/* Workload bars */
+.pp-root .gantt-workload-bar {
+    -fx-background-color: rgba(255,255,255,0.08);
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+.pp-root .gantt-workload-fill {
+    -fx-background-color: rgba(59,130,246,0.85);
+    -fx-background-radius: 999;
+}
 
 /* Gantt: hide scrollbar arrows (still scrollable) */
 .pp-root .gantt-scroll .scroll-bar .increment-arrow,
@@ -84,4 +178,3 @@
 /* Gantt: checkbox text color */
 .pp-root .gantt-check .text { -fx-fill: rgba(255,255,255,0.92); }
 .pp-root .gantt-check { -fx-text-fill: rgba(255,255,255,0.92); }
-
