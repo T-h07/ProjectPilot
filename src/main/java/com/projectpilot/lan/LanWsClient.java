@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.projectpilot.lan.dto.WsMessage;
+import com.projectpilot.util.SslUtil;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -24,9 +25,11 @@ public final class LanWsClient implements WebSocket.Listener {
     public LanWsClient(String wsUrl, Runnable onRefresh) {
         this.wsUrl = wsUrl;
         this.onRefresh = onRefresh;
-        this.http = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(3))
-                .build();
+        HttpClient.Builder builder = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(3));
+        var ssl = SslUtil.trustAllContextIfEnabled();
+        if (ssl != null) builder.sslContext(ssl);
+        this.http = builder.build();
         this.mapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)

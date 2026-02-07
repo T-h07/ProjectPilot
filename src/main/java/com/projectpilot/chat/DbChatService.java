@@ -402,7 +402,11 @@ public final class DbChatService implements ChatService {
 
     private void upsertMember(Connection conn, String threadId, String memberId, long now) throws Exception {
         try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT OR IGNORE INTO chat_members(thread_id, member_id, joined_at) VALUES(?,?,?)"
+                """
+                INSERT INTO chat_members(thread_id, member_id, joined_at)
+                VALUES(?,?,?)
+                ON CONFLICT(thread_id, member_id) DO NOTHING
+                """
         )) {
             ps.setString(1, threadId);
             ps.setString(2, memberId);

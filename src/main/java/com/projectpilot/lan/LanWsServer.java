@@ -7,25 +7,36 @@ import com.projectpilot.data.db.auth.UserSession;
 import com.projectpilot.lan.dto.WsMessage;
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
+import org.java_websocket.server.DefaultSSLWebSocketServerFactory;
 import org.java_websocket.server.WebSocketServer;
 
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.net.ssl.SSLContext;
 
 public final class LanWsServer extends WebSocketServer {
 
     private final LanSessionRegistry sessions;
     private final ObjectMapper mapper;
+    private final int port;
     private final Map<WebSocket, UserSession> authed = new ConcurrentHashMap<>();
 
     public LanWsServer(int port, LanSessionRegistry sessions) {
+        this(port, sessions, null);
+    }
+
+    public LanWsServer(int port, LanSessionRegistry sessions, SSLContext sslContext) {
         super(new InetSocketAddress(port));
+        this.port = port;
         this.sessions = sessions;
         this.mapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        if (sslContext != null) {
+            setWebSocketFactory(new DefaultSSLWebSocketServerFactory(sslContext));
+        }
     }
 
     @Override
@@ -72,6 +83,10 @@ public final class LanWsServer extends WebSocketServer {
 
     public int connectedCount() {
         return authed.size();
+    }
+
+    public int port() {
+        return port;
     }
 
     private String extractToken(WebSocket conn) {

@@ -81,6 +81,38 @@
     -fx-background-color: #ef4444;
 }
 
+.pp-root .cloud-btn {
+    -fx-background-color: rgba(148,163,184,0.16);
+    -fx-background-radius: 999;
+    -fx-padding: 4 10 4 10;
+}
+
+.pp-root .cloud-btn:hover {
+    -fx-background-color: rgba(148,163,184,0.26);
+}
+
+.pp-root .cloud-label {
+    -fx-font-weight: 600;
+}
+
+.pp-root .cloud-dot {
+    -fx-min-width: 8;
+    -fx-min-height: 8;
+    -fx-pref-width: 8;
+    -fx-pref-height: 8;
+    -fx-max-width: 8;
+    -fx-max-height: 8;
+    -fx-background-radius: 999;
+}
+
+.pp-root .cloud-dot-online {
+    -fx-background-color: #38bdf8;
+}
+
+.pp-root .cloud-dot-offline {
+    -fx-background-color: rgba(148,163,184,0.65);
+}
+
 .profile-menu-popup {
     -pp-text: #e6edf7;
     -pp-muted: rgba(230,237,247,0.70);
@@ -114,8 +146,28 @@
     -fx-text-fill: -pp-text;
 }
 
+.profile-subtitle {
+    -fx-font-weight: 700;
+    -fx-font-size: 12px;
+    -fx-text-fill: -pp-text;
+}
+
 .profile-line {
     -fx-text-fill: -pp-muted;
+}
+
+.profile-hint {
+    -fx-text-fill: rgba(230,237,247,0.55);
+    -fx-font-size: 11px;
+}
+
+.profile-input {
+    -fx-background-color: rgba(255,255,255,0.06);
+    -fx-background-radius: 8;
+    -fx-border-color: rgba(255,255,255,0.12);
+    -fx-border-radius: 8;
+    -fx-text-fill: -pp-text;
+    -fx-prompt-text-fill: rgba(230,237,247,0.45);
 }
 
 .pp-root .sidebar {

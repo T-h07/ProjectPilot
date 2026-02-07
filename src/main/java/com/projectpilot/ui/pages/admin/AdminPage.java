@@ -1,9 +1,8 @@
 package com.projectpilot.ui.pages.admin;
 
+import com.projectpilot.admin.AdminService;
 import com.projectpilot.core.AppState;
 import com.projectpilot.data.InMemoryStore;
-import com.projectpilot.data.db.DbManager;
-import com.projectpilot.data.db.DbStore;
 import com.projectpilot.data.db.auth.GlobalRole;
 import com.projectpilot.data.db.auth.UserAdminService;
 import com.projectpilot.model.Member;
@@ -31,7 +30,7 @@ public final class AdminPage extends BorderPane {
 
     private static final DateTimeFormatter LAST_ONLINE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    private final UserAdminService users;
+    private final AdminService admin;
     private final ObservableList<UserAdminService.UserRow> items = FXCollections.observableArrayList();
 
     private final InMemoryStore store;
@@ -39,8 +38,8 @@ public final class AdminPage extends BorderPane {
 
     private final Label status = new Label();
 
-    public AdminPage(DbManager db, InMemoryStore store, AppState appState) {
-        this.users = new UserAdminService(db);
+    public AdminPage(AdminService admin, InMemoryStore store, AppState appState) {
+        this.admin = Objects.requireNonNull(admin);
         this.store = Objects.requireNonNull(store);
         this.appState = Objects.requireNonNull(appState);
 
@@ -125,7 +124,7 @@ public final class AdminPage extends BorderPane {
                     throw new IllegalArgumentException("Valid email is required.");
                 }
 
-                users.createUserWithEmailAndUsername(disp, uname, em, password.getText(), globalRole.getValue());
+                admin.createUserWithEmailAndUsername(disp, uname, em, password.getText(), globalRole.getValue());
                 reload();
 
                 if (globalRole.getValue() == GlobalRole.USER) {
@@ -145,7 +144,7 @@ public final class AdminPage extends BorderPane {
                                 store.addMember(p, new Member(created.id(), displayName, projectRole.getValue()));
 
                                 // also persist role explicitly (safe even if DbStore already did it)
-                                users.upsertProjectRole(p.getId(), created.id(), projectRole.getValue());
+                                admin.upsertProjectRole(p.getId(), created.id(), projectRole.getValue());
                             }
                         }
                     }
@@ -244,7 +243,7 @@ public final class AdminPage extends BorderPane {
                     if (row == null) return;
 
                     try {
-                        users.setUserActive(row.id(), val);
+                        admin.setUserActive(row.id(), val);
                         status.setText("✅ Updated active for " + row.username());
                         reload();
                     } catch (Exception ex) {
@@ -288,7 +287,7 @@ public final class AdminPage extends BorderPane {
                     ProjectRole currentRole = ProjectRole.MEMBER;
                     if (p != null) {
                         try {
-                            currentRole = users.rolesForUser(row.id()).getOrDefault(p.getId(), ProjectRole.MEMBER);
+                            currentRole = admin.rolesForUser(row.id()).getOrDefault(p.getId(), ProjectRole.MEMBER);
                         } catch (Exception ignored) {
                             currentRole = ProjectRole.MEMBER;
                         }
@@ -301,7 +300,7 @@ public final class AdminPage extends BorderPane {
                     try {
                         var data = res.get();
 
-                        users.updateUser(
+                        admin.updateUser(
                                 row.id(),
                                 data.displayName(),
                                 data.username(),
@@ -314,7 +313,7 @@ public final class AdminPage extends BorderPane {
                         ProjectRole roleFinal = (data.projectRole() == null) ? currentRole : data.projectRole();
 
                         if (p != null) {
-                            users.upsertProjectRole(p.getId(), row.id(), roleFinal);
+                            admin.upsertProjectRole(p.getId(), row.id(), roleFinal);
 
                             // ✅ IMPORTANT: update existing Member object (don't replace)
                             for (Member m : p.getMembers()) {
@@ -349,7 +348,7 @@ public final class AdminPage extends BorderPane {
                     if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) return;
 
                     try {
-                        users.deleteUser(row.id());
+                        admin.deleteUser(row.id());
                         status.setText("✅ Deleted account for " + row.username());
                         reload();
                     } catch (Exception ex) {
@@ -388,27 +387,22 @@ public final class AdminPage extends BorderPane {
         create.getStyleClass().add("primary");
 
         create.setOnAction(e -> {
-            if (!(store instanceof DbStore ds)) {
-                status.setText("âŒ Teams require the database-backed store.");
-                return;
-            }
-
-            var directory = ds.listDirectoryUsers();
-            if (directory.isEmpty()) {
-                status.setText("âŒ No users available to create a team.");
-                return;
-            }
-
-            var dlg = new CreateTeamDialog(directory);
-            var res = dlg.showAndWait();
-            if (res.isEmpty()) return;
-
             try {
+                var directory = admin.listDirectoryUsers();
+                if (directory.isEmpty()) {
+                    status.setText("No users available to create a team.");
+                    return;
+                }
+
+                var dlg = new CreateTeamDialog(directory);
+                var res = dlg.showAndWait();
+                if (res.isEmpty()) return;
+
                 var data = res.get();
-                ds.createTeam(data.name(), data.leaderId(), data.members());
-                status.setText("âœ… Team created: " + data.name());
+                admin.createTeam(data.name(), data.leaderId(), data.members());
+                status.setText("Team created: " + data.name());
             } catch (Exception ex) {
-                status.setText("âŒ " + ex.getMessage());
+                status.setText("Error: " + ex.getMessage());
             }
         });
 
@@ -423,7 +417,7 @@ public final class AdminPage extends BorderPane {
 
     private void reload() {
         try {
-            items.setAll(users.listLoginUsers());
+            items.setAll(admin.listLoginUsers());
         } catch (Exception ex) {
             status.setText("❌ Failed to load users: " + ex.getMessage());
         }
@@ -444,3 +438,4 @@ public final class AdminPage extends BorderPane {
                 .format(LAST_ONLINE_FMT);
     }
 }
+

@@ -1,19 +1,29 @@
 package com.projectpilot.ui.components;
 
+import com.projectpilot.cloud.CloudConfig;
+import com.projectpilot.cloud.DuckDnsAutoUpdater;
+import com.projectpilot.cloud.DuckDnsClient;
+import com.projectpilot.cloud.PublicIpService;
 import com.projectpilot.core.AppState;
 import com.projectpilot.data.InMemoryStore;
 import com.projectpilot.data.db.DbStore;
 import com.projectpilot.data.db.auth.UserAdminService;
 import com.projectpilot.data.db.auth.UserSession;
 import com.projectpilot.service.NotificationService;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.CustomMenuItem;
 import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
+import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -30,8 +40,14 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.TreeSet;
 import java.net.URL;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 
 public class TopBar extends HBox {
+
+    private static final DuckDnsAutoUpdater DUCKDNS_UPDATER = DuckDnsAutoUpdater.instance();
 
     public TopBar(InMemoryStore store, AppState appState, NotificationService notifications) {
         setPadding(new Insets(12));
@@ -77,6 +93,27 @@ public class TopBar extends HBox {
         Tooltip hostTip = new Tooltip();
         hostBtn.setTooltip(hostTip);
 
+        Label cloudLabel = new Label("Cloud");
+        cloudLabel.getStyleClass().add("cloud-label");
+
+        Region cloudDot = new Region();
+        cloudDot.getStyleClass().add("cloud-dot");
+
+        HBox cloudGraphic = new HBox(6, cloudDot, cloudLabel);
+        cloudGraphic.setAlignment(Pos.CENTER);
+
+        Button cloudBtn = new Button();
+        cloudBtn.getStyleClass().add("cloud-btn");
+        cloudBtn.setGraphic(cloudGraphic);
+
+        Tooltip cloudTip = new Tooltip();
+        cloudBtn.setTooltip(cloudTip);
+
+        ContextMenu cloudMenu = new ContextMenu();
+        cloudMenu.getStyleClass().addAll("pp-root", "profile-menu-popup");
+        cloudMenu.setOnShowing(e -> ensurePopupStyles(cloudMenu));
+        cloudMenu.setOnShown(e -> ensurePopupStyles(cloudMenu));
+
         ContextMenu hostMenu = new ContextMenu();
         hostMenu.getStyleClass().addAll("pp-root", "profile-menu-popup");
         hostMenu.setOnShowing(e -> ensurePopupStyles(hostMenu));
@@ -105,6 +142,19 @@ public class TopBar extends HBox {
         syncHost.run();
         appState.hostingProperty().addListener((obs, o, n) -> syncHost.run());
 
+        Runnable syncCloud = () -> {
+            boolean show = appState != null && "client".equalsIgnoreCase(appState.getHostMode());
+            cloudBtn.setVisible(show);
+            cloudBtn.setManaged(show);
+            boolean connected = appState != null && appState.isCloudConnected();
+            cloudDot.getStyleClass().removeAll("cloud-dot-online", "cloud-dot-offline");
+            cloudDot.getStyleClass().add(connected ? "cloud-dot-online" : "cloud-dot-offline");
+            cloudTip.setText(connected ? "Cloud connected" : "Cloud offline");
+        };
+        syncCloud.run();
+        appState.hostModeProperty().addListener((obs, o, n) -> syncCloud.run());
+        appState.cloudConnectedProperty().addListener((obs, o, n) -> syncCloud.run());
+
         Runnable syncAdmin = () -> {
             boolean show = appState != null && appState.isAdmin();
             hostBtn.setVisible(show);
@@ -114,13 +164,18 @@ public class TopBar extends HBox {
         appState.sessionProperty().addListener((obs, o, n) -> syncAdmin.run());
 
         hostBtn.setOnAction(e -> toggleHostMenu(hostMenu, hostBtn, appState));
+        cloudBtn.setOnAction(e -> toggleCloudMenu(cloudMenu, cloudBtn, appState));
         profileBtn.setOnAction(e -> toggleProfileMenu(profileMenu, profileBtn, appState, store));
 
         HBox userBox = new HBox(8, userName, profileBtn);
         userBox.setAlignment(Pos.CENTER_RIGHT);
         userBox.getStyleClass().add("topbar-userbox");
 
-        getChildren().addAll(title, picker, bell, spacer, hostBtn, userBox);
+        getChildren().addAll(title, picker, bell, spacer, cloudBtn, hostBtn, userBox);
+
+        Runnable syncDuckDns = () -> syncDuckDnsAuto(appState);
+        syncDuckDns.run();
+        appState.hostingProperty().addListener((obs, o, n) -> syncDuckDns.run());
     }
 
     // Backward compatible constructor (optional)
@@ -203,6 +258,130 @@ public class TopBar extends HBox {
         } else {
             box.getChildren().add(profileLine("Hosting", "Off"));
         }
+
+        box.getChildren().add(new Label(""));
+        Label cloudTitle = new Label("Cloud Tools");
+        cloudTitle.getStyleClass().add("profile-subtitle");
+        box.getChildren().add(cloudTitle);
+
+        CloudConfig cfg = CloudConfig.load();
+
+        Label publicIpLine = profileLine("Public IP", "Loading...");
+        Button refreshIp = new Button("Refresh");
+        refreshIp.getStyleClass().add("secondary");
+        HBox publicRow = new HBox(8, publicIpLine, refreshIp);
+        publicRow.setAlignment(Pos.CENTER_LEFT);
+        box.getChildren().add(publicRow);
+
+        TextField duckDomain = new TextField(cfg.duckDomain());
+        duckDomain.setPromptText("DuckDNS domain (projectpilot)");
+        duckDomain.getStyleClass().add("profile-input");
+
+        PasswordField duckToken = new PasswordField();
+        duckToken.setText(cfg.duckToken());
+        duckToken.setPromptText("DuckDNS token");
+        duckToken.getStyleClass().add("profile-input");
+
+        Label urlLine = profileLine("Cloud URL", cloudUrl(duckDomain.getText(), appState));
+
+        Button copyUrl = new Button("Copy URL");
+        copyUrl.getStyleClass().add("secondary");
+        HBox urlRow = new HBox(8, urlLine, copyUrl);
+        urlRow.setAlignment(Pos.CENTER_LEFT);
+
+        CheckBox autoUpdate = new CheckBox("Auto-update every 5 min");
+        autoUpdate.setSelected(cfg.autoUpdate());
+
+        Label hint = new Label("Public test may fail on same Wi-Fi (NAT loopback).");
+        hint.getStyleClass().add("profile-hint");
+
+        Label statusLine = new Label("");
+        statusLine.getStyleClass().add("profile-line");
+
+        Button saveBtn = new Button("Save");
+        saveBtn.getStyleClass().add("secondary");
+        Button updateBtn = new Button("Update DuckDNS");
+        updateBtn.getStyleClass().add("secondary");
+        Button testBtn = new Button("Test public health");
+        testBtn.getStyleClass().add("secondary");
+
+        HBox actionRow = new HBox(8, saveBtn, updateBtn, testBtn);
+        actionRow.setAlignment(Pos.CENTER_LEFT);
+
+        box.getChildren().addAll(duckDomain, duckToken, urlRow, autoUpdate, actionRow, hint, statusLine);
+
+        Runnable saveConfig = () -> {
+            cfg.setDuckDomain(duckDomain.getText());
+            cfg.setDuckToken(duckToken.getText());
+            cfg.setAutoUpdate(autoUpdate.isSelected());
+            cfg.save();
+            syncDuckDnsAuto(appState);
+            statusLine.setText("Saved.");
+        };
+
+        refreshIp.setOnAction(e -> runAsync("pp-public-ip", () -> {
+            String ip = PublicIpService.fetch();
+            Platform.runLater(() -> publicIpLine.setText("Public IP: " + (ip.isBlank() ? "Unavailable" : ip)));
+        }));
+
+        duckDomain.textProperty().addListener((obs, o, n) -> urlLine.setText("Cloud URL: " + cloudUrl(n, appState)));
+
+        copyUrl.setOnAction(e -> {
+            String url = cloudUrl(duckDomain.getText(), appState);
+            if (url.isBlank()) {
+                statusLine.setText("Set DuckDNS domain first.");
+                return;
+            }
+            ClipboardContent content = new ClipboardContent();
+            content.putString(url);
+            Clipboard.getSystemClipboard().setContent(content);
+            statusLine.setText("Copied URL.");
+        });
+
+        saveBtn.setOnAction(e -> saveConfig.run());
+        autoUpdate.setOnAction(e -> saveConfig.run());
+
+        updateBtn.setOnAction(e -> runAsync("pp-duckdns-update", () -> {
+            String result = DuckDnsClient.update(duckDomain.getText(), duckToken.getText());
+            Platform.runLater(() -> statusLine.setText("DuckDNS: " + result));
+        }));
+
+        testBtn.setOnAction(e -> runAsync("pp-cloud-test", () -> {
+            String url = cloudUrl(duckDomain.getText(), appState);
+            String result = testHealth(url);
+            Platform.runLater(() -> statusLine.setText(result));
+        }));
+
+        refreshIp.fire();
+
+        CustomMenuItem info = new CustomMenuItem(box, false);
+        menu.getItems().add(info);
+
+        menu.show(anchor, Side.BOTTOM, 0, 6);
+    }
+
+    private static void toggleCloudMenu(ContextMenu menu, Button anchor, AppState appState) {
+        if (menu.isShowing()) {
+            menu.hide();
+            return;
+        }
+
+        menu.getItems().clear();
+
+        boolean connected = appState != null && appState.isCloudConnected();
+        String url = appState == null ? "" : safe(appState.getCloudUrl());
+        String uptime = connected && appState != null ? formatUptime(appState.getCloudStartedAt()) : "-";
+
+        VBox box = new VBox(6);
+        box.getStyleClass().add("profile-menu-card");
+
+        Label title = new Label("Cloud Status");
+        title.getStyleClass().add("profile-title");
+        box.getChildren().add(title);
+
+        box.getChildren().add(profileLine("Status", connected ? "Connected" : "Offline"));
+        box.getChildren().add(profileLine("URL", url.isBlank() ? "-" : url));
+        box.getChildren().add(profileLine("Uptime", connected ? uptime : "-"));
 
         CustomMenuItem info = new CustomMenuItem(box, false);
         menu.getItems().add(info);
@@ -299,6 +478,51 @@ public class TopBar extends HBox {
         String url = css.toExternalForm();
         if (!menu.getScene().getStylesheets().contains(url)) {
             menu.getScene().getStylesheets().add(url);
+        }
+    }
+
+    private static void syncDuckDnsAuto(AppState appState) {
+        CloudConfig cfg = CloudConfig.load();
+        boolean shouldRun = appState != null && appState.isHosting()
+                && cfg.autoUpdate() && cfg.hasDuckCredentials();
+        if (shouldRun) {
+            DUCKDNS_UPDATER.start(cfg.duckDomain(), cfg.duckToken());
+        } else {
+            DUCKDNS_UPDATER.stop();
+        }
+    }
+
+    private static void runAsync(String name, Runnable work) {
+        Thread t = new Thread(work, name);
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private static String cloudUrl(String domain, AppState appState) {
+        int port = appState == null ? 8090 : appState.getHostPort();
+        if (port <= 0) port = 8090;
+        return DuckDnsClient.buildUrl(domain, port);
+    }
+
+    private static String testHealth(String baseUrl) {
+        if (baseUrl == null || baseUrl.isBlank()) return "Set DuckDNS domain first.";
+        try {
+            String url = baseUrl.endsWith("/") ? baseUrl + "api/health" : baseUrl + "/api/health";
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(3))
+                    .build();
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(5))
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) return "Health: HTTP " + resp.statusCode();
+            String body = resp.body() == null ? "" : resp.body().trim();
+            if ("ok".equalsIgnoreCase(body)) return "Health: OK";
+            return "Health: " + body;
+        } catch (Exception e) {
+            return "Health check failed";
         }
     }
 }

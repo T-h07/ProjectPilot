@@ -51,6 +51,10 @@ public final class DbStore extends InMemoryStore {
         }
     }
 
+    public boolean isShutdown() {
+        return dbExec.isShutdown() || dbExec.isTerminated();
+    }
+
     // -----------------------------------------
     // Startup load
     // -----------------------------------------
@@ -1170,7 +1174,7 @@ public final class DbStore extends InMemoryStore {
             ps.setString(7, nullToEmpty(details));
             ps.executeUpdate();
 
-            Platform.runLater(() -> {
+            runOnUi(() -> {
                 String pn = "-";
                 if (projectId != null) {
                     Project p = findProjectById(projectId);
@@ -1184,6 +1188,20 @@ public final class DbStore extends InMemoryStore {
 
         } catch (Exception e) {
             throw new DbException("Failed to append activity", e);
+        }
+    }
+
+    private void runOnUi(Runnable action) {
+        if (action == null) return;
+        try {
+            if (Platform.isFxApplicationThread()) {
+                action.run();
+            } else {
+                Platform.runLater(action);
+            }
+        } catch (IllegalStateException e) {
+            // JavaFX toolkit not initialized (headless server). Run inline.
+            action.run();
         }
     }
 

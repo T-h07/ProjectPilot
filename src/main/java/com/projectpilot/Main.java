@@ -1,5 +1,8 @@
 package com.projectpilot;
 
+import com.projectpilot.admin.AdminService;
+import com.projectpilot.admin.DbAdminService;
+import com.projectpilot.admin.LanAdminClient;
 import com.projectpilot.chat.ChatService;
 import com.projectpilot.chat.ChatUnreadService;
 import com.projectpilot.chat.DbChatService;
@@ -45,6 +48,7 @@ import com.projectpilot.lan.LanSyncService;
 import com.projectpilot.lan.LanWsClient;
 import com.projectpilot.lan.LanWsServer;
 import com.projectpilot.lan.RemoteStore;
+import com.projectpilot.lan.dto.ServerStatusDto;
 
 public class Main extends Application {
 
@@ -70,6 +74,7 @@ public class Main extends Application {
     private ChatService chatService;
     private ChatUnreadService chatUnread;
     private ScheduledExecutorService hostStatusExec;
+    private ScheduledExecutorService cloudStatusExec;
 
     @Override
     public void start(Stage stage) {
@@ -116,6 +121,7 @@ public class Main extends Application {
     private void bootstrapMode(LanConfig config) {
         lanConfig = config == null ? LanConfig.fromSystem() : config;
         stopDiscovery();
+        stopCloudStatusMonitor();
         if (lanSync != null) {
             lanSync.stop();
             lanSync = null;
@@ -129,7 +135,7 @@ public class Main extends Application {
             lanClient = null;
             db = DbManager.defaultManager();
             db.init();
-            System.out.println("DB PATH = " + db.dbFile());
+            System.out.println("DB = " + db.describe());
             localAuth = new AuthService(db);
             auth = localAuth;
         }
@@ -171,6 +177,7 @@ public class Main extends Application {
             }
 
             updateHostStatusForMode();
+            startCloudStatusMonitor();
 
             if (chatUnread != null) {
                 chatUnread.stop();
@@ -192,9 +199,14 @@ public class Main extends Application {
             router.register(PageId.HISTORY, () -> new HistoryPage(store, appState));
             router.register(PageId.EXPORT_REPORT, () -> new ExportReportPage(store, appState));
 
-            // Create hub: ADMIN only (this is why you saw the Create page before)
-            if (appState.isAdmin() && store instanceof DbStore) {
-                router.register(PageId.ADMIN, () -> new AdminPage(db, store, appState));
+            AdminService adminService = appState.isAdmin()
+                    ? (store instanceof DbStore
+                        ? new DbAdminService(db, (DbStore) store)
+                        : (lanClient != null ? new LanAdminClient(lanClient) : null))
+                    : null;
+
+            if (adminService != null) {
+                router.register(PageId.ADMIN, () -> new AdminPage(adminService, store, appState));
             }
 
             MainLayout appRoot = new MainLayout(router, store, appState, this::logout);
@@ -274,6 +286,9 @@ public class Main extends Application {
             db = DbManager.defaultManager();
             db.init();
         }
+        if (store instanceof DbStore ds && ds.isShutdown()) {
+            store = null;
+        }
         if (!(store instanceof DbStore)) {
             store = new DbStore(db);
         }
@@ -344,6 +359,7 @@ public class Main extends Application {
     private void shutdownServices() {
         stopDiscovery();
         safeStopLanHost();
+        stopCloudStatusMonitor();
         if (lanSync != null) {
             lanSync.stop();
             lanSync = null;
@@ -353,6 +369,8 @@ public class Main extends Application {
             chatUnread = null;
         }
         if (store instanceof DbStore ds) ds.shutdown();
+        store = null;
+        chatService = null;
     }
 
     private void stopDiscovery() {
@@ -416,6 +434,40 @@ public class Main extends Application {
         if (hostStatusExec != null) {
             hostStatusExec.shutdownNow();
             hostStatusExec = null;
+        }
+    }
+
+    private void startCloudStatusMonitor() {
+        stopCloudStatusMonitor();
+        if (appState == null || lanClient == null || lanConfig == null || !lanConfig.isClient()) {
+            if (appState != null) appState.updateCloudStatus(false, "", 0L);
+            return;
+        }
+
+        appState.updateCloudStatus(false, lanClient.baseUrl(), 0L);
+        cloudStatusExec = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "pp-cloud-status");
+            t.setDaemon(true);
+            return t;
+        });
+        cloudStatusExec.scheduleAtFixedRate(() -> {
+            try {
+                ServerStatusDto status = lanClient.fetchStatus();
+                boolean ok = status != null && "ok".equalsIgnoreCase(status.status());
+                long startedAt = status == null ? 0L : status.startedAt();
+                String url = status == null ? lanClient.baseUrl() : status.publicUrl();
+                if (url == null || url.isBlank()) url = lanClient.baseUrl();
+                appState.updateCloudStatus(ok, url, startedAt);
+            } catch (Exception e) {
+                appState.updateCloudStatus(false, lanClient.baseUrl(), 0L);
+            }
+        }, 0, 5, TimeUnit.SECONDS);
+    }
+
+    private void stopCloudStatusMonitor() {
+        if (cloudStatusExec != null) {
+            cloudStatusExec.shutdownNow();
+            cloudStatusExec = null;
         }
     }
 

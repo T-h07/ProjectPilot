@@ -26,14 +26,21 @@ public final class AuthRepository {
     }
 
     private static boolean tableExists(Connection conn, String table) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?"
-        )) {
-            ps.setString(1, table);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next();
-            }
+        if (conn == null || table == null || table.isBlank()) return false;
+        java.sql.DatabaseMetaData meta = conn.getMetaData();
+        String schema = null;
+        try {
+            schema = conn.getSchema();
+        } catch (Exception ignored) {
         }
+        String name = table.toLowerCase();
+        try (ResultSet rs = meta.getTables(null, schema, name, new String[] { "TABLE" })) {
+            if (rs.next()) return true;
+        }
+        try (ResultSet rs = meta.getTables(null, "public", name, new String[] { "TABLE" })) {
+            if (rs.next()) return true;
+        }
+        return false;
     }
     public LoginRow findByUsername(Connection conn, String username) throws SQLException {
         if (username == null || username.isBlank()) return null;

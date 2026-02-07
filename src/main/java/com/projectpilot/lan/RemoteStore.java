@@ -1,6 +1,7 @@
 package com.projectpilot.lan;
 
 import com.projectpilot.data.InMemoryStore;
+import com.projectpilot.data.db.TeamService;
 import com.projectpilot.lan.dto.*;
 import com.projectpilot.model.*;
 import com.projectpilot.model.enums.Priority;
@@ -48,6 +49,51 @@ public final class RemoteStore extends InMemoryStore {
         for (Project p : getProjects()) if (id.equals(p.getId())) return p;
         for (Project p : getHistoryProjects()) if (id.equals(p.getId())) return p;
         return null;
+    }
+
+    public List<Member> listDirectoryUsers() {
+        try {
+            List<DirectoryUserDto> rows = client.fetchDirectoryUsers();
+            List<Member> out = new ArrayList<>();
+            if (rows != null) {
+                for (DirectoryUserDto row : rows) {
+                    if (row == null) continue;
+                    ProjectRole role = row.role() == null ? ProjectRole.MEMBER : row.role();
+                    out.add(new Member(row.id(), row.name(), role));
+                }
+            }
+            return out;
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    public List<TeamService.TeamRow> listTeams() {
+        try {
+            return client.fetchTeams();
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    public List<TeamService.TeamMemberRow> listTeamMembers(String teamId) {
+        try {
+            return client.fetchTeamMembers(teamId);
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    public void assignTeamToProject(String teamId, String projectId) {
+        client.assignTeam(teamId, projectId);
+    }
+
+    public List<String> listTeamNamesForMemberInProject(String memberId, String projectId) {
+        try {
+            return client.fetchTeamNamesForMemberInProject(memberId, projectId);
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     private void attachProjectListListeners() {

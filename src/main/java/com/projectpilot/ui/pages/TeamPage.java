@@ -2,7 +2,6 @@ package com.projectpilot.ui.pages;
 
 import com.projectpilot.core.AppState;
 import com.projectpilot.data.InMemoryStore;
-import com.projectpilot.data.db.DbStore;
 import com.projectpilot.data.db.TeamService;
 import com.projectpilot.model.Member;
 import com.projectpilot.model.Project;
@@ -251,10 +250,16 @@ public class TeamPage extends VBox {
         teamsSource.clear();
         teamStatus.setText("");
 
-        if (!(store instanceof DbStore ds)) return;
-
+        int loaded = 0;
         try {
-            teamsSource.setAll(ds.listTeams());
+            for (String name : List.of("listTeams")) {
+                try {
+                    Method m = store.getClass().getMethod(name);
+                    Object res = m.invoke(store);
+                    loaded = addTeamsFromUnknownIterable(res);
+                    if (loaded > 0) break;
+                } catch (Exception ignored) {}
+            }
         } catch (Exception e) {
             teamStatus.setText("Failed to load teams: " + e.getMessage());
         }
@@ -282,7 +287,29 @@ public class TeamPage extends VBox {
         return c;
     }
 
-    private void updateDirectoryPredicate() {
+    private int addTeamsFromUnknownIterable(Object obj) {
+        if (obj == null) return 0;
+
+        Iterable<?> it;
+        if (obj instanceof Iterable<?> iterable) it = iterable;
+        else if (obj.getClass().isArray()) {
+            List<Object> tmp = new ArrayList<>();
+            int len = java.lang.reflect.Array.getLength(obj);
+            for (int i = 0; i < len; i++) tmp.add(java.lang.reflect.Array.get(obj, i));
+            it = tmp;
+        } else return 0;
+
+        int c = 0;
+        for (Object o : it) {
+            if (o instanceof TeamService.TeamRow row) {
+                teamsSource.add(row);
+                c++;
+            }
+        }
+        return c;
+    }
+
+        private void updateDirectoryPredicate() {
         Project p = appState.getSelectedProject();
 
         directoryFiltered.setPredicate(m -> {
@@ -309,7 +336,6 @@ public class TeamPage extends VBox {
     private void updateMyTeams(Project p) {
         myTeams.setText("");
         if (p == null) return;
-        if (!(store instanceof DbStore ds)) return;
 
         String myId = null;
         try {
@@ -320,7 +346,7 @@ public class TeamPage extends VBox {
         if (myId == null || myId.isBlank()) return;
 
         try {
-            List<String> names = ds.listTeamNamesForMemberInProject(myId, p.getId());
+            List<String> names = invokeListTeamNamesForMemberInProject(myId, p.getId());
             if (names.isEmpty()) {
                 myTeams.setText("Your team: -");
             } else if (names.size() == 1) {
@@ -400,11 +426,6 @@ public class TeamPage extends VBox {
             return;
         }
 
-        if (!(store instanceof DbStore ds)) {
-            alertInfo("Not available", "Teams require the database-backed store.");
-            return;
-        }
-
         TeamService.TeamRow team = teamBox.getValue();
         if (team == null) {
             alertInfo("No team selected", "Pick a team to assign.");
@@ -412,8 +433,17 @@ public class TeamPage extends VBox {
         }
 
         try {
-            ds.assignTeamToProject(team.id(), p.getId());
-            List<TeamService.TeamMemberRow> members = ds.listTeamMembers(team.id());
+            if (!invokeAssignTeam(team.id(), p.getId())) {
+                alertInfo("Not available", "Teams are unavailable for this connection.");
+                return;
+            }
+
+            List<TeamService.TeamMemberRow> members = invokeListTeamMembers(team.id());
+            if (members.isEmpty()) {
+                teamStatus.setText("Assigned team: " + team.name());
+                teamBox.getSelectionModel().clearSelection();
+                return;
+            }
 
             for (TeamService.TeamMemberRow row : members) {
                 if (row == null || row.memberId() == null || row.memberId().isBlank()) continue;
@@ -446,7 +476,62 @@ public class TeamPage extends VBox {
             teamStatus.setText("Failed to assign team: " + ex.getMessage());
         }
     }
+    private boolean invokeAssignTeam(String teamId, String projectId) {
+        for (String name : List.of("assignTeamToProject")) {
+            try {
+                Method m = store.getClass().getMethod(name, String.class, String.class);
+                m.invoke(store, teamId, projectId);
+                return true;
+            } catch (Exception ignored) {}
+        }
+        return false;
+    }
 
+    private List<TeamService.TeamMemberRow> invokeListTeamMembers(String teamId) {
+        for (String name : List.of("listTeamMembers")) {
+            try {
+                Method m = store.getClass().getMethod(name, String.class);
+                Object res = m.invoke(store, teamId);
+                return toTeamMemberRows(res);
+            } catch (Exception ignored) {}
+        }
+        return List.of();
+    }
+
+    private List<String> invokeListTeamNamesForMemberInProject(String memberId, String projectId) {
+        for (String name : List.of("listTeamNamesForMemberInProject")) {
+            try {
+                Method m = store.getClass().getMethod(name, String.class, String.class);
+                Object res = m.invoke(store, memberId, projectId);
+                if (res instanceof List<?> list) {
+                    List<String> out = new ArrayList<>();
+                    for (Object o : list) {
+                        if (o instanceof String s && !s.isBlank()) out.add(s);
+                    }
+                    return out;
+                }
+            } catch (Exception ignored) {}
+        }
+        return List.of();
+    }
+
+    private List<TeamService.TeamMemberRow> toTeamMemberRows(Object obj) {
+        if (obj == null) return List.of();
+        Iterable<?> it;
+        if (obj instanceof Iterable<?> iterable) it = iterable;
+        else if (obj.getClass().isArray()) {
+            List<Object> tmp = new ArrayList<>();
+            int len = java.lang.reflect.Array.getLength(obj);
+            for (int i = 0; i < len; i++) tmp.add(java.lang.reflect.Array.get(obj, i));
+            it = tmp;
+        } else return List.of();
+
+        List<TeamService.TeamMemberRow> out = new ArrayList<>();
+        for (Object o : it) {
+            if (o instanceof TeamService.TeamMemberRow row) out.add(row);
+        }
+        return out;
+    }
     private void removeSelectedMember() {
         if (!canEdit.get()) return;
 
@@ -539,3 +624,8 @@ public class TeamPage extends VBox {
         }
     }
 }
+
+
+
+
+

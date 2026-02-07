@@ -108,7 +108,13 @@ if ($LASTEXITCODE -ne 0) {
 
 $appDir = Join-Path $root "target\app"
 if (Test-Path $appDir) {
-    Remove-Item -Recurse -Force $appDir
+    try {
+        Remove-Item -Recurse -Force $appDir
+    } catch {
+        $timestamp = Get-Date -Format "yyyyMMddHHmmss"
+        $appDir = Join-Path $root ("target\app_build_" + $timestamp)
+        Write-Host "Warning: Failed to remove target\\app. Using $appDir"
+    }
 }
 New-Item -ItemType Directory -Force -Path $appDir | Out-Null
 $libDir = Join-Path $appDir "lib"

@@ -9,9 +9,14 @@ import com.projectpilot.chat.ChatThread;
 import com.projectpilot.chat.ChatMessage;
 import com.projectpilot.chat.ChatUser;
 import com.projectpilot.data.InMemoryStore;
+import com.projectpilot.data.db.DbStore;
+import com.projectpilot.data.db.TeamService;
 import com.projectpilot.data.db.auth.AuthException;
 import com.projectpilot.data.db.auth.AuthService;
+import com.projectpilot.data.db.auth.GlobalRole;
 import com.projectpilot.data.db.auth.UserSession;
+import com.projectpilot.data.db.auth.UserAdminService;
+import com.projectpilot.lan.dto.ServerStatusDto;
 import com.projectpilot.lan.dto.*;
 import com.projectpilot.model.*;
 import com.projectpilot.model.enums.Priority;
@@ -21,6 +26,7 @@ import javafx.application.Platform;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.HttpsServer;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,51 +41,108 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class LanServer {
 
     private final InMemoryStore store;
+    private final DbStore dbStore;
+    private final UserAdminService userAdmin;
     private final AuthService auth;
     private final ChatService chatService;
     private final HttpServer server;
+    private final HttpsServer httpsServer;
     private final ObjectMapper mapper;
     private final LanSessionRegistry sessions;
     private final LanWsServer wsServer;
+    private final RateLimiter limiter;
+    private final LanServerSettings settings;
+    private final String mode;
+    private final String publicUrl;
+    private final int httpPort;
+    private final int wsPort;
+    private volatile long startedAt;
 
     public LanServer(InMemoryStore store, AuthService auth, ChatService chatService, LanSessionRegistry sessions, LanWsServer wsServer, int port) {
+        this(store, auth, chatService, sessions, wsServer, null,
+                LanServerSettings.forLan(port, wsServer == null ? 0 : wsServer.port()));
+    }
+
+    public LanServer(InMemoryStore store, AuthService auth, ChatService chatService, LanSessionRegistry sessions,
+                     LanWsServer wsServer, RateLimiter limiter, int port) {
+        this(store, auth, chatService, sessions, wsServer, limiter,
+                LanServerSettings.forLan(port, wsServer == null ? 0 : wsServer.port()));
+    }
+
+    public LanServer(InMemoryStore store, AuthService auth, ChatService chatService, LanSessionRegistry sessions,
+                     LanWsServer wsServer, RateLimiter limiter, LanServerSettings settings) {
         this.store = Objects.requireNonNull(store);
+        DbStore ds = store instanceof DbStore dbs ? dbs : null;
+        this.dbStore = ds;
+        this.userAdmin = ds == null ? null : new UserAdminService(ds.manager());
         this.auth = Objects.requireNonNull(auth);
         this.chatService = Objects.requireNonNull(chatService);
         this.sessions = Objects.requireNonNull(sessions);
         this.wsServer = wsServer;
+        this.limiter = limiter;
+        this.settings = settings == null ? LanServerSettings.forLan(8090, wsServer == null ? 0 : wsServer.port()) : settings;
+        this.mode = safe(this.settings.mode(), "lan");
+        this.publicUrl = safe(this.settings.publicUrl(), "");
+        this.httpPort = Math.max(0, this.settings.httpPort());
+        this.wsPort = Math.max(0, this.settings.wsPort());
         this.mapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
         try {
-            this.server = HttpServer.create(new InetSocketAddress(port), 0);
+            this.server = HttpServer.create(new InetSocketAddress(this.httpPort), 0);
         } catch (IOException e) {
             throw new IllegalStateException("Failed to start LAN server", e);
         }
 
-        server.createContext("/api/health", this::handleHealth);
-        server.createContext("/api/auth/login", this::handleLogin);
-        server.createContext("/api/snapshot", this::handleSnapshot);
-        server.createContext("/api/sync", this::handleSync);
-        server.createContext("/api/chat", this::handleChat);
-        server.setExecutor(Executors.newCachedThreadPool(r -> {
+        HttpsServer https = null;
+        if (this.settings.httpsPort() > 0 && this.settings.sslContext() != null) {
+            try {
+                https = HttpsServer.create(new InetSocketAddress(this.settings.httpsPort()), 0);
+                https.setHttpsConfigurator(new com.sun.net.httpserver.HttpsConfigurator(this.settings.sslContext()));
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed to start HTTPS server", e);
+            }
+        }
+        this.httpsServer = https;
+
+        configureContexts(server);
+        if (httpsServer != null) {
+            configureContexts(httpsServer);
+        }
+    }
+
+    public void start() {
+        startedAt = System.currentTimeMillis();
+        server.start();
+        if (httpsServer != null) httpsServer.start();
+    }
+
+    public void stop() {
+        server.stop(1);
+        if (httpsServer != null) httpsServer.stop(1);
+        startedAt = 0L;
+    }
+
+    private void configureContexts(HttpServer target) {
+        target.createContext("/api/health", this::handleHealth);
+        target.createContext("/api/status", this::handleStatus);
+        target.createContext("/api/auth/login", this::handleLogin);
+        target.createContext("/api/snapshot", this::handleSnapshot);
+        target.createContext("/api/sync", this::handleSync);
+        target.createContext("/api/chat", this::handleChat);
+        target.createContext("/api/admin", this::handleAdmin);
+        target.createContext("/api/teams", this::handleTeams);
+        target.setExecutor(Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "pp-lan-http");
             t.setDaemon(true);
             return t;
         }));
     }
 
-    public void start() {
-        server.start();
-    }
-
-    public void stop() {
-        server.stop(1);
-    }
-
     private void handleHealth(HttpExchange ex) throws IOException {
+        if (!allowRequest(ex)) return;
         if (!"GET".equalsIgnoreCase(ex.getRequestMethod())) {
             sendText(ex, 405, "Method Not Allowed");
             return;
@@ -87,7 +150,20 @@ public final class LanServer {
         sendText(ex, 200, "ok");
     }
 
+    private void handleStatus(HttpExchange ex) throws IOException {
+        if (!allowRequest(ex)) return;
+        if (!"GET".equalsIgnoreCase(ex.getRequestMethod())) {
+            sendText(ex, 405, "Method Not Allowed");
+            return;
+        }
+        long started = startedAt;
+        long uptime = started <= 0 ? 0L : Math.max(0L, System.currentTimeMillis() - started);
+        int connections = wsServer == null ? 0 : wsServer.connectedCount();
+        ServerStatusDto status = ServerStatusDto.ok(started, uptime, publicUrl, httpPort, wsPort, connections, mode);
+        sendJson(ex, 200, status);
+    }
     private void handleLogin(HttpExchange ex) throws IOException {
+        if (!allowRequest(ex)) return;
         if (!"POST".equalsIgnoreCase(ex.getRequestMethod())) {
             sendText(ex, 405, "Method Not Allowed");
             return;
@@ -107,6 +183,7 @@ public final class LanServer {
     }
 
     private void handleSnapshot(HttpExchange ex) throws IOException {
+        if (!allowRequest(ex)) return;
         if (!"GET".equalsIgnoreCase(ex.getRequestMethod())) {
             sendText(ex, 405, "Method Not Allowed");
             return;
@@ -127,6 +204,7 @@ public final class LanServer {
     }
 
     private void handleSync(HttpExchange ex) throws IOException {
+        if (!allowRequest(ex)) return;
         if (!"POST".equalsIgnoreCase(ex.getRequestMethod())) {
             sendText(ex, 405, "Method Not Allowed");
             return;
@@ -152,6 +230,7 @@ public final class LanServer {
     }
 
     private void handleChat(HttpExchange ex) throws IOException {
+        if (!allowRequest(ex)) return;
         UserSession session = requireSession(ex);
         if (session == null) {
             sendText(ex, 401, "Unauthorized");
@@ -209,6 +288,225 @@ public final class LanServer {
             sendText(ex, 400, iae.getMessage());
         } catch (Exception e) {
             sendText(ex, 500, "Chat failed");
+        }
+    }
+
+    private void handleAdmin(HttpExchange ex) throws IOException {
+        if (!allowRequest(ex)) return;
+        UserSession session = requireSession(ex);
+        if (session == null) {
+            sendText(ex, 401, "Unauthorized");
+            return;
+        }
+        if (session.globalRole() != GlobalRole.ADMIN) {
+            sendText(ex, 403, "Forbidden");
+            return;
+        }
+        if (userAdmin == null || dbStore == null) {
+            sendText(ex, 501, "Admin API unavailable");
+            return;
+        }
+
+        String method = ex.getRequestMethod();
+        String path = ex.getRequestURI() == null ? "" : ex.getRequestURI().getPath();
+        String sub = path.startsWith("/api/admin") ? path.substring("/api/admin".length()) : path;
+        if (sub.isEmpty()) sub = "/";
+
+        try {
+            if ("/users".equals(sub) && "GET".equalsIgnoreCase(method)) {
+                sendJson(ex, 200, userAdmin.listLoginUsers());
+                return;
+            }
+
+            if ("/users".equals(sub) && "POST".equalsIgnoreCase(method)) {
+                AdminCreateUserRequest req = readJson(ex, AdminCreateUserRequest.class);
+                if (req == null) {
+                    sendText(ex, 400, "Invalid request");
+                    return;
+                }
+                userAdmin.createUserWithEmailAndUsername(
+                        req.displayName(),
+                        req.username(),
+                        req.email(),
+                        req.password(),
+                        req.globalRole()
+                );
+                sendText(ex, 200, "ok");
+                return;
+            }
+
+            if ("/users/update".equals(sub) && "POST".equalsIgnoreCase(method)) {
+                AdminUpdateUserRequest req = readJson(ex, AdminUpdateUserRequest.class);
+                if (req == null || req.id() == null || req.id().isBlank()) {
+                    sendText(ex, 400, "User id is required");
+                    return;
+                }
+                userAdmin.updateUser(
+                        req.id(),
+                        req.displayName(),
+                        req.username(),
+                        req.email(),
+                        req.newPassword(),
+                        req.globalRole(),
+                        req.active()
+                );
+                sendText(ex, 200, "ok");
+                return;
+            }
+
+            if ("/users/active".equals(sub) && "POST".equalsIgnoreCase(method)) {
+                AdminActiveRequest req = readJson(ex, AdminActiveRequest.class);
+                if (req == null || req.id() == null || req.id().isBlank()) {
+                    sendText(ex, 400, "User id is required");
+                    return;
+                }
+                userAdmin.setUserActive(req.id(), req.active());
+                sendText(ex, 200, "ok");
+                return;
+            }
+
+            if ("/users/delete".equals(sub) && "POST".equalsIgnoreCase(method)) {
+                AdminDeleteRequest req = readJson(ex, AdminDeleteRequest.class);
+                if (req == null || req.id() == null || req.id().isBlank()) {
+                    sendText(ex, 400, "User id is required");
+                    return;
+                }
+                userAdmin.deleteUser(req.id());
+                sendText(ex, 200, "ok");
+                return;
+            }
+
+            if ("/roles".equals(sub) && "GET".equalsIgnoreCase(method)) {
+                String userId = getQueryParam(ex.getRequestURI(), "userId");
+                if (userId == null || userId.isBlank()) {
+                    sendText(ex, 400, "userId is required");
+                    return;
+                }
+                sendJson(ex, 200, userAdmin.rolesForUser(userId));
+                return;
+            }
+
+            if ("/roles".equals(sub) && "POST".equalsIgnoreCase(method)) {
+                AdminRoleUpdateRequest req = readJson(ex, AdminRoleUpdateRequest.class);
+                if (req == null || req.userId() == null || req.userId().isBlank()) {
+                    sendText(ex, 400, "User id is required");
+                    return;
+                }
+                userAdmin.upsertProjectRole(req.projectId(), req.userId(), req.role());
+                sendText(ex, 200, "ok");
+                return;
+            }
+
+            if ("/directory".equals(sub) && "GET".equalsIgnoreCase(method)) {
+                List<Member> directory = dbStore.listDirectoryUsers();
+                List<DirectoryUserDto> out = new ArrayList<>();
+                for (Member m : directory) {
+                    if (m == null) continue;
+                    out.add(new DirectoryUserDto(m.getId(), m.getName(), m.getRole()));
+                }
+                sendJson(ex, 200, out);
+                return;
+            }
+
+            if ("/teams".equals(sub) && "POST".equalsIgnoreCase(method)) {
+                AdminCreateTeamRequest req = readJson(ex, AdminCreateTeamRequest.class);
+                if (req == null) {
+                    sendText(ex, 400, "Invalid request");
+                    return;
+                }
+                List<TeamService.TeamMemberSpec> members = req.members() == null ? List.of() : req.members();
+                dbStore.createTeam(req.name(), req.leaderId(), members);
+                sendText(ex, 200, "ok");
+                return;
+            }
+
+            sendText(ex, 404, "Not Found");
+        } catch (IllegalArgumentException iae) {
+            sendText(ex, 400, iae.getMessage());
+        } catch (Exception e) {
+            sendText(ex, 500, "Admin failed");
+        }
+    }
+
+    private void handleTeams(HttpExchange ex) throws IOException {
+        if (!allowRequest(ex)) return;
+        UserSession session = requireSession(ex);
+        if (session == null) {
+            sendText(ex, 401, "Unauthorized");
+            return;
+        }
+        if (dbStore == null) {
+            sendText(ex, 501, "Teams unavailable");
+            return;
+        }
+
+        String method = ex.getRequestMethod();
+        String path = ex.getRequestURI() == null ? "" : ex.getRequestURI().getPath();
+        String sub = path.startsWith("/api/teams") ? path.substring("/api/teams".length()) : path;
+        if (sub.isEmpty()) sub = "/";
+
+        boolean isAdmin = session.globalRole() == GlobalRole.ADMIN;
+
+        try {
+            if ("/".equals(sub) && "GET".equalsIgnoreCase(method)) {
+                if (!isAdmin) {
+                    sendText(ex, 403, "Forbidden");
+                    return;
+                }
+                sendJson(ex, 200, dbStore.listTeams());
+                return;
+            }
+
+            if ("/members".equals(sub) && "GET".equalsIgnoreCase(method)) {
+                if (!isAdmin) {
+                    sendText(ex, 403, "Forbidden");
+                    return;
+                }
+                String teamId = getQueryParam(ex.getRequestURI(), "teamId");
+                if (teamId == null || teamId.isBlank()) {
+                    sendText(ex, 400, "teamId is required");
+                    return;
+                }
+                sendJson(ex, 200, dbStore.listTeamMembers(teamId));
+                return;
+            }
+
+            if ("/assign".equals(sub) && "POST".equalsIgnoreCase(method)) {
+                if (!isAdmin) {
+                    sendText(ex, 403, "Forbidden");
+                    return;
+                }
+                TeamAssignRequest req = readJson(ex, TeamAssignRequest.class);
+                if (req == null || req.teamId() == null || req.teamId().isBlank()
+                        || req.projectId() == null || req.projectId().isBlank()) {
+                    sendText(ex, 400, "teamId and projectId are required");
+                    return;
+                }
+                dbStore.assignTeamToProject(req.teamId(), req.projectId());
+                sendText(ex, 200, "ok");
+                return;
+            }
+
+            if ("/memberNames".equals(sub) && "GET".equalsIgnoreCase(method)) {
+                String memberId = getQueryParam(ex.getRequestURI(), "memberId");
+                String projectId = getQueryParam(ex.getRequestURI(), "projectId");
+                if (memberId == null || memberId.isBlank() || projectId == null || projectId.isBlank()) {
+                    sendText(ex, 400, "memberId and projectId are required");
+                    return;
+                }
+                if (!isAdmin && !memberId.equals(session.id())) {
+                    sendText(ex, 403, "Forbidden");
+                    return;
+                }
+                sendJson(ex, 200, dbStore.listTeamNamesForMemberInProject(memberId, projectId));
+                return;
+            }
+
+            sendText(ex, 404, "Not Found");
+        } catch (IllegalArgumentException iae) {
+            sendText(ex, 400, iae.getMessage());
+        } catch (Exception e) {
+            sendText(ex, 500, "Teams failed");
         }
     }
 
@@ -421,6 +719,11 @@ public final class LanServer {
         return v == null ? "" : v;
     }
 
+    private static String safe(String v, String fallback) {
+        String s = safe(v);
+        return s.isBlank() ? fallback : s;
+    }
+
     private <T> T callOnFx(Callable<T> task) throws Exception {
         if (Platform.isFxApplicationThread()) return task.call();
 
@@ -511,5 +814,27 @@ public final class LanServer {
         try (OutputStream out = ex.getResponseBody()) {
             out.write(data);
         }
+    }
+
+    private boolean allowRequest(HttpExchange ex) throws IOException {
+        if (limiter == null) return true;
+        String key = clientKey(ex);
+        if (limiter.allow(key)) return true;
+        sendText(ex, 429, "Too Many Requests");
+        return false;
+    }
+
+    private String clientKey(HttpExchange ex) {
+        if (ex == null) return "unknown";
+        String forwarded = ex.getRequestHeaders().getFirst("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        String realIp = ex.getRequestHeaders().getFirst("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) return realIp.trim();
+        if (ex.getRemoteAddress() != null && ex.getRemoteAddress().getAddress() != null) {
+            return ex.getRemoteAddress().getAddress().getHostAddress();
+        }
+        return "unknown";
     }
 }

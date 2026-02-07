@@ -18,7 +18,7 @@ final class DbMigrations {
             int version = getUserVersion(conn);
 
             if (version == 0) {
-                SqlScriptRunner.run(conn, SchemaSql.v3());
+                SqlScriptRunner.run(conn, SchemaSql.v3(conn));
                 setUserVersion(conn, 3);
                 version = 3;
             }
@@ -133,13 +133,13 @@ final class DbMigrations {
     // ---------------- v3 -> v5 ----------------
 
     private static void migrate3to5(Connection conn) throws SQLException {
-        SqlScriptRunner.run(conn, SchemaSql.v5());
+        SqlScriptRunner.run(conn, SchemaSql.v5(conn));
     }
 
     // ---------------- v5 -> v6 ----------------
 
     private static void migrate5to6(Connection conn) throws SQLException {
-        SqlScriptRunner.run(conn, SchemaSql.v6());
+        SqlScriptRunner.run(conn, SchemaSql.v6(conn));
     }
 
     // ---------------- v6 -> v7 ----------------
@@ -151,7 +151,7 @@ final class DbMigrations {
     // ---------------- v7 -> v8 ----------------
 
     private static void migrate7to8(Connection conn) throws SQLException {
-        SqlScriptRunner.run(conn, SchemaSql.v8());
+        SqlScriptRunner.run(conn, SchemaSql.v8(conn));
     }
 
     // ---------------- helpers ----------------
@@ -167,25 +167,67 @@ final class DbMigrations {
 
     private static Set<String> tableColumns(Connection conn, String table) throws SQLException {
         Set<String> cols = new HashSet<>();
-        try (PreparedStatement ps = conn.prepareStatement("PRAGMA table_info(" + table + ")");
-             ResultSet rs = ps.executeQuery()) {
+        String schema = null;
+        try {
+            schema = conn.getSchema();
+        } catch (Exception ignored) {
+        }
+
+        java.sql.DatabaseMetaData meta = conn.getMetaData();
+        String tableName = table == null ? null : table.toLowerCase();
+        try (ResultSet rs = meta.getColumns(null, schema, tableName, null)) {
             while (rs.next()) {
-                cols.add(rs.getString("name").toLowerCase());
+                String name = rs.getString("COLUMN_NAME");
+                if (name != null) cols.add(name.toLowerCase());
+            }
+        }
+
+        if (cols.isEmpty()) {
+            try (ResultSet rs = meta.getColumns(null, "public", tableName, null)) {
+                while (rs.next()) {
+                    String name = rs.getString("COLUMN_NAME");
+                    if (name != null) cols.add(name.toLowerCase());
+                }
             }
         }
         return cols;
     }
 
     private static int getUserVersion(Connection conn) throws SQLException {
+        DbDialect.Kind kind = DbDialect.from(conn);
+        if (kind == DbDialect.Kind.SQLITE) {
+            try (Statement st = conn.createStatement();
+                 ResultSet rs = st.executeQuery("PRAGMA user_version")) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+
+        ensureSchemaVersionTable(conn);
         try (Statement st = conn.createStatement();
-             ResultSet rs = st.executeQuery("PRAGMA user_version")) {
+             ResultSet rs = st.executeQuery("SELECT version FROM schema_version LIMIT 1")) {
             return rs.next() ? rs.getInt(1) : 0;
         }
     }
 
     private static void setUserVersion(Connection conn, int version) throws SQLException {
+        DbDialect.Kind kind = DbDialect.from(conn);
+        if (kind == DbDialect.Kind.SQLITE) {
+            try (Statement st = conn.createStatement()) {
+                st.execute("PRAGMA user_version = " + version);
+            }
+            return;
+        }
+
+        ensureSchemaVersionTable(conn);
         try (Statement st = conn.createStatement()) {
-            st.execute("PRAGMA user_version = " + version);
+            st.execute("DELETE FROM schema_version");
+            st.execute("INSERT INTO schema_version(version) VALUES (" + version + ")");
+        }
+    }
+
+    private static void ensureSchemaVersionTable(Connection conn) throws SQLException {
+        try (Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)");
         }
     }
 }
