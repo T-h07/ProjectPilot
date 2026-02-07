@@ -8,7 +8,7 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.UUID;
 
-public final class AuthService {
+public final class AuthService implements AuthProvider {
 
     private final DbManager db;
     private final AuthRepository repo;

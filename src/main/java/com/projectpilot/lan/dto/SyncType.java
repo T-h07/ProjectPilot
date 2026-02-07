@@ -1,0 +1,16 @@
+package com.projectpilot.lan.dto;
+
+public enum SyncType {
+    PROJECT_UPSERT,
+    PROJECT_DELETE,
+    PROJECT_DONE,
+    PROJECT_RESTORE,
+    TASK_UPSERT,
+    TASK_DELETE,
+    MEMBER_UPSERT,
+    MEMBER_REMOVE,
+    PHASE_UPSERT,
+    PHASE_DELETE,
+    MILESTONE_UPSERT,
+    MILESTONE_DELETE
+}

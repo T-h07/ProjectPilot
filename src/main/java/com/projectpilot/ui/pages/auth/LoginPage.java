@@ -1,7 +1,7 @@
 package com.projectpilot.ui.pages.auth;
 
 import com.projectpilot.data.db.auth.AuthException;
-import com.projectpilot.data.db.auth.AuthService;
+import com.projectpilot.data.db.auth.AuthProvider;
 import com.projectpilot.data.db.auth.UserSession;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
@@ -14,7 +14,7 @@ import java.util.function.Consumer;
 
 public class LoginPage extends BorderPane {
 
-    public LoginPage(AuthService auth, Consumer<UserSession> onSuccess) {
+    public LoginPage(AuthProvider auth, Consumer<UserSession> onSuccess) {
         VBox card = new VBox(10);
         card.setPadding(new Insets(24));
         card.setMaxWidth(420);

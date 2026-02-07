@@ -6,6 +6,7 @@ import com.projectpilot.core.Router;
 import com.projectpilot.data.InMemoryStore;
 import com.projectpilot.data.db.DbManager;
 import com.projectpilot.data.db.DbStore;
+import com.projectpilot.data.db.auth.AuthProvider;
 import com.projectpilot.data.db.auth.AuthService;
 import com.projectpilot.data.db.auth.UserSession;
 import com.projectpilot.security.AccessPolicy;
@@ -21,11 +22,18 @@ import javafx.scene.text.Font;
 import javafx.stage.Stage;
 
 import java.io.InputStream;
+import com.projectpilot.lan.LanAuthClient;
+import com.projectpilot.lan.LanClient;
+import com.projectpilot.lan.LanConfig;
+import com.projectpilot.lan.LanServer;
+import com.projectpilot.lan.LanSyncService;
+import com.projectpilot.lan.RemoteStore;
 
 public class Main extends Application {
 
     private DbManager db;
-    private AuthService auth;
+    private AuthService localAuth;
+    private AuthProvider auth;
 
     private InMemoryStore store;
     private AppState appState;
@@ -36,11 +44,18 @@ public class Main extends Application {
 
     @Override
     public void start(Stage stage) {
-        db = DbManager.defaultManager();
-        db.init();
-        System.out.println("DB PATH = " + db.dbFile());
+        lanConfig = LanConfig.fromSystem();
 
-        auth = new AuthService(db);
+        if (lanConfig.isClient()) {
+            lanClient = new LanClient(lanConfig.baseUrl());
+            auth = new LanAuthClient(lanClient);
+        } else {
+            db = DbManager.defaultManager();
+            db.init();
+            System.out.println("DB PATH = " + db.dbFile());
+            localAuth = new AuthService(db);
+            auth = localAuth;
+        }
 
         loadFont("/fonts/Inter-Regular.ttf", 12);
         loadFont("/fonts/Inter-SemiBold.ttf", 12);
@@ -71,18 +86,35 @@ public class Main extends Application {
     }
 
     private void onLoginSuccess(UserSession session) {
-        store = new DbStore(db);
+        if (lanConfig.isClient()) {
+            RemoteStore remote = new RemoteStore(lanClient);
+            store = remote;
 
-        appState = new AppState();
-        appState.setSession(session);
+            appState = new AppState();
+            appState.setSession(session);
 
-        // Pick first project the user is allowed to see
-        var initial = store.getProjects().stream()
-                .filter(p -> policy.canViewProject(appState, p))
-                .findFirst()
-                .orElse(null);
+            lanSync = new LanSyncService(remote, lanClient, appState, lanConfig.pollMs());
+            lanSync.start();
+        } else {
+            store = new DbStore(db);
 
-        appState.setSelectedProject(initial);
+            appState = new AppState();
+            appState.setSession(session);
+
+            // Pick first project the user is allowed to see
+            var initial = store.getProjects().stream()
+                    .filter(p -> policy.canViewProject(appState, p))
+                    .findFirst()
+                    .orElse(null);
+
+            appState.setSelectedProject(initial);
+
+            if (lanConfig.isHost()) {
+                lanServer = new LanServer(store, localAuth, lanConfig.port());
+                lanServer.start();
+                System.out.println("LAN HOST listening on port " + lanConfig.port());
+            }
+        }
 
         Router router = new Router();
         router.register(PageId.DASHBOARD, () -> new DashboardPage(store, appState));
@@ -95,7 +127,7 @@ public class Main extends Application {
         router.register(PageId.EXPORT_REPORT, () -> new ExportReportPage(store, appState));
 
         // Create hub: ADMIN only (this is why you saw the Create page before)
-        if (appState.isAdmin()) {
+        if (appState.isAdmin() && store instanceof DbStore) {
             router.register(PageId.ADMIN, () -> new AdminPage(db, store, appState));
         }
 
@@ -105,7 +137,7 @@ public class Main extends Application {
     }
 
     private void logout() {
-        shutdownDbStore();
+        shutdownServices();
         if (appState != null) {
             appState.setSession(null);
             appState.setSelectedProject(null);
@@ -115,10 +147,18 @@ public class Main extends Application {
 
     @Override
     public void stop() {
-        shutdownDbStore();
+        shutdownServices();
     }
 
-    private void shutdownDbStore() {
+    private void shutdownServices() {
+        if (lanSync != null) {
+            lanSync.stop();
+            lanSync = null;
+        }
+        if (lanServer != null) {
+            lanServer.stop();
+            lanServer = null;
+        }
         if (store instanceof DbStore ds) ds.shutdown();
     }
 
@@ -138,3 +178,7 @@ public class Main extends Application {
         launch(args);
     }
 }
+    private LanConfig lanConfig;
+    private LanClient lanClient;
+    private LanServer lanServer;
+    private LanSyncService lanSync;
