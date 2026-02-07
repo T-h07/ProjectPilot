@@ -7,6 +7,7 @@ import com.projectpilot.model.enums.Priority;
 import com.projectpilot.model.enums.ProjectRole;
 import com.projectpilot.model.enums.TaskStatus;
 import javafx.application.Platform;
+import javafx.beans.property.Property;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
@@ -464,7 +465,10 @@ public final class RemoteStore extends InMemoryStore {
     private void applyProjects(ObservableList<Project> target, List<ProjectDto> incoming, boolean history) {
         List<ProjectDto> list = incoming == null ? List.of() : incoming;
         Map<String, Project> existing = new HashMap<>();
-        for (Project p : target) existing.put(p.getId(), p);
+        for (Project p : target) {
+            if (p == null) continue;
+            existing.put(p.getId(), p);
+        }
 
         List<Project> next = new ArrayList<>();
         Set<String> seen = new HashSet<>();
@@ -481,27 +485,29 @@ public final class RemoteStore extends InMemoryStore {
         }
 
         for (Project p : target) {
-            if (!seen.contains(p.getId())) detachProjectListeners(p.getId());
+            if (p != null && !seen.contains(p.getId())) detachProjectListeners(p.getId());
         }
 
-        target.setAll(next);
+        if (!sameList(target, next)) {
+            target.setAll(next);
+        }
 
         for (Project p : next) attachProjectListeners(p);
     }
 
     private void applyProjectDto(Project p, ProjectDto dto, boolean history) {
-        p.setName(safe(dto.name()));
-        p.setDescription(safe(dto.description()));
-        p.setStakeholders(safe(dto.stakeholders()));
-        p.setPhaseTemplate(safe(dto.phaseTemplate()));
-        if (dto.health() != null) p.setHealth(dto.health());
-        if (dto.startDate() != null) p.setStartDate(dto.startDate());
-        if (dto.endDate() != null) p.setEndDate(dto.endDate());
-        if (dto.completedDate() != null) p.setCompletedDate(dto.completedDate());
+        setIfDifferent(p.nameProperty(), safe(dto.name()));
+        setIfDifferent(p.descriptionProperty(), safe(dto.description()));
+        setIfDifferent(p.stakeholdersProperty(), safe(dto.stakeholders()));
+        setIfDifferent(p.phaseTemplateProperty(), safe(dto.phaseTemplate()));
+        if (dto.health() != null) setIfDifferent(p.healthProperty(), dto.health());
+        setIfDifferent(p.startDateProperty(), dto.startDate());
+        setIfDifferent(p.endDateProperty(), dto.endDate());
+        setIfDifferent(p.completedDateProperty(), dto.completedDate());
 
         Project.ProjectStatus status = dto.status();
         if (status == null) status = history ? Project.ProjectStatus.DONE : Project.ProjectStatus.ACTIVE;
-        p.setStatus(status);
+        setIfDifferent(p.statusProperty(), status);
 
         Map<String, Member> members = applyMembers(p, dto.members());
         Map<String, Phase> phases = applyPhases(p, dto.phases());
@@ -510,79 +516,170 @@ public final class RemoteStore extends InMemoryStore {
     }
 
     private Map<String, Member> applyMembers(Project p, List<MemberDto> list) {
+        Map<String, Member> existing = new HashMap<>();
+        for (Member m : p.getMembers()) {
+            if (m != null && m.getId() != null) existing.put(m.getId(), m);
+        }
+
         Map<String, Member> map = new HashMap<>();
         List<Member> next = new ArrayList<>();
         if (list != null) {
             for (MemberDto dto : list) {
                 if (dto == null || dto.id() == null) continue;
                 ProjectRole role = dto.role() == null ? ProjectRole.MEMBER : dto.role();
-                Member m = new Member(dto.id(), safe(dto.name()), role);
+                Member m = existing.get(dto.id());
+                if (m == null) {
+                    m = new Member(dto.id(), safe(dto.name()), role);
+                } else {
+                    setIfDifferent(m.nameProperty(), safe(dto.name()));
+                    setIfDifferent(m.roleProperty(), role);
+                }
                 next.add(m);
                 map.put(m.getId(), m);
             }
         }
-        p.getMembers().setAll(next);
+
+        if (!sameList(p.getMembers(), next)) {
+            p.getMembers().setAll(next);
+        }
         return map;
     }
 
     private Map<String, Phase> applyPhases(Project p, List<PhaseDto> list) {
+        Map<String, Phase> existing = new HashMap<>();
+        for (Phase ph : p.getPhases()) {
+            if (ph != null && ph.getId() != null) existing.put(ph.getId(), ph);
+        }
+
         Map<String, Phase> map = new HashMap<>();
         List<Phase> next = new ArrayList<>();
         if (list != null) {
             for (PhaseDto dto : list) {
                 if (dto == null || dto.id() == null) continue;
-                Phase ph = new Phase(dto.id(), safe(dto.name()));
-                if (dto.start() != null) ph.startProperty().set(dto.start());
-                if (dto.end() != null) ph.endProperty().set(dto.end());
+                Phase ph = existing.get(dto.id());
+                if (ph == null) {
+                    ph = new Phase(dto.id(), safe(dto.name()));
+                } else {
+                    setIfDifferent(ph.nameProperty(), safe(dto.name()));
+                }
+                setIfDifferent(ph.startProperty(), dto.start());
+                setIfDifferent(ph.endProperty(), dto.end());
                 next.add(ph);
                 map.put(ph.getId(), ph);
             }
         }
-        p.getPhases().setAll(next);
+
+        if (!sameList(p.getPhases(), next)) {
+            p.getPhases().setAll(next);
+        }
         return map;
     }
 
     private void applyTasks(Project p, List<TaskDto> list, Map<String, Member> members, Map<String, Phase> phases) {
+        Map<String, Task> existing = new HashMap<>();
+        for (Task t : p.getTasks()) {
+            if (t != null && t.getId() != null) existing.put(t.getId(), t);
+        }
+
         List<Task> next = new ArrayList<>();
         if (list != null) {
             for (TaskDto dto : list) {
                 if (dto == null || dto.id() == null) continue;
-                Task t = new Task(dto.id(), safe(dto.title()));
-                t.setDescription(safe(dto.description()));
-                t.setStatus(dto.status() == null ? TaskStatus.TODO : dto.status());
-                t.setPriority(dto.priority() == null ? Priority.MEDIUM : dto.priority());
-                t.setDueDate(dto.dueDate());
-                if (dto.assigneeId() != null && members != null) t.setAssignee(members.get(dto.assigneeId()));
-                if (dto.phaseId() != null && phases != null) t.setPhase(phases.get(dto.phaseId()));
+                Task t = existing.get(dto.id());
+                if (t == null) {
+                    t = new Task(dto.id(), safe(dto.title()));
+                } else {
+                    setIfDifferent(t.titleProperty(), safe(dto.title()));
+                }
+                setIfDifferent(t.descriptionProperty(), safe(dto.description()));
+                setIfDifferent(t.statusProperty(), dto.status() == null ? TaskStatus.TODO : dto.status());
+                setIfDifferent(t.priorityProperty(), dto.priority() == null ? Priority.MEDIUM : dto.priority());
+                setIfDifferent(t.dueDateProperty(), dto.dueDate());
+
+                Member assignee = dto.assigneeId() == null || members == null ? null : members.get(dto.assigneeId());
+                Phase phase = dto.phaseId() == null || phases == null ? null : phases.get(dto.phaseId());
+                setIfDifferent(t.assigneeProperty(), assignee);
+                setIfDifferent(t.phaseProperty(), phase);
                 next.add(t);
             }
         }
-        p.getTasks().setAll(next);
+        if (!sameList(p.getTasks(), next)) {
+            p.getTasks().setAll(next);
+        }
     }
 
     private void applyMilestones(Project p, List<MilestoneDto> list) {
+        Map<String, Milestone> existing = new HashMap<>();
+        for (Milestone ms : p.getMilestones()) {
+            if (ms != null && ms.getId() != null) existing.put(ms.getId(), ms);
+        }
+
         List<Milestone> next = new ArrayList<>();
         if (list != null) {
             for (MilestoneDto dto : list) {
                 if (dto == null || dto.id() == null) continue;
-                Milestone ms = new Milestone(dto.id(), safe(dto.title()));
-                ms.dueDateProperty().set(dto.dueDate());
-                ms.completedProperty().set(dto.done());
+                Milestone ms = existing.get(dto.id());
+                if (ms == null) {
+                    ms = new Milestone(dto.id(), safe(dto.title()));
+                } else {
+                    setIfDifferent(ms.nameProperty(), safe(dto.title()));
+                }
+                setIfDifferent(ms.dueDateProperty(), dto.dueDate());
+                setIfDifferent(ms.completedProperty(), dto.done());
                 next.add(ms);
             }
         }
-        p.getMilestones().setAll(next);
+        if (!sameList(p.getMilestones(), next)) {
+            p.getMilestones().setAll(next);
+        }
     }
 
     private void applyActivity(List<ActivityDto> list) {
-        getActivity().clear();
-        if (list == null) return;
+        if (list == null) {
+            if (!getActivity().isEmpty()) getActivity().clear();
+            return;
+        }
+
+        if (isSameActivity(list)) return;
+
+        List<ActivityItem> next = new ArrayList<>();
         for (ActivityDto dto : list) {
             if (dto == null) continue;
             ActivityItem it = new ActivityItem(safe(dto.projectName()), safe(dto.message()));
             if (dto.time() != null) it.timeProperty().set(dto.time());
-            getActivity().add(it);
+            next.add(it);
         }
+        if (!sameList(getActivity(), next)) {
+            getActivity().setAll(next);
+        }
+    }
+
+    private boolean isSameActivity(List<ActivityDto> list) {
+        if (list == null) return getActivity().isEmpty();
+        if (list.size() != getActivity().size()) return false;
+        for (int i = 0; i < list.size(); i++) {
+            ActivityDto dto = list.get(i);
+            ActivityItem cur = getActivity().get(i);
+            if (dto == null || cur == null) return false;
+            if (!Objects.equals(cur.getProjectName(), safe(dto.projectName()))) return false;
+            if (!Objects.equals(cur.getMessage(), safe(dto.message()))) return false;
+            if (!Objects.equals(cur.getTime(), dto.time())) return false;
+        }
+        return true;
+    }
+
+    private static <T> void setIfDifferent(Property<T> prop, T value) {
+        if (!Objects.equals(prop.getValue(), value)) prop.setValue(value);
+    }
+
+    private static <T> boolean sameList(List<T> left, List<T> right) {
+        if (left == right) return true;
+        if (left == null || right == null) return false;
+        if (left.size() != right.size()) return false;
+        for (int i = 0; i < left.size(); i++) {
+            if (left.get(i) != right.get(i)) return false;
+        }
+        return true;
     }
 
     @Override

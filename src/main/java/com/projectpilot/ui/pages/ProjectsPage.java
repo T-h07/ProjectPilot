@@ -7,6 +7,7 @@ import com.projectpilot.model.Project;
 import com.projectpilot.model.enums.ProjectRole;
 import com.projectpilot.security.AccessPolicy;
 import com.projectpilot.ui.dialogs.CreateProjectDialog;
+import javafx.animation.PauseTransition;
 import javafx.beans.InvalidationListener;
 import javafx.beans.binding.Bindings;
 import javafx.beans.binding.BooleanBinding;
@@ -16,6 +17,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.util.Duration;
 
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -44,7 +46,7 @@ public class ProjectsPage extends BorderPane {
     private final Button markDoneBtn = new Button("Mark DONE");
     private final Button deleteBtn = new Button("Delete");
 
-    private final InvalidationListener projectStatusListener = obs -> refreshFilters();
+    private final InvalidationListener projectStatusListener = obs -> requestRefresh();
 
     // refresh when membership changes
     private final Map<Project, ListChangeListener<?>> memberHooks = new IdentityHashMap<>();
@@ -52,6 +54,7 @@ public class ProjectsPage extends BorderPane {
     private final BooleanBinding canCreateProject;
     private final BooleanBinding canMarkDone;
     private final BooleanBinding canDelete;
+    private final PauseTransition refreshDelay = new PauseTransition(Duration.millis(120));
 
     public ProjectsPage(InMemoryStore store, AppState appState) {
         this.store = store;
@@ -79,6 +82,10 @@ public class ProjectsPage extends BorderPane {
         );
 
         hookProjectLists();
+        refreshDelay.setOnFinished(e -> {
+            refreshFilters();
+            pickFirstIfNeeded();
+        });
 
         // LEFT
         header.getStyleClass().add("page-title");
@@ -168,8 +175,7 @@ public class ProjectsPage extends BorderPane {
 
         // session/membership changes can invalidate selection -> re-apply
         appState.sessionProperty().addListener((obs, o, n) -> {
-            refreshFilters();
-            pickFirstIfNeeded();
+            requestRefresh();
         });
 
         // initial
@@ -184,8 +190,7 @@ public class ProjectsPage extends BorderPane {
                 if (c.wasAdded()) c.getAddedSubList().forEach(this::hookProject);
                 if (c.wasRemoved()) c.getRemoved().forEach(this::unhookProject);
             }
-            refreshFilters();
-            pickFirstIfNeeded();
+            requestRefresh();
         });
     }
 
@@ -315,7 +320,7 @@ public class ProjectsPage extends BorderPane {
         p.statusProperty().addListener(projectStatusListener);
 
         if (!memberHooks.containsKey(p)) {
-            ListChangeListener<?> l = c -> refreshFilters();
+            ListChangeListener<?> l = c -> requestRefresh();
             try {
                 p.getMembers().addListener((ListChangeListener) l);
                 memberHooks.put(p, l);
@@ -338,6 +343,10 @@ public class ProjectsPage extends BorderPane {
         Label l = new Label(t);
         l.setStyle("-fx-font-weight: 700;");
         return l;
+    }
+
+    private void requestRefresh() {
+        refreshDelay.playFromStart();
     }
 
     private static String safeDate(Object o) {

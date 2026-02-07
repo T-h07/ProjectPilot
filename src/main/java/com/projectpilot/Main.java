@@ -21,6 +21,8 @@ import com.projectpilot.ui.pages.auth.LanSetupPage;
 import com.projectpilot.ui.pages.auth.LoginPage;
 import com.projectpilot.ui.pages.auth.SetupAdminPage;
 import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.scene.control.Alert;
 import javafx.scene.Scene;
 import javafx.scene.image.Image;
 import javafx.scene.layout.StackPane;
@@ -107,11 +109,17 @@ public class Main extends Application {
     private void bootstrapMode(LanConfig config) {
         lanConfig = config == null ? LanConfig.fromSystem() : config;
         stopDiscovery();
+        if (lanSync != null) {
+            lanSync.stop();
+            lanSync = null;
+        }
 
         if (lanConfig.isClient()) {
+            safeStopLanHost();
             lanClient = new LanClient(lanConfig.baseUrl());
             auth = new LanAuthClient(lanClient);
         } else {
+            lanClient = null;
             db = DbManager.defaultManager();
             db.init();
             System.out.println("DB PATH = " + db.dbFile());
@@ -120,11 +128,15 @@ public class Main extends Application {
         }
 
         if (lanConfig.isHost()) {
+            initHostStoreIfNeeded();
+            startLanHostServices();
             try {
                 lanDiscovery = LanDiscovery.startResponder(lanConfig.port(), lanConfig.wsPort());
             } catch (Exception e) {
                 System.err.println("[LAN] Discovery responder failed: " + e.getMessage());
             }
+        } else {
+            safeStopLanHost();
         }
 
         if (auth.needsInitialAdmin()) showSetup();
@@ -132,66 +144,143 @@ public class Main extends Application {
     }
 
     private void onLoginSuccess(UserSession session) {
-        if (lanConfig.isClient()) {
-            RemoteStore remote = new RemoteStore(lanClient);
-            store = remote;
+        try {
+            if (lanConfig.isClient()) {
+                RemoteStore remote = new RemoteStore(lanClient);
+                store = remote;
 
-            appState = new AppState();
-            appState.setSession(session);
+                appState = new AppState();
+                appState.setSession(session);
 
-            LanWsClient wsClient = new LanWsClient(lanConfig.wsUrl(), () -> {
-                if (lanSync != null) lanSync.requestRefresh();
-            });
-            lanSync = new LanSyncService(remote, lanClient, appState, lanConfig.pollMs(), wsClient);
-            lanSync.start();
-            chatService = new LanChatService(lanClient);
-        } else {
-            store = new DbStore(db);
+                LanWsClient wsClient = new LanWsClient(lanConfig.wsUrl(), () -> {
+                    if (lanSync != null) lanSync.requestRefresh();
+                });
+                lanSync = new LanSyncService(remote, lanClient, appState, lanConfig.pollMs(), wsClient);
+                lanSync.start();
+                chatService = new LanChatService(lanClient);
+            } else {
+                initHostStoreIfNeeded();
 
-            appState = new AppState();
-            appState.setSession(session);
-            chatService = new DbChatService(db);
+                appState = new AppState();
+                appState.setSession(session);
 
-            // Pick first project the user is allowed to see
-            var initial = store.getProjects().stream()
-                    .filter(p -> policy.canViewProject(appState, p))
-                    .findFirst()
-                    .orElse(null);
+                // Pick first project the user is allowed to see
+                var initial = store.getProjects().stream()
+                        .filter(p -> policy.canViewProject(appState, p))
+                        .findFirst()
+                        .orElse(null);
 
-            appState.setSelectedProject(initial);
-
-            if (lanConfig.isHost()) {
-                lanSessions = new LanSessionRegistry();
-                lanWsServer = new LanWsServer(lanConfig.wsPort(), lanSessions);
-                lanWsServer.start();
-
-                lanServer = new LanServer(store, localAuth, chatService, lanSessions, lanWsServer, lanConfig.port());
-                lanServer.start();
-                lanBroadcaster = new LanStoreBroadcaster(store, lanWsServer);
-                lanBroadcaster.start();
-                System.out.println("LAN HOST listening on port " + lanConfig.port() + " (ws " + lanConfig.wsPort() + ")");
+                appState.setSelectedProject(initial);
             }
+
+            Router router = new Router();
+            router.register(PageId.DASHBOARD, () -> new DashboardPage(store, appState));
+            router.register(PageId.PROJECTS, () -> new ProjectsPage(store, appState));
+            router.register(PageId.PROJECT_OVERVIEW, () -> new ProjectOverviewPage(store, appState));
+            router.register(PageId.TASKS, () -> new TasksPage(store, appState));
+            router.register(PageId.GANTT, () -> new GanttPage(store, appState));
+            router.register(PageId.TEAM, () -> new TeamPage(store, appState));
+            router.register(PageId.MESSAGES, () -> new MessagesPage(chatService, appState));
+            router.register(PageId.HISTORY, () -> new HistoryPage(store, appState));
+            router.register(PageId.EXPORT_REPORT, () -> new ExportReportPage(store, appState));
+
+            // Create hub: ADMIN only (this is why you saw the Create page before)
+            if (appState.isAdmin() && store instanceof DbStore) {
+                router.register(PageId.ADMIN, () -> new AdminPage(db, store, appState));
+            }
+
+            MainLayout appRoot = new MainLayout(router, store, appState, this::logout);
+            appRoot.getStyleClass().add("pp-root");
+            scene.setRoot(appRoot);
+
+            if (lanConfig.isHost() && lanServer == null) {
+                startLanHostServices();
+            }
+        } catch (Exception e) {
+            System.err.println("[UI] Login init failed: " + e.getMessage());
+            e.printStackTrace();
+            showStartupError("Login failed", "Could not open the dashboard.", e);
+            showLogin();
+        }
+    }
+
+    private void startLanHostServices() {
+        try {
+            if (lanServer != null || lanWsServer != null) return;
+            if (store == null) {
+                System.err.println("[LAN] Host start skipped: store not ready");
+                return;
+            }
+            if (localAuth == null) {
+                System.err.println("[LAN] Host start skipped: auth not ready");
+                return;
+            }
+            lanSessions = new LanSessionRegistry();
+            lanWsServer = new LanWsServer(lanConfig.wsPort(), lanSessions);
+            lanWsServer.start();
+
+            lanServer = new LanServer(store, localAuth, chatService, lanSessions, lanWsServer, lanConfig.port());
+            lanServer.start();
+            lanBroadcaster = new LanStoreBroadcaster(store, lanWsServer);
+            lanBroadcaster.start();
+            System.out.println("LAN HOST listening on port " + lanConfig.port() + " (ws " + lanConfig.wsPort() + ")");
+        } catch (Throwable e) {
+            System.err.println("[LAN] Host startup failed: " + e.getMessage());
+            e.printStackTrace();
+            safeStopLanHost();
+            showStartupError("LAN host failed",
+                    "Dashboard opened, but LAN hosting couldn't start. Check ports 8090/8091 or firewall.",
+                    e);
+        }
+    }
+
+    private void initHostStoreIfNeeded() {
+        if (db == null) {
+            db = DbManager.defaultManager();
+            db.init();
+        }
+        if (!(store instanceof DbStore)) {
+            store = new DbStore(db);
+        }
+        if (!(chatService instanceof DbChatService)) {
+            chatService = new DbChatService(db);
+        }
+    }
+
+    private void safeStopLanHost() {
+        try {
+            if (lanServer != null) lanServer.stop();
+        } catch (Exception ignored) {
+        }
+        try {
+            if (lanWsServer != null) lanWsServer.stop();
+        } catch (Exception ignored) {
+        }
+        lanServer = null;
+        lanWsServer = null;
+        lanBroadcaster = null;
+        lanSessions = null;
+    }
+
+    private void showStartupError(String title, String message, Throwable error) {
+        String detail = (error == null || error.getMessage() == null) ? "" : error.getMessage();
+        String text = (message == null ? "" : message);
+        if (!detail.isBlank()) {
+            text = text.isBlank() ? detail : text + "\n\nDetails: " + detail;
         }
 
-        Router router = new Router();
-        router.register(PageId.DASHBOARD, () -> new DashboardPage(store, appState));
-        router.register(PageId.PROJECTS, () -> new ProjectsPage(store, appState));
-        router.register(PageId.PROJECT_OVERVIEW, () -> new ProjectOverviewPage(store, appState));
-        router.register(PageId.TASKS, () -> new TasksPage(store, appState));
-        router.register(PageId.GANTT, () -> new GanttPage(store, appState));
-        router.register(PageId.TEAM, () -> new TeamPage(store, appState));
-        router.register(PageId.MESSAGES, () -> new MessagesPage(chatService, appState));
-        router.register(PageId.HISTORY, () -> new HistoryPage(store, appState));
-        router.register(PageId.EXPORT_REPORT, () -> new ExportReportPage(store, appState));
+        final String finalTitle = title;
+        final String finalText = text;
+        Runnable show = () -> {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle(finalTitle);
+            alert.setHeaderText(finalTitle);
+            alert.setContentText(finalText);
+            alert.show();
+        };
 
-        // Create hub: ADMIN only (this is why you saw the Create page before)
-        if (appState.isAdmin() && store instanceof DbStore) {
-            router.register(PageId.ADMIN, () -> new AdminPage(db, store, appState));
-        }
-
-        MainLayout appRoot = new MainLayout(router, store, appState, this::logout);
-        appRoot.getStyleClass().add("pp-root");
-        scene.setRoot(appRoot);
+        if (Platform.isFxApplicationThread()) show.run();
+        else Platform.runLater(show);
     }
 
     private void logout() {

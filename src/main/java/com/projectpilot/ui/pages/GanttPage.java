@@ -8,6 +8,7 @@ import com.projectpilot.model.Project;
 import com.projectpilot.model.Task;
 import com.projectpilot.model.enums.Priority;
 import com.projectpilot.model.enums.TaskStatus;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.beans.InvalidationListener;
 import javafx.beans.binding.Bindings;
@@ -27,6 +28,7 @@ import javafx.scene.shape.Path;
 import javafx.scene.shape.Polygon;
 import javafx.scene.shape.MoveTo;
 import javafx.scene.shape.LineTo;
+import javafx.util.Duration;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -123,7 +125,8 @@ public class GanttPage extends VBox {
 
     private LabelMode labelMode = LabelMode.WEEK;
 
-    private final InvalidationListener taskPropsListener = obs -> rebuild();
+    private final InvalidationListener taskPropsListener = obs -> requestRebuild();
+    private final PauseTransition rebuildDelay = new PauseTransition(Duration.millis(80));
 
     private void hookTask(Task t) {
         if (t == null) return;
@@ -152,6 +155,7 @@ public class GanttPage extends VBox {
         };
 
         setSpacing(0);
+        rebuildDelay.setOnFinished(e -> rebuild());
 
         header.getStyleClass().add("page-title");
         sub.getStyleClass().add("muted");
@@ -252,7 +256,7 @@ public class GanttPage extends VBox {
         wireActions();
         wireDetailsBindings();
 
-        store.getProjects().addListener((ListChangeListener<Project>) c -> rebuild());
+        store.getProjects().addListener((ListChangeListener<Project>) c -> requestRebuild());
         appState.selectedProjectProperty().addListener((obs, oldP, newP) -> {
             if (oldP != null) {
                 oldP.getTasks().removeListener(tasksListener);
@@ -265,7 +269,7 @@ public class GanttPage extends VBox {
                 for (Task t : newP.getTasks()) hookTask(t);
             }
             refreshAssignees(newP);
-            rebuild();
+            requestRebuild();
         });
 
         if (appState.getSelectedProject() != null) {
@@ -292,51 +296,51 @@ public class GanttPage extends VBox {
                 for (Task t : c.getAddedSubList()) hookTask(t);
             }
         }
-        rebuild();
+        requestRebuild();
     };
 
     private final ListChangeListener<Member> membersListener;
 
     private void wireActions() {
-        search.textProperty().addListener((obs, o, n) -> rebuild());
-        hideDone.selectedProperty().addListener((obs, o, n) -> rebuild());
+        search.textProperty().addListener((obs, o, n) -> requestRebuild());
+        hideDone.selectedProperty().addListener((obs, o, n) -> requestRebuild());
 
-        statusTodo.selectedProperty().addListener((obs, o, n) -> rebuild());
-        statusInProgress.selectedProperty().addListener((obs, o, n) -> rebuild());
-        statusBlocked.selectedProperty().addListener((obs, o, n) -> rebuild());
-        statusDone.selectedProperty().addListener((obs, o, n) -> rebuild());
+        statusTodo.selectedProperty().addListener((obs, o, n) -> requestRebuild());
+        statusInProgress.selectedProperty().addListener((obs, o, n) -> requestRebuild());
+        statusBlocked.selectedProperty().addListener((obs, o, n) -> requestRebuild());
+        statusDone.selectedProperty().addListener((obs, o, n) -> requestRebuild());
 
-        priorityLow.selectedProperty().addListener((obs, o, n) -> rebuild());
-        priorityMedium.selectedProperty().addListener((obs, o, n) -> rebuild());
-        priorityHigh.selectedProperty().addListener((obs, o, n) -> rebuild());
+        priorityLow.selectedProperty().addListener((obs, o, n) -> requestRebuild());
+        priorityMedium.selectedProperty().addListener((obs, o, n) -> requestRebuild());
+        priorityHigh.selectedProperty().addListener((obs, o, n) -> requestRebuild());
 
-        groupByPhase.selectedProperty().addListener((obs, o, n) -> rebuild());
+        groupByPhase.selectedProperty().addListener((obs, o, n) -> requestRebuild());
         showDependencies.selectedProperty().addListener((obs, o, n) -> renderDependencies());
-        highlightCritical.selectedProperty().addListener((obs, o, n) -> rebuild());
+        highlightCritical.selectedProperty().addListener((obs, o, n) -> requestRebuild());
 
         showDetails.selectedProperty().addListener((obs, o, n) -> updateDetailsVisibility());
         showWorkload.selectedProperty().addListener((obs, o, n) -> updateWorkloadVisibility());
 
         scaleBox.valueProperty().addListener((obs, o, n) -> {
             if (n != null) labelMode = n;
-            rebuild();
+            requestRebuild();
         });
 
         viewStartPicker.valueProperty().addListener((obs, o, n) -> {
             if (syncingRange) return;
             viewStartOverride = n;
-            rebuild();
+            requestRebuild();
         });
         viewEndPicker.valueProperty().addListener((obs, o, n) -> {
             if (syncingRange) return;
             viewEndOverride = n;
-            rebuild();
+            requestRebuild();
         });
 
         autoRangeBtn.setOnAction(e -> {
             viewStartOverride = null;
             viewEndOverride = null;
-            rebuild();
+            requestRebuild();
         });
 
         todayBtn.setOnAction(e -> scrollToDate(LocalDate.now()));
@@ -586,6 +590,10 @@ public class GanttPage extends VBox {
             box.getChildren().addAll(nodes);
         }
         return box;
+    }
+
+    private void requestRebuild() {
+        rebuildDelay.playFromStart();
     }
 
     private HBox legendItem(String text, String dotClass) {
@@ -1224,7 +1232,7 @@ public class GanttPage extends VBox {
         double target = availableTimelineWidth / days;
 
         dayWidth = clamp(target, 10, 28);
-        rebuild();
+        requestRebuild();
     }
 
     private MemberOption findAssigneeOption(Member member) {

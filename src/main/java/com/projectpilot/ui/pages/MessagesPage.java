@@ -7,6 +7,7 @@ import com.projectpilot.chat.ChatType;
 import com.projectpilot.chat.ChatUser;
 import com.projectpilot.core.AppState;
 import com.projectpilot.ui.dialogs.DialogTheme;
+import javafx.application.Platform;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.collections.FXCollections;
@@ -22,6 +23,10 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 public final class MessagesPage extends BorderPane {
 
@@ -47,10 +52,18 @@ public final class MessagesPage extends BorderPane {
     private ChatThread selected;
     private final Timeline poller;
     private boolean refreshingThreads;
+    private final ExecutorService ioExec;
+    private final AtomicBoolean threadsLoading = new AtomicBoolean(false);
+    private final AtomicBoolean messagesLoading = new AtomicBoolean(false);
 
     public MessagesPage(ChatService chat, AppState appState) {
         this.chat = chat;
         this.appState = appState;
+        this.ioExec = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "pp-chat-io");
+            t.setDaemon(true);
+            return t;
+        });
 
         setPadding(new Insets(16));
 
@@ -124,13 +137,17 @@ public final class MessagesPage extends BorderPane {
         poller.setCycleCount(Timeline.INDEFINITE);
 
         sceneProperty().addListener((obs, o, n) -> {
-            if (n == null) poller.stop();
-            else poller.play();
+            if (n == null) {
+                poller.stop();
+                ioExec.shutdownNow();
+            } else {
+                poller.play();
+            }
         });
 
-        appState.sessionProperty().addListener((obs, o, n) -> refreshThreads(true));
+        appState.sessionProperty().addListener((obs, o, n) -> refreshThreadsAsync(true, null));
 
-        refreshThreads(true);
+        refreshThreadsAsync(true, null);
     }
 
     private void applyFilter(String query) {
@@ -144,60 +161,64 @@ public final class MessagesPage extends BorderPane {
         });
     }
 
-    private void refreshThreads(boolean keepSelection) {
-        try {
-            String me = currentUserId();
-            List<ChatThread> next = chat.listThreads(me);
-            String selectedId = selected == null ? null : selected.id();
-            boolean inputFocused = input.isFocused();
+    private void refreshThreadsAsync(boolean keepSelection, String forceSelectId) {
+        if (ioExec.isShutdown()) return;
+        if (!threadsLoading.compareAndSet(false, true)) return;
+        String me = currentUserId();
+        String selectedId = selected == null ? null : selected.id();
+        boolean inputFocused = input.isFocused();
 
+        runIo(() -> chat.listThreads(me), next -> {
             refreshingThreads = true;
             threads.setAll(next);
             refreshingThreads = false;
             status.setText("");
 
-            if (keepSelection && selectedId != null) {
-                ChatThread match = null;
-                for (ChatThread t : threads) {
-                    if (selectedId.equals(t.id())) {
-                        match = t;
-                        break;
-                    }
-                }
-                if (match != null) {
-                    threadList.getSelectionModel().select(match);
-                } else {
-                    threadList.getSelectionModel().clearSelection();
-                    selectThread(null);
-                }
+            String targetId = forceSelectId != null ? forceSelectId : (keepSelection ? selectedId : null);
+            if (targetId != null) {
+                selectThreadById(targetId);
+            } else if (!keepSelection) {
+                threadList.getSelectionModel().clearSelection();
+                selectThread(null);
             }
 
             if (inputFocused && !input.isDisabled()) {
                 input.requestFocus();
             }
-        } catch (Exception ex) {
+            threadsLoading.set(false);
+        }, ex -> {
+            threadsLoading.set(false);
             status.setText("Failed to load chats: " + ex.getMessage());
-        }
+        });
     }
 
-    private void refreshMessages() {
+    private void refreshMessagesAsync() {
         if (selected == null) return;
-        try {
-            String me = currentUserId();
-            List<ChatMessage> next = chat.listMessages(selected.id(), me, 200);
+        if (ioExec.isShutdown()) return;
+        if (!messagesLoading.compareAndSet(false, true)) return;
+
+        String me = currentUserId();
+        String threadId = selected.id();
+        runIo(() -> chat.listMessages(threadId, me, 200), next -> {
+            messagesLoading.set(false);
+            if (selected == null || !threadId.equals(selected.id())) return;
             messages.setAll(next);
             status.setText("");
             if (!messages.isEmpty()) {
                 messageList.scrollTo(messages.size() - 1);
             }
-        } catch (Exception ex) {
+        }, ex -> {
+            messagesLoading.set(false);
             status.setText("Failed to load messages: " + ex.getMessage());
-        }
+        });
     }
 
     private void refreshQuiet() {
-        refreshThreads(true);
-        refreshMessages();
+        boolean typing = input.isFocused() && input.getText() != null && !input.getText().isBlank();
+        if (!typing) {
+            refreshThreadsAsync(true, null);
+        }
+        refreshMessagesAsync();
     }
 
     private void selectThread(ChatThread thread) {
@@ -216,14 +237,13 @@ public final class MessagesPage extends BorderPane {
         input.setDisable(false);
         sendBtn.setDisable(false);
 
-        refreshMessages();
+        refreshMessagesAsync();
     }
 
     private void startDirectChat() {
-        try {
-            String me = currentUserId();
-            List<ChatUser> users = chat.listUsers(me);
-            if (users.isEmpty()) {
+        String me = currentUserId();
+        runIo(() -> chat.listUsers(me), users -> {
+            if (users == null || users.isEmpty()) {
                 status.setText("No users available.");
                 return;
             }
@@ -235,32 +255,39 @@ public final class MessagesPage extends BorderPane {
             DialogTheme.apply(dlg);
 
             dlg.showAndWait().ifPresent(u -> {
-                try {
-                    ChatThread thread = chat.getOrCreateDirect(me, u.id());
-                    refreshThreads(false);
-                    threadList.getSelectionModel().select(thread);
-                } catch (Exception ex) {
-                    status.setText("Failed to start chat: " + ex.getMessage());
-                }
+                runIo(() -> chat.getOrCreateDirect(me, u.id()), thread -> {
+                    if (thread == null) {
+                        status.setText("Failed to start chat.");
+                        return;
+                    }
+                    refreshThreadsAsync(false, thread.id());
+                }, ex -> status.setText("Failed to start chat: " + ex.getMessage()));
             });
-        } catch (Exception ex) {
-            status.setText("Failed to load users: " + ex.getMessage());
-        }
+        }, ex -> status.setText("Failed to load users: " + ex.getMessage()));
     }
 
     private void sendMessage() {
         if (selected == null) return;
+        if (ioExec.isShutdown()) return;
         String text = input.getText() == null ? "" : input.getText().trim();
         if (text.isBlank()) return;
 
-        try {
-            chat.sendMessage(selected.id(), currentUserId(), text);
+        sendBtn.setDisable(true);
+        String threadId = selected.id();
+        String me = currentUserId();
+
+        runIo(() -> {
+            chat.sendMessage(threadId, me, text);
+            return null;
+        }, unused -> {
+            sendBtn.setDisable(false);
             input.clear();
-            refreshThreads(false);
-            refreshMessages();
-        } catch (Exception ex) {
+            refreshThreadsAsync(true, null);
+            refreshMessagesAsync();
+        }, ex -> {
+            sendBtn.setDisable(false);
             status.setText("Send failed: " + ex.getMessage());
-        }
+        });
     }
 
     private String currentUserId() {
@@ -279,6 +306,28 @@ public final class MessagesPage extends BorderPane {
 
     private static String safe(String v) {
         return v == null ? "" : v.trim();
+    }
+
+    private void selectThreadById(String id) {
+        if (id == null) return;
+        for (ChatThread t : threads) {
+            if (id.equals(t.id())) {
+                threadList.getSelectionModel().select(t);
+                return;
+            }
+        }
+    }
+
+    private <T> void runIo(Supplier<T> task, java.util.function.Consumer<T> onSuccess, java.util.function.Consumer<Exception> onError) {
+        if (ioExec.isShutdown()) return;
+        ioExec.submit(() -> {
+            try {
+                T out = task.get();
+                Platform.runLater(() -> onSuccess.accept(out));
+            } catch (Exception ex) {
+                Platform.runLater(() -> onError.accept(ex));
+            }
+        });
     }
 
     private final class ThreadCell extends ListCell<ChatThread> {

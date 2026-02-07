@@ -11,6 +11,7 @@ import com.projectpilot.model.enums.TaskStatus;
 import com.projectpilot.security.AccessPolicy;
 import com.projectpilot.ui.components.ProjectPicker;
 import com.projectpilot.ui.dialogs.CreateTaskDialog;
+import javafx.animation.PauseTransition;
 import javafx.beans.binding.Bindings;
 import javafx.beans.binding.BooleanBinding;
 import javafx.beans.property.ObjectProperty;
@@ -23,6 +24,7 @@ import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.util.StringConverter;
+import javafx.util.Duration;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -61,6 +63,8 @@ public class TasksPage extends VBox {
     private Project boundProject;
 
     private final Set<Task> hooked = new HashSet<>();
+    private final PauseTransition rebuildDelay = new PauseTransition(Duration.millis(120));
+    private final PauseTransition filterDelay = new PauseTransition(Duration.millis(120));
 
     private final BooleanBinding canCreate;
     private final BooleanBinding canSeeAll;
@@ -75,7 +79,7 @@ public class TasksPage extends VBox {
             if (c.wasAdded()) for (Task t : c.getAddedSubList()) hookTaskOnce(t);
             if (c.wasRemoved()) hooked.removeAll(c.getRemoved());
         }
-        rebuildTaskSource(boundProject);
+        requestRebuild();
     };
 
     public TasksPage(InMemoryStore store, AppState appState) {
@@ -128,7 +132,7 @@ public class TasksPage extends VBox {
 
         searchField.setPromptText("Search tasks...");
         searchField.setPrefWidth(320);
-        searchField.textProperty().addListener((obs, ov, nv) -> applyFilterPreserveSelection());
+        searchField.textProperty().addListener((obs, ov, nv) -> requestFilter());
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
@@ -136,7 +140,7 @@ public class TasksPage extends VBox {
 
         showDone.setSelected(false);
         showDone.setStyle("-fx-text-fill: white;");
-        showDone.selectedProperty().addListener((obs, ov, nv) -> applyFilterPreserveSelection());
+        showDone.selectedProperty().addListener((obs, ov, nv) -> requestFilter());
 
         Button newTask = new Button("New Task");
         newTask.getStyleClass().add("primary");
@@ -163,7 +167,7 @@ public class TasksPage extends VBox {
                 store.addTask(p, t);
                 hookTaskOnce(t);
                 rebuildTaskSource(p);
-                applyFilterPreserveSelection();
+                requestFilter();
                 tasksList.getSelectionModel().select(t);
             });
         });
@@ -276,6 +280,11 @@ public class TasksPage extends VBox {
 
         getChildren().addAll(header, toolbar, body);
 
+        rebuildDelay.setOnFinished(e -> {
+            if (boundProject != null) rebuildTaskSource(boundProject);
+        });
+        filterDelay.setOnFinished(e -> applyFilterPreserveSelection());
+
         refresh(appState.getSelectedProject());
         appState.selectedProjectProperty().addListener((obs, oldV, newV) -> refresh(newV));
 
@@ -356,14 +365,14 @@ public class TasksPage extends VBox {
             t.statusProperty().addListener((obs, ov, nv) -> {
                 applyFilterPreserveSelection();
                 // if USER is in “my tasks only”, also re-check visibility
-                if (!canSeeAll.get()) rebuildTaskSource(boundProject);
+                if (!canSeeAll.get()) requestRebuild();
             });
         } catch (Exception ignored) {}
 
         // assignee changes affect “my tasks only”
         try {
             t.assigneeProperty().addListener((obs, ov, nv) -> {
-                if (!canSeeAll.get()) rebuildTaskSource(boundProject);
+                if (!canSeeAll.get()) requestRebuild();
             });
         } catch (Exception ignored) {}
     }
@@ -413,6 +422,14 @@ public class TasksPage extends VBox {
                     || phase.contains(query)
                     || assignee.contains(query);
         });
+    }
+
+    private void requestRebuild() {
+        rebuildDelay.playFromStart();
+    }
+
+    private void requestFilter() {
+        filterDelay.playFromStart();
     }
 
     private void bindTask(Task t) {

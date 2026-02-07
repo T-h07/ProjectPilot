@@ -19,7 +19,7 @@ public record LanConfig(Mode mode, String host, int port, int wsPort, int pollMs
         }
 
         int port = parseInt(portRaw, 8090);
-        int poll = parseInt(pollRaw, 2000);
+        int poll = parseInt(pollRaw, 1000);
         int wsPort = parseInt(wsPortRaw, port + 1);
         String host = normalizeHost(hostRaw, port);
 

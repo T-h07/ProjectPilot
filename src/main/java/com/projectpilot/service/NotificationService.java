@@ -14,6 +14,10 @@ import javafx.collections.ObservableList;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class NotificationService {
 
@@ -23,20 +27,26 @@ public final class NotificationService {
 
     private final ObservableList<NotificationItem> items = FXCollections.observableArrayList();
     private LocalDateTime lastLoginShownAt = null;
+    private final ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "pp-notifications");
+        t.setDaemon(true);
+        return t;
+    });
+    private final AtomicBoolean rebuildPending = new AtomicBoolean(false);
 
     public NotificationService(InMemoryStore store, AppState appState) {
         this.store = store;
         this.appState = appState;
 
         // refresh when user changes
-        appState.sessionProperty().addListener((obs, o, n) -> rebuildNow());
+        appState.sessionProperty().addListener((obs, o, n) -> requestRebuild());
 
         // refresh when project selection changes (helps keep it feeling “live”)
-        appState.selectedProjectProperty().addListener((obs, o, n) -> rebuildNow());
+        appState.selectedProjectProperty().addListener((obs, o, n) -> requestRebuild());
 
         // If store is observable, rebuild when projects list changes
         try {
-            store.getProjects().addListener((javafx.collections.ListChangeListener<Project>) c -> rebuildNow());
+            store.getProjects().addListener((javafx.collections.ListChangeListener<Project>) c -> requestRebuild());
         } catch (Exception ignored) {}
 
         rebuildNow();
@@ -48,6 +58,14 @@ public final class NotificationService {
         List<NotificationItem> built = buildForCurrentUserPreserveRead();
         if (Platform.isFxApplicationThread()) items.setAll(built);
         else Platform.runLater(() -> items.setAll(built));
+    }
+
+    private void requestRebuild() {
+        if (!rebuildPending.compareAndSet(false, true)) return;
+        exec.schedule(() -> {
+            rebuildPending.set(false);
+            rebuildNow();
+        }, 150, TimeUnit.MILLISECONDS);
     }
 
     public int unreadCount() {

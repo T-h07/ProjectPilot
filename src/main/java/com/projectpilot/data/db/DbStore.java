@@ -80,6 +80,7 @@ public final class DbStore extends InMemoryStore {
                 for (MemberRow mr : selectMembers(conn)) {
                     baseMemberById.put(mr.id, mr);
                 }
+                Map<String, Map<String, Member>> membersByProject = new HashMap<>();
 
                 // Load project membership with per-project role
                 for (ProjectMemberRow pm : selectProjectMembers(conn)) {
@@ -91,10 +92,14 @@ public final class DbStore extends InMemoryStore {
                     ProjectRole role = safeEnum(ProjectRole.class, pm.projectRole,
                             safeEnum(ProjectRole.class, base.role, ProjectRole.MEMBER));
 
-                    Member m = new Member(base.id, base.name, role);
-
-                    if (p.getMembers().stream().noneMatch(x -> x.getId().equals(m.getId()))) {
+                    Map<String, Member> memberMap = membersByProject.computeIfAbsent(pm.projectId, k -> new HashMap<>());
+                    Member existing = memberMap.get(base.id);
+                    if (existing == null) {
+                        Member m = new Member(base.id, base.name, role);
+                        memberMap.put(base.id, m);
                         p.getMembers().add(m);
+                    } else if (existing.getRole() != role) {
+                        existing.setRole(role);
                     }
                 }
 
@@ -125,10 +130,8 @@ public final class DbStore extends InMemoryStore {
 
                     String aid = (tr.assigneeMemberId == null) ? null : tr.assigneeMemberId.trim();
                     if (aid != null && !aid.isBlank()) {
-                        Member ass = p.getMembers().stream()
-                                .filter(x -> x != null && x.getId() != null && x.getId().trim().equals(aid))
-                                .findFirst()
-                                .orElse(null);
+                        Map<String, Member> memberMap = membersByProject.get(tr.projectId);
+                        Member ass = memberMap == null ? null : memberMap.get(aid);
                         t.setAssignee(ass);
                     }
 

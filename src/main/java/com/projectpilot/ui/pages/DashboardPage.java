@@ -8,6 +8,7 @@ import com.projectpilot.model.Task;
 import com.projectpilot.model.enums.TaskStatus;
 import com.projectpilot.security.AccessPolicy;
 import com.projectpilot.ui.dialogs.CreateTaskDialog;
+import javafx.animation.PauseTransition;
 import javafx.beans.binding.Bindings;
 import javafx.collections.ListChangeListener;
 import javafx.collections.transformation.FilteredList;
@@ -16,6 +17,7 @@ import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.util.Duration;
 
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
@@ -43,6 +45,7 @@ public class DashboardPage extends BorderPane {
     private final FilteredList<ActivityItem> filteredActivity;
 
     private String activityQuery = "";
+    private final PauseTransition refreshDelay = new PauseTransition(Duration.millis(120));
 
     public DashboardPage(InMemoryStore store, AppState appState) {
         this.store = store;
@@ -106,10 +109,12 @@ public class DashboardPage extends BorderPane {
         refreshBtn.setOnAction(e -> refreshAll());
         newBtn.setOnAction(e -> showQuickCreateMenu(newBtn));
 
-        store.getProjects().addListener((ListChangeListener<Project>) c -> refreshAll());
-        store.getActivity().addListener((ListChangeListener<ActivityItem>) c -> refreshAll());
-        appState.selectedProjectProperty().addListener((obs, oldV, newV) -> refreshAll());
-        appState.sessionProperty().addListener((obs, oldV, newV) -> refreshAll());
+        refreshDelay.setOnFinished(e -> refreshAll());
+
+        store.getProjects().addListener((ListChangeListener<Project>) c -> requestRefresh());
+        store.getActivity().addListener((ListChangeListener<ActivityItem>) c -> requestRefresh());
+        appState.selectedProjectProperty().addListener((obs, oldV, newV) -> requestRefresh());
+        appState.sessionProperty().addListener((obs, oldV, newV) -> requestRefresh());
 
         refreshAll();
     }
@@ -213,6 +218,10 @@ public class DashboardPage extends BorderPane {
 
         // refresh activity predicate too (membership may have changed)
         applyActivityFilter(activityQuery);
+    }
+
+    private void requestRefresh() {
+        refreshDelay.playFromStart();
     }
 
     private void showQuickCreateMenu(Button anchor) {

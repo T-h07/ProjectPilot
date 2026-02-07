@@ -56,29 +56,100 @@ function Resolve-JPackage {
     throw "jpackage not found. Install a JDK (not JRE) and ensure JAVA_HOME or PATH is set."
 }
 
+function Resolve-JavaFxJmods {
+    param(
+        [string]$fxVersion
+    )
+
+    if (-not $fxVersion -or $fxVersion.Trim() -eq "") {
+        throw "javafx.version not found in pom.xml"
+    }
+
+    $toolsDir = Join-Path $root ".tools"
+    $fxDir = Join-Path $toolsDir ("javafx-jmods-" + $fxVersion)
+    if (Test-Path $fxDir) {
+        $existing = Get-ChildItem -Path $fxDir -Recurse -Filter "javafx.base.jmod" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($existing) { return $existing.DirectoryName }
+    }
+
+    New-Item -ItemType Directory -Force -Path $toolsDir | Out-Null
+    $zipPath = Join-Path $toolsDir ("openjfx-" + $fxVersion + "-jmods.zip")
+    $url = "https://download2.gluonhq.com/openjfx/$fxVersion/openjfx-$fxVersion`_windows-x64_bin-jmods.zip"
+
+    Write-Host "Downloading JavaFX JMODs $fxVersion..."
+    Invoke-WebRequest -Uri $url -OutFile $zipPath
+    Expand-Archive -Path $zipPath -DestinationPath $fxDir -Force
+    Remove-Item $zipPath -Force
+
+    $jmod = Get-ChildItem -Path $fxDir -Recurse -Filter "javafx.base.jmod" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $jmod) {
+        throw "JavaFX JMODs download failed."
+    }
+    return $jmod.DirectoryName
+}
+
 $mvnCmd = Resolve-Maven
 $jpackageCmd = Resolve-JPackage
 
-[xml]$pom = Get-Content (Join-Path $root "pom.xml")
+$pomPath = Join-Path $root "pom.xml"
+[xml]$pom = Get-Content $pomPath
 $artifactId = $pom.project.artifactId
 $version = $pom.project.version
+$javafxVersion = $pom.project.properties.'javafx.version'
 
 $jarName = "$artifactId-$version.jar"
 $jarPath = Join-Path $root ("target\" + $jarName)
 
-if (-not (Test-Path $jarPath)) {
-    Write-Host "Building JAR..."
-    & $mvnCmd -q -DskipTests package
+Write-Host "Building JAR..."
+& $mvnCmd -q -f $pomPath -DskipTests package
+if ($LASTEXITCODE -ne 0) {
+    throw "Maven build failed with exit code $LASTEXITCODE"
 }
 
 $appDir = Join-Path $root "target\app"
+if (Test-Path $appDir) {
+    Remove-Item -Recurse -Force $appDir
+}
 New-Item -ItemType Directory -Force -Path $appDir | Out-Null
+$libDir = Join-Path $appDir "lib"
+New-Item -ItemType Directory -Force -Path $libDir | Out-Null
 
 Copy-Item $jarPath (Join-Path $appDir $jarName) -Force
-& $mvnCmd -q dependency:copy-dependencies -DoutputDirectory=$appDir -DincludeScope=runtime
+Write-Host "Copying dependencies to: $libDir"
+$copyArgs = @(
+    "-f", $pomPath,
+    "dependency:copy-dependencies",
+    "-DoutputDirectory=$libDir",
+    "-DincludeScope=runtime",
+    "-DoverWriteReleases=true",
+    "-DoverWriteSnapshots=true",
+    "-DoverWriteIfNewer=true"
+)
+& $mvnCmd @copyArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "Maven dependency copy failed with exit code $LASTEXITCODE"
+}
+$libCheck = Get-ChildItem -Path $libDir -Filter "*.jar" -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $libCheck) {
+    $defaultDepDir = Join-Path $root "target\dependency"
+    if (Test-Path $defaultDepDir) {
+        Copy-Item -Path (Join-Path $defaultDepDir "*") -Destination $libDir -Force
+        $libCheck = Get-ChildItem -Path $libDir -Filter "*.jar" -ErrorAction SilentlyContinue | Select-Object -First 1
+    }
+    if (-not $libCheck) {
+        throw "No dependency jars were copied to $libDir. Check Maven output."
+    }
+}
 
 $iconPath = Join-Path $root "src\main\resources\icons\app.ico"
 $destDir = Join-Path $root "dist"
+$javafxJmods = Resolve-JavaFxJmods $javafxVersion
+$appOut = Join-Path $destDir $artifactId
+
+if (Test-Path $appOut) {
+    Write-Host "Removing existing app image: $appOut"
+    Remove-Item -Recurse -Force $appOut
+}
 
 Write-Host "Packaging app image..."
 & $jpackageCmd `
@@ -89,6 +160,38 @@ Write-Host "Packaging app image..."
   --main-class com.projectpilot.Main `
   --icon $iconPath `
   --dest $destDir `
-  --add-modules javafx.controls,javafx.web
+  --module-path $javafxJmods `
+  --add-modules javafx.controls,javafx.web,java.sql,java.sql.rowset,java.net.http,jdk.httpserver
+
+if ($LASTEXITCODE -ne 0) {
+    throw "jpackage failed with exit code $LASTEXITCODE"
+}
+
+$appLib = Join-Path $appOut "app\lib"
+if (Test-Path $libDir) {
+    New-Item -ItemType Directory -Force -Path $appLib | Out-Null
+    Copy-Item -Path (Join-Path $libDir "*") -Destination $appLib -Force
+}
+
+$cfgPath = Join-Path $appOut ("app\" + $artifactId + ".cfg")
+if (Test-Path $cfgPath) {
+    $classpathLine = "app.classpath=`$APPDIR\$jarName;`$APPDIR\lib\*"
+    $cfg = Get-Content $cfgPath
+    $out = New-Object System.Collections.Generic.List[string]
+    $addedClasspath = $false
+    foreach ($line in $cfg) {
+        if ($line -match '^app\.classpath=') { continue }
+        $out.Add($line)
+        if (-not $addedClasspath -and $line -match '^\[Application\]') {
+            $out.Add($classpathLine)
+            $addedClasspath = $true
+        }
+    }
+    if (-not $addedClasspath) {
+        $out.Insert(0, "[Application]")
+        $out.Insert(1, $classpathLine)
+    }
+    Set-Content -Path $cfgPath -Value $out -Encoding ASCII
+}
 
 Write-Host "Done. App image in: $destDir\$artifactId"
