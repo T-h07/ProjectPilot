@@ -48,6 +48,18 @@ public record LanConfig(Mode mode, String host, int port, int wsPort, int pollMs
         }
     }
 
+    public static LanConfig forLocal(int port, int wsPort, int pollMs) {
+        return new LanConfig(Mode.OFF, null, port, wsPort, pollMs);
+    }
+
+    public static LanConfig forHost(int port, int wsPort, int pollMs) {
+        return new LanConfig(Mode.HOST, null, port, wsPort, pollMs);
+    }
+
+    public static LanConfig forClient(String host, int port, int wsPort, int pollMs) {
+        return new LanConfig(Mode.CLIENT, normalizeHost(host, port), port, wsPort, pollMs);
+    }
+
     private static String sys(String key) {
         try {
             String v = System.getProperty(key);
@@ -84,7 +96,7 @@ public record LanConfig(Mode mode, String host, int port, int wsPort, int pollMs
         }
     }
 
-    private static String normalizeHost(String raw, int port) {
+    public static String normalizeHost(String raw, int port) {
         if (raw == null || raw.isBlank()) return null;
         String v = raw.trim();
         if (!v.startsWith("http://") && !v.startsWith("https://")) {

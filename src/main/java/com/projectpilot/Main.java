@@ -16,6 +16,8 @@ import com.projectpilot.security.AccessPolicy;
 import com.projectpilot.ui.MainLayout;
 import com.projectpilot.ui.pages.*;
 import com.projectpilot.ui.pages.admin.AdminPage;
+import com.projectpilot.lan.LanDiscovery;
+import com.projectpilot.ui.pages.auth.LanSetupPage;
 import com.projectpilot.ui.pages.auth.LoginPage;
 import com.projectpilot.ui.pages.auth.SetupAdminPage;
 import javafx.application.Application;
@@ -57,11 +59,54 @@ public class Main extends Application {
     private LanSessionRegistry lanSessions;
     private LanStoreBroadcaster lanBroadcaster;
     private LanSyncService lanSync;
+    private LanDiscovery.Responder lanDiscovery;
     private ChatService chatService;
 
     @Override
     public void start(Stage stage) {
         lanConfig = LanConfig.fromSystem();
+
+        loadFont("/fonts/Inter-Regular.ttf", 12);
+        loadFont("/fonts/Inter-SemiBold.ttf", 12);
+
+        scene = new Scene(new StackPane(), 1200, 800);
+        scene.getStylesheets().add(getClass().getResource("/css/app.css").toExternalForm());
+
+        stage.setTitle("ProjectPilot");
+        loadIcon(stage, "/icons/app.png");
+        stage.setScene(scene);
+
+        stage.setOnCloseRequest(e -> shutdownServices());
+        stage.show();
+
+        if (lanConfig.isClient() || lanConfig.isHost()) {
+            bootstrapMode(lanConfig);
+        } else {
+            showLanSetup();
+        }
+    }
+
+    private void showLogin() {
+        var root = new LoginPage(auth, this::onLoginSuccess);
+        root.getStyleClass().add("pp-root");
+        scene.setRoot(root);
+    }
+
+    private void showLanSetup() {
+        var root = new LanSetupPage(lanConfig, this::bootstrapMode);
+        root.getStyleClass().add("pp-root");
+        scene.setRoot(root);
+    }
+
+    private void showSetup() {
+        var root = new SetupAdminPage(auth, this::onLoginSuccess);
+        root.getStyleClass().add("pp-root");
+        scene.setRoot(root);
+    }
+
+    private void bootstrapMode(LanConfig config) {
+        lanConfig = config == null ? LanConfig.fromSystem() : config;
+        stopDiscovery();
 
         if (lanConfig.isClient()) {
             lanClient = new LanClient(lanConfig.baseUrl());
@@ -74,33 +119,16 @@ public class Main extends Application {
             auth = localAuth;
         }
 
-        loadFont("/fonts/Inter-Regular.ttf", 12);
-        loadFont("/fonts/Inter-SemiBold.ttf", 12);
-
-        scene = new Scene(new StackPane(), 1200, 800);
-        scene.getStylesheets().add(getClass().getResource("/css/app.css").toExternalForm());
-
-        stage.setTitle("ProjectPilot");
-        loadIcon(stage, "/icons/app.png");
-        stage.setScene(scene);
+        if (lanConfig.isHost()) {
+            try {
+                lanDiscovery = LanDiscovery.startResponder(lanConfig.port(), lanConfig.wsPort());
+            } catch (Exception e) {
+                System.err.println("[LAN] Discovery responder failed: " + e.getMessage());
+            }
+        }
 
         if (auth.needsInitialAdmin()) showSetup();
         else showLogin();
-
-        stage.setOnCloseRequest(e -> shutdownServices());
-        stage.show();
-    }
-
-    private void showLogin() {
-        var root = new LoginPage(auth, this::onLoginSuccess);
-        root.getStyleClass().add("pp-root");
-        scene.setRoot(root);
-    }
-
-    private void showSetup() {
-        var root = new SetupAdminPage(auth, this::onLoginSuccess);
-        root.getStyleClass().add("pp-root");
-        scene.setRoot(root);
     }
 
     private void onLoginSuccess(UserSession session) {
@@ -181,6 +209,7 @@ public class Main extends Application {
     }
 
     private void shutdownServices() {
+        stopDiscovery();
         if (lanSync != null) {
             lanSync.stop();
             lanSync = null;
@@ -205,6 +234,16 @@ public class Main extends Application {
             lanBroadcaster = null;
         }
         if (store instanceof DbStore ds) ds.shutdown();
+    }
+
+    private void stopDiscovery() {
+        if (lanDiscovery != null) {
+            try {
+                lanDiscovery.stop();
+            } catch (Exception ignored) {
+            }
+            lanDiscovery = null;
+        }
     }
 
     private void loadFont(String path, double size) {
