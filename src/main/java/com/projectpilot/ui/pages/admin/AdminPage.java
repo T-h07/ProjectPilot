@@ -3,11 +3,13 @@ package com.projectpilot.ui.pages.admin;
 import com.projectpilot.core.AppState;
 import com.projectpilot.data.InMemoryStore;
 import com.projectpilot.data.db.DbManager;
+import com.projectpilot.data.db.DbStore;
 import com.projectpilot.data.db.auth.GlobalRole;
 import com.projectpilot.data.db.auth.UserAdminService;
 import com.projectpilot.model.Member;
 import com.projectpilot.model.Project;
 import com.projectpilot.model.enums.ProjectRole;
+import com.projectpilot.ui.dialogs.CreateTeamDialog;
 import com.projectpilot.ui.dialogs.EditUserDialog;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.ReadOnlyBooleanWrapper;
@@ -43,12 +45,13 @@ public final class AdminPage extends BorderPane {
         title.getStyleClass().add("pp-h1");
 
         var createBox = buildCreateUserBox();
+        var teamBox = buildCreateTeamBox();
         var table = buildUsersTable();
 
         var top = new VBox(10, title, status);
         setTop(top);
 
-        var center = new VBox(14, createBox, table);
+        var center = new VBox(14, createBox, teamBox, table);
         center.setFillWidth(true);
         setCenter(center);
 
@@ -352,6 +355,50 @@ public final class AdminPage extends BorderPane {
         box.setPadding(new Insets(12));
         box.getStyleClass().add("pp-card");
         VBox.setVgrow(table, Priority.ALWAYS);
+        return box;
+    }
+
+    private Node buildCreateTeamBox() {
+        Label title = new Label("Create team");
+        title.getStyleClass().add("section-title");
+
+        Label hint = new Label("Use existing users to build teams you can assign to projects.");
+        hint.getStyleClass().add("muted");
+
+        Button create = new Button("Create team");
+        create.getStyleClass().add("primary");
+
+        create.setOnAction(e -> {
+            if (!(store instanceof DbStore ds)) {
+                status.setText("âŒ Teams require the database-backed store.");
+                return;
+            }
+
+            var directory = ds.listDirectoryUsers();
+            if (directory.isEmpty()) {
+                status.setText("âŒ No users available to create a team.");
+                return;
+            }
+
+            var dlg = new CreateTeamDialog(directory);
+            var res = dlg.showAndWait();
+            if (res.isEmpty()) return;
+
+            try {
+                var data = res.get();
+                ds.createTeam(data.name(), data.leaderId(), data.members());
+                status.setText("âœ… Team created: " + data.name());
+            } catch (Exception ex) {
+                status.setText("âŒ " + ex.getMessage());
+            }
+        });
+
+        HBox actions = new HBox(10, create);
+        actions.setAlignment(Pos.CENTER_LEFT);
+
+        VBox box = new VBox(10, title, hint, actions);
+        box.setPadding(new Insets(12));
+        box.getStyleClass().add("pp-card");
         return box;
     }
 

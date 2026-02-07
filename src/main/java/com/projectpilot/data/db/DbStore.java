@@ -195,6 +195,32 @@ public final class DbStore extends InMemoryStore {
         }
     }
 
+    public java.util.List<TeamService.TeamRow> listTeams() {
+        try {
+            return new TeamService(db).listTeams();
+        } catch (Exception e) {
+            System.err.println("[DbStore] listTeams() failed: " + e.getMessage());
+            return java.util.List.of();
+        }
+    }
+
+    public java.util.List<TeamService.TeamMemberRow> listTeamMembers(String teamId) {
+        try {
+            return new TeamService(db).listTeamMembers(teamId);
+        } catch (Exception e) {
+            System.err.println("[DbStore] listTeamMembers() failed: " + e.getMessage());
+            return java.util.List.of();
+        }
+    }
+
+    public void createTeam(String name, String leaderId, java.util.List<TeamService.TeamMemberSpec> members) {
+        new TeamService(db).createTeam(name, leaderId, members);
+    }
+
+    public void assignTeamToProject(String teamId, String projectId) {
+        new TeamService(db).assignTeamToProject(teamId, projectId);
+    }
+
     // -----------------------------------------
     // Write-through overrides
     // -----------------------------------------

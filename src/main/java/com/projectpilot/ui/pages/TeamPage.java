@@ -2,9 +2,12 @@ package com.projectpilot.ui.pages;
 
 import com.projectpilot.core.AppState;
 import com.projectpilot.data.InMemoryStore;
+import com.projectpilot.data.db.DbStore;
+import com.projectpilot.data.db.TeamService;
 import com.projectpilot.model.Member;
 import com.projectpilot.model.Project;
 import com.projectpilot.model.Task;
+import com.projectpilot.model.enums.ProjectRole;
 import com.projectpilot.model.enums.TaskStatus;
 import javafx.beans.binding.Bindings;
 import javafx.beans.binding.BooleanBinding;
@@ -35,6 +38,11 @@ public class TeamPage extends VBox {
     private final Button addFromDirectoryBtn = new Button("Add to project");
     private final Button refreshBtn = new Button("Refresh");
 
+    // Teams
+    private final ComboBox<TeamService.TeamRow> teamBox = new ComboBox<>();
+    private final Button assignTeamBtn = new Button("Assign team");
+    private final Label teamStatus = new Label();
+
     private final ListView<Member> membersList = new ListView<>();
 
     private final Label selectedName = new Label("-");
@@ -47,6 +55,7 @@ public class TeamPage extends VBox {
 
     private final ObservableList<Member> directorySource = FXCollections.observableArrayList();
     private final FilteredList<Member> directoryFiltered = new FilteredList<>(directorySource, m -> true);
+    private final ObservableList<TeamService.TeamRow> teamsSource = FXCollections.observableArrayList();
 
     private String dirQuery = "";
 
@@ -90,6 +99,28 @@ public class TeamPage extends VBox {
             }
         });
 
+        teamBox.setPrefWidth(320);
+        teamBox.setPromptText("Select team...");
+        teamBox.setItems(teamsSource);
+        teamBox.setCellFactory(cb -> new ListCell<>() {
+            @Override protected void updateItem(TeamService.TeamRow item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) { setText(null); return; }
+                String leader = (item.leaderName() == null || item.leaderName().isBlank()) ? "-" : item.leaderName();
+                setText(item.name() + " - leader: " + leader + " - members: " + item.memberCount());
+            }
+        });
+        teamBox.setButtonCell(new ListCell<>() {
+            @Override protected void updateItem(TeamService.TeamRow item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) { setText("Select team..."); return; }
+                setText(item.name());
+            }
+        });
+
+        assignTeamBtn.getStyleClass().add("primary");
+        teamStatus.getStyleClass().add("muted");
+
         addFromDirectoryBtn.getStyleClass().add("primary");
         refreshBtn.getStyleClass().add("secondary");
 
@@ -97,6 +128,8 @@ public class TeamPage extends VBox {
         directorySearch.disableProperty().bind(canEdit.not());
         directoryBox.disableProperty().bind(canEdit.not());
         addFromDirectoryBtn.disableProperty().bind(canEdit.not());
+        teamBox.disableProperty().bind(canEdit.not());
+        assignTeamBtn.disableProperty().bind(canEdit.not());
         removeBtn.disableProperty().bind(canEdit.not());
 
         Label existingLbl = new Label("Add existing admin-created user to project");
@@ -105,7 +138,13 @@ public class TeamPage extends VBox {
         HBox addExistingRow = new HBox(10, directorySearch, directoryBox, addFromDirectoryBtn, refreshBtn);
         addExistingRow.setAlignment(Pos.CENTER_LEFT);
 
-        VBox topCard = new VBox(10, header, sub, existingLbl, addExistingRow);
+        Label teamLbl = new Label("Assign existing team to project");
+        teamLbl.getStyleClass().add("section-title");
+
+        HBox addTeamRow = new HBox(10, teamBox, assignTeamBtn);
+        addTeamRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox topCard = new VBox(10, header, sub, existingLbl, addExistingRow, teamLbl, addTeamRow, teamStatus);
         topCard.getStyleClass().add("card");
         topCard.setPadding(new Insets(14));
 
@@ -169,8 +208,10 @@ public class TeamPage extends VBox {
         addFromDirectoryBtn.setOnAction(e -> addExistingToProject());
         refreshBtn.setOnAction(e -> {
             loadDirectory();
+            loadTeams();
             refresh(appState.getSelectedProject());
         });
+        assignTeamBtn.setOnAction(e -> assignSelectedTeam());
 
         membersList.getSelectionModel().selectedItemProperty().addListener((obs, oldM, newM) -> showMemberDetails(newM));
         removeBtn.setOnAction(e -> removeSelectedMember());
@@ -181,6 +222,7 @@ public class TeamPage extends VBox {
 
         // Initial
         loadDirectory();
+        loadTeams();
         refresh(appState.getSelectedProject());
     }
 
@@ -201,6 +243,19 @@ public class TeamPage extends VBox {
 
         updateDirectoryPredicate();
         System.out.println("[TeamPage] directory loaded = " + loaded);
+    }
+
+    private void loadTeams() {
+        teamsSource.clear();
+        teamStatus.setText("");
+
+        if (!(store instanceof DbStore ds)) return;
+
+        try {
+            teamsSource.setAll(ds.listTeams());
+        } catch (Exception e) {
+            teamStatus.setText("Failed to load teams: " + e.getMessage());
+        }
     }
 
     private int addMembersFromUnknownIterable(Object obj) {
@@ -303,6 +358,61 @@ public class TeamPage extends VBox {
 
         directoryBox.getSelectionModel().clearSelection();
         updateDirectoryPredicate();
+    }
+
+    private void assignSelectedTeam() {
+        if (!canEdit.get()) return;
+
+        Project p = appState.getSelectedProject();
+        if (p == null) {
+            alertInfo("No project selected", "Select a project first.");
+            return;
+        }
+
+        if (!(store instanceof DbStore ds)) {
+            alertInfo("Not available", "Teams require the database-backed store.");
+            return;
+        }
+
+        TeamService.TeamRow team = teamBox.getValue();
+        if (team == null) {
+            alertInfo("No team selected", "Pick a team to assign.");
+            return;
+        }
+
+        try {
+            ds.assignTeamToProject(team.id(), p.getId());
+            List<TeamService.TeamMemberRow> members = ds.listTeamMembers(team.id());
+
+            for (TeamService.TeamMemberRow row : members) {
+                if (row == null || row.memberId() == null || row.memberId().isBlank()) continue;
+                ProjectRole role = row.role() == null ? ProjectRole.MEMBER : row.role();
+                String name = (row.name() == null || row.name().isBlank()) ? "User" : row.name();
+
+                Member existing = p.getMembers().stream()
+                        .filter(m -> row.memberId().equals(safeId(m)))
+                        .findFirst()
+                        .orElse(null);
+
+                if (existing == null) {
+                    store.addMember(p, new Member(row.memberId(), name, role));
+                } else {
+                    if (existing.getName() == null || existing.getName().isBlank()) {
+                        existing.nameProperty().set(name);
+                    }
+                    existing.roleProperty().set(role);
+                }
+            }
+
+            membersList.refresh();
+            updateDirectoryPredicate();
+            appState.refreshCurrentProjectRole();
+
+            teamStatus.setText("Assigned team: " + team.name());
+            teamBox.getSelectionModel().clearSelection();
+        } catch (Exception ex) {
+            teamStatus.setText("Failed to assign team: " + ex.getMessage());
+        }
     }
 
     private void removeSelectedMember() {

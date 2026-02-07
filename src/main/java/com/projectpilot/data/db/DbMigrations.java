@@ -6,7 +6,7 @@ import java.util.Set;
 
 final class DbMigrations {
 
-    private static final int LATEST = 5;
+    private static final int LATEST = 6;
 
     private DbMigrations() {}
 
@@ -39,8 +39,15 @@ final class DbMigrations {
                 // repair step (covers early v3 DBs / stale schema_v3.sql)
                 migrate2to3(conn); // idempotent: CREATE TABLE IF NOT EXISTS + ensureColumn
                 migrate3to5(conn);
-                setUserVersion(conn, 5);
-                version = 5;
+                migrate5to6(conn);
+                setUserVersion(conn, 6);
+                version = 6;
+            }
+
+            if (version == 5) {
+                migrate5to6(conn);
+                setUserVersion(conn, 6);
+                version = 6;
             }
 
             if (version > LATEST) {
@@ -110,6 +117,12 @@ final class DbMigrations {
 
     private static void migrate3to5(Connection conn) throws SQLException {
         SqlScriptRunner.run(conn, SchemaSql.v5());
+    }
+
+    // ---------------- v5 -> v6 ----------------
+
+    private static void migrate5to6(Connection conn) throws SQLException {
+        SqlScriptRunner.run(conn, SchemaSql.v6());
     }
 
     // ---------------- helpers ----------------
