@@ -1,12 +1,14 @@
 package com.projectpilot;
 
 import com.projectpilot.chat.ChatService;
+import com.projectpilot.chat.ChatUnreadService;
 import com.projectpilot.chat.DbChatService;
 import com.projectpilot.chat.LanChatService;
 import com.projectpilot.core.AppState;
 import com.projectpilot.core.PageId;
 import com.projectpilot.core.Router;
 import com.projectpilot.data.InMemoryStore;
+import com.projectpilot.data.SampleData;
 import com.projectpilot.data.db.DbManager;
 import com.projectpilot.data.db.DbStore;
 import com.projectpilot.data.db.auth.AuthProvider;
@@ -30,6 +32,9 @@ import javafx.scene.text.Font;
 import javafx.stage.Stage;
 
 import java.io.InputStream;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import com.projectpilot.lan.LanAuthClient;
 import com.projectpilot.lan.LanClient;
 import com.projectpilot.lan.LanConfig;
@@ -63,6 +68,8 @@ public class Main extends Application {
     private LanSyncService lanSync;
     private LanDiscovery.Responder lanDiscovery;
     private ChatService chatService;
+    private ChatUnreadService chatUnread;
+    private ScheduledExecutorService hostStatusExec;
 
     @Override
     public void start(Stage stage) {
@@ -114,8 +121,8 @@ public class Main extends Application {
             lanSync = null;
         }
 
+        safeStopLanHost();
         if (lanConfig.isClient()) {
-            safeStopLanHost();
             lanClient = new LanClient(lanConfig.baseUrl());
             auth = new LanAuthClient(lanClient);
         } else {
@@ -125,18 +132,6 @@ public class Main extends Application {
             System.out.println("DB PATH = " + db.dbFile());
             localAuth = new AuthService(db);
             auth = localAuth;
-        }
-
-        if (lanConfig.isHost()) {
-            initHostStoreIfNeeded();
-            startLanHostServices();
-            try {
-                lanDiscovery = LanDiscovery.startResponder(lanConfig.port(), lanConfig.wsPort());
-            } catch (Exception e) {
-                System.err.println("[LAN] Discovery responder failed: " + e.getMessage());
-            }
-        } else {
-            safeStopLanHost();
         }
 
         if (auth.needsInitialAdmin()) showSetup();
@@ -164,6 +159,8 @@ public class Main extends Application {
                 appState = new AppState();
                 appState.setSession(session);
 
+                seedSampleDataIfEmpty(session);
+
                 // Pick first project the user is allowed to see
                 var initial = store.getProjects().stream()
                         .filter(p -> policy.canViewProject(appState, p))
@@ -171,6 +168,17 @@ public class Main extends Application {
                         .orElse(null);
 
                 appState.setSelectedProject(initial);
+            }
+
+            updateHostStatusForMode();
+
+            if (chatUnread != null) {
+                chatUnread.stop();
+                chatUnread = null;
+            }
+            if (chatService != null && appState != null) {
+                chatUnread = new ChatUnreadService(chatService, appState, 4000);
+                chatUnread.start();
             }
 
             Router router = new Router();
@@ -193,7 +201,7 @@ public class Main extends Application {
             appRoot.getStyleClass().add("pp-root");
             scene.setRoot(appRoot);
 
-            if (lanConfig.isHost() && lanServer == null) {
+            if (lanConfig.isHost() && lanServer == null && appState.isAdmin()) {
                 startLanHostServices();
             }
         } catch (Exception e) {
@@ -202,6 +210,27 @@ public class Main extends Application {
             showStartupError("Login failed", "Could not open the dashboard.", e);
             showLogin();
         }
+    }
+
+    private void seedSampleDataIfEmpty(UserSession session) {
+        if (store == null) return;
+        if (!store.getProjects().isEmpty() || !store.getHistoryProjects().isEmpty()) return;
+
+        String id = session == null ? null : session.id();
+        String name = session == null ? null : session.displayName();
+        if (name == null || name.isBlank()) name = session == null ? null : session.username();
+
+        java.util.List<SampleData.UserSeed> users = java.util.List.of();
+        if (store instanceof DbStore ds) {
+            users = ds.listUsers().stream()
+                    .map(u -> {
+                        String display = (u.name() == null || u.name().isBlank()) ? u.username() : u.name();
+                        return new SampleData.UserSeed(u.id(), display);
+                    })
+                    .toList();
+        }
+
+        SampleData.seed(store, id, name, users);
     }
 
     private void startLanHostServices() {
@@ -223,6 +252,12 @@ public class Main extends Application {
             lanServer.start();
             lanBroadcaster = new LanStoreBroadcaster(store, lanWsServer);
             lanBroadcaster.start();
+            startLanDiscovery();
+            startHostStatusMonitor();
+            if (appState != null) {
+                appState.updateHostingStatus(true, lanConfig.port(), lanConfig.wsPort(),
+                        System.currentTimeMillis(), 0, "host");
+            }
             System.out.println("LAN HOST listening on port " + lanConfig.port() + " (ws " + lanConfig.wsPort() + ")");
         } catch (Throwable e) {
             System.err.println("[LAN] Host startup failed: " + e.getMessage());
@@ -253,6 +288,10 @@ public class Main extends Application {
         } catch (Exception ignored) {
         }
         try {
+            if (lanBroadcaster != null) lanBroadcaster.stop();
+        } catch (Exception ignored) {
+        }
+        try {
             if (lanWsServer != null) lanWsServer.stop();
         } catch (Exception ignored) {
         }
@@ -260,6 +299,11 @@ public class Main extends Application {
         lanWsServer = null;
         lanBroadcaster = null;
         lanSessions = null;
+        stopHostStatusMonitor();
+        stopDiscovery();
+        if (appState != null) {
+            appState.updateHostingStatus(false, lanConfig.port(), lanConfig.wsPort(), 0L, 0, "local");
+        }
     }
 
     private void showStartupError(String title, String message, Throwable error) {
@@ -299,28 +343,14 @@ public class Main extends Application {
 
     private void shutdownServices() {
         stopDiscovery();
+        safeStopLanHost();
         if (lanSync != null) {
             lanSync.stop();
             lanSync = null;
         }
-        if (lanServer != null) {
-            lanServer.stop();
-            lanServer = null;
-        }
-        if (lanWsServer != null) {
-            try {
-                lanWsServer.stop();
-            } catch (Exception e) {
-                if (e instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
-                }
-                System.err.println("[LAN] WS shutdown failed: " + e.getMessage());
-            }
-            lanWsServer = null;
-        }
-        if (lanBroadcaster != null) {
-            lanBroadcaster.stop();
-            lanBroadcaster = null;
+        if (chatUnread != null) {
+            chatUnread.stop();
+            chatUnread = null;
         }
         if (store instanceof DbStore ds) ds.shutdown();
     }
@@ -333,6 +363,72 @@ public class Main extends Application {
             }
             lanDiscovery = null;
         }
+    }
+
+    private void updateHostStatusForMode() {
+        if (appState == null) return;
+        if (lanConfig.isHost() && !appState.isAdmin()) {
+            safeStopLanHost();
+            lanConfig = LanConfig.forLocal(lanConfig.port(), lanConfig.wsPort(), lanConfig.pollMs());
+            appState.updateHostingStatus(false, lanConfig.port(), lanConfig.wsPort(), 0L, 0, "local");
+            showStartupNotice("Hosting disabled",
+                    "Only admins can host on LAN. You're running in local mode.");
+            return;
+        }
+
+        if (lanConfig.isHost()) {
+            appState.updateHostingStatus(true, lanConfig.port(), lanConfig.wsPort(), System.currentTimeMillis(), 0, "host");
+        } else if (lanConfig.isClient()) {
+            appState.updateHostingStatus(false, lanConfig.port(), lanConfig.wsPort(), 0L, 0, "client");
+        } else {
+            appState.updateHostingStatus(false, lanConfig.port(), lanConfig.wsPort(), 0L, 0, "local");
+        }
+    }
+
+    private void startLanDiscovery() {
+        try {
+            if (lanDiscovery == null) {
+                lanDiscovery = LanDiscovery.startResponder(lanConfig.port(), lanConfig.wsPort());
+            }
+        } catch (Exception e) {
+            System.err.println("[LAN] Discovery responder failed: " + e.getMessage());
+        }
+    }
+
+    private void startHostStatusMonitor() {
+        stopHostStatusMonitor();
+        hostStatusExec = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "pp-host-status");
+            t.setDaemon(true);
+            return t;
+        });
+        hostStatusExec.scheduleAtFixedRate(() -> {
+            if (appState == null) return;
+            if (lanWsServer == null || !appState.isHosting()) {
+                appState.setHostConnections(0);
+                return;
+            }
+            appState.setHostConnections(lanWsServer.connectedCount());
+        }, 0, 2, TimeUnit.SECONDS);
+    }
+
+    private void stopHostStatusMonitor() {
+        if (hostStatusExec != null) {
+            hostStatusExec.shutdownNow();
+            hostStatusExec = null;
+        }
+    }
+
+    private void showStartupNotice(String title, String message) {
+        Runnable show = () -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle(title);
+            alert.setHeaderText(title);
+            alert.setContentText(message == null ? "" : message);
+            alert.show();
+        };
+        if (Platform.isFxApplicationThread()) show.run();
+        else Platform.runLater(show);
     }
 
     private void loadFont(String path, double size) {

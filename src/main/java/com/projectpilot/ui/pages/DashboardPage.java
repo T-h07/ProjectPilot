@@ -254,6 +254,10 @@ public class DashboardPage extends BorderPane {
         d.showAndWait().ifPresent(name -> {
             String n = name.trim();
             if (n.isBlank()) return;
+            if (isDuplicateProjectName(n)) {
+                alertInfo("Duplicate project", "A project with that name already exists.");
+                return;
+            }
             Project p = new Project(n);
             store.createProject(p);
             appState.setSelectedProject(p);
@@ -274,7 +278,13 @@ public class DashboardPage extends BorderPane {
         }
 
         CreateTaskDialog d = new CreateTaskDialog(p);
-        d.showAndWait().ifPresent(t -> store.addTask(p, t));
+        d.showAndWait().ifPresent(t -> {
+            if (isDuplicateTaskTitle(p, t.getTitle())) {
+                alertInfo("Duplicate task", "A task with that title already exists in this project.");
+                return;
+            }
+            store.addTask(p, t);
+        });
     }
 
     private void alertInfo(String header, String text) {
@@ -283,6 +293,33 @@ public class DashboardPage extends BorderPane {
         a.setHeaderText(header);
         a.setContentText(text);
         a.showAndWait();
+    }
+
+    private boolean isDuplicateProjectName(String name) {
+        String n = normalizeName(name);
+        if (n.isBlank()) return false;
+
+        for (Project p : store.getProjects()) {
+            if (p == null) continue;
+            if (normalizeName(p.getName()).equals(n)) return true;
+        }
+        for (Project p : store.getHistoryProjects()) {
+            if (p == null) continue;
+            if (normalizeName(p.getName()).equals(n)) return true;
+        }
+        return false;
+    }
+
+    private boolean isDuplicateTaskTitle(Project p, String title) {
+        if (p == null) return false;
+        String n = normalizeName(title);
+        if (n.isBlank()) return false;
+        return p.getTasks().stream()
+                .anyMatch(t -> t != null && normalizeName(t.getTitle()).equals(n));
+    }
+
+    private String normalizeName(String name) {
+        return name == null ? "" : name.trim().toLowerCase();
     }
 
     private String safe(String s) {

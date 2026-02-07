@@ -8,6 +8,7 @@ import com.projectpilot.model.Project;
 import com.projectpilot.model.Task;
 import com.projectpilot.model.enums.Priority;
 import com.projectpilot.model.enums.TaskStatus;
+import com.projectpilot.security.AccessPolicy;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.beans.InvalidationListener;
@@ -45,6 +46,7 @@ public class GanttPage extends VBox {
 
     private final InMemoryStore store;
     private final AppState appState;
+    private final AccessPolicy policy = new AccessPolicy();
 
     private final Label header = new Label("Gantt");
     private final Label sub = new Label("");
@@ -127,6 +129,8 @@ public class GanttPage extends VBox {
 
     private final InvalidationListener taskPropsListener = obs -> requestRebuild();
     private final PauseTransition rebuildDelay = new PauseTransition(Duration.millis(80));
+    private final BooleanBinding canEditSelected;
+    private final BooleanBinding canEditMeta;
 
     private void hookTask(Task t) {
         if (t == null) return;
@@ -153,6 +157,19 @@ public class GanttPage extends VBox {
             refreshAssignees(this.appState.getSelectedProject());
             syncDetailsFromTask(selectedTask.get());
         };
+        this.canEditSelected = Bindings.createBooleanBinding(
+                () -> policy.canEditTask(appState, selectedTask.get()),
+                appState.sessionProperty(),
+                appState.selectedProjectProperty(),
+                appState.currentProjectRoleProperty(),
+                selectedTask
+        );
+        this.canEditMeta = Bindings.createBooleanBinding(
+                () -> policy.canEditTaskMeta(appState),
+                appState.sessionProperty(),
+                appState.selectedProjectProperty(),
+                appState.currentProjectRoleProperty()
+        );
 
         setSpacing(0);
         rebuildDelay.setOnFinished(e -> rebuild());
@@ -349,12 +366,12 @@ public class GanttPage extends VBox {
 
     private void wireDetailsBindings() {
         BooleanBinding noTask = selectedTask.isNull();
-        taskTitle.disableProperty().bind(noTask);
-        taskDescription.disableProperty().bind(noTask);
-        taskStatus.disableProperty().bind(noTask);
-        taskPriority.disableProperty().bind(noTask);
-        taskAssignee.disableProperty().bind(noTask);
-        taskDue.disableProperty().bind(noTask);
+        taskTitle.disableProperty().bind(noTask.or(canEditMeta.not()));
+        taskPriority.disableProperty().bind(noTask.or(canEditMeta.not()));
+        taskAssignee.disableProperty().bind(noTask.or(canEditMeta.not()));
+        taskDue.disableProperty().bind(noTask.or(canEditMeta.not()));
+        taskDescription.disableProperty().bind(noTask.or(canEditSelected.not()));
+        taskStatus.disableProperty().bind(noTask.or(canEditSelected.not()));
 
         selectedTask.addListener((obs, oldV, newV) -> {
             syncDetailsFromTask(newV);

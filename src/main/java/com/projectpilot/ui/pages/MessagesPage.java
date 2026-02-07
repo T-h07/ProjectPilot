@@ -48,6 +48,7 @@ public final class MessagesPage extends BorderPane {
 
     private final TextArea input = new TextArea();
     private final Button sendBtn = new Button("Send");
+    private final Button newChat = new Button("New message");
 
     private ChatThread selected;
     private final Timeline poller;
@@ -79,7 +80,6 @@ public final class MessagesPage extends BorderPane {
         search.setPromptText("Search chats...");
         search.textProperty().addListener((obs, o, n) -> applyFilter(n));
 
-        Button newChat = new Button("New message");
         newChat.getStyleClass().add("primary");
         newChat.setOnAction(e -> startDirectChat());
 
@@ -173,6 +173,7 @@ public final class MessagesPage extends BorderPane {
             threads.setAll(next);
             refreshingThreads = false;
             status.setText("");
+            appState.updateChatThreads(next);
 
             String targetId = forceSelectId != null ? forceSelectId : (keepSelection ? selectedId : null);
             if (targetId != null) {
@@ -206,6 +207,8 @@ public final class MessagesPage extends BorderPane {
             status.setText("");
             if (!messages.isEmpty()) {
                 messageList.scrollTo(messages.size() - 1);
+                ChatMessage last = messages.get(messages.size() - 1);
+                appState.markChatThreadSeen(threadId, last.createdAt());
             }
         }, ex -> {
             messagesLoading.set(false);
@@ -234,6 +237,7 @@ public final class MessagesPage extends BorderPane {
 
         chatTitle.setText(displayTitle(thread));
         chatSubtitle.setText(thread.subtitle() == null ? "" : thread.subtitle());
+        appState.markChatThreadSeen(thread.id(), thread.lastAt());
         input.setDisable(false);
         sendBtn.setDisable(false);
 
@@ -242,13 +246,17 @@ public final class MessagesPage extends BorderPane {
 
     private void startDirectChat() {
         String me = currentUserId();
+        newChat.setDisable(true);
+        status.setText("Loading users...");
         runIo(() -> chat.listUsers(me), users -> {
-            if (users == null || users.isEmpty()) {
+            newChat.setDisable(false);
+            List<ChatUser> safeUsers = sanitizeUsers(users, me);
+            if (safeUsers.isEmpty()) {
                 status.setText("No users available.");
                 return;
             }
 
-            ChoiceDialog<ChatUser> dlg = new ChoiceDialog<>(null, users);
+            ChoiceDialog<ChatUser> dlg = new ChoiceDialog<>(null, safeUsers);
             dlg.setTitle("New message");
             dlg.setHeaderText("Start a direct chat");
             dlg.setContentText("User");
@@ -263,7 +271,10 @@ public final class MessagesPage extends BorderPane {
                     refreshThreadsAsync(false, thread.id());
                 }, ex -> status.setText("Failed to start chat: " + ex.getMessage()));
             });
-        }, ex -> status.setText("Failed to load users: " + ex.getMessage()));
+        }, ex -> {
+            newChat.setDisable(false);
+            status.setText("Failed to load users: " + ex.getMessage());
+        });
     }
 
     private void sendMessage() {
@@ -306,6 +317,16 @@ public final class MessagesPage extends BorderPane {
 
     private static String safe(String v) {
         return v == null ? "" : v.trim();
+    }
+
+    private static List<ChatUser> sanitizeUsers(List<ChatUser> users, String excludeId) {
+        if (users == null) return List.of();
+        String me = excludeId == null ? "" : excludeId.trim();
+        return users.stream()
+                .filter(u -> u != null && u.id() != null && !u.id().isBlank())
+                .filter(u -> me.isBlank() || !me.equals(u.id()))
+                .sorted((a, b) -> safe(a.displayName()).compareToIgnoreCase(safe(b.displayName())))
+                .toList();
     }
 
     private void selectThreadById(String id) {

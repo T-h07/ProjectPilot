@@ -250,6 +250,11 @@ public class ProjectsPage extends BorderPane {
         d.showAndWait().ifPresent(p -> {
             p.setStatus(Project.ProjectStatus.ACTIVE);
 
+            if (isDuplicateProjectName(p.getName())) {
+                alertInfo("Duplicate project", "A project with that name already exists.");
+                return;
+            }
+
             store.createProject(p);
 
             // Ensure project has at least 1 member (creator) so tasks can be created immediately.
@@ -337,6 +342,33 @@ public class ProjectsPage extends BorderPane {
         if (l != null) {
             try { p.getMembers().removeListener((ListChangeListener) l); } catch (Exception ignored) {}
         }
+    }
+
+    private boolean isDuplicateProjectName(String name) {
+        String n = normalizeName(name);
+        if (n.isBlank()) return false;
+
+        for (Project p : store.getProjects()) {
+            if (p == null) continue;
+            if (normalizeName(p.getName()).equals(n)) return true;
+        }
+        for (Project p : store.getHistoryProjects()) {
+            if (p == null) continue;
+            if (normalizeName(p.getName()).equals(n)) return true;
+        }
+        return false;
+    }
+
+    private String normalizeName(String name) {
+        return name == null ? "" : name.trim().toLowerCase();
+    }
+
+    private void alertInfo(String header, String text) {
+        Alert a = new Alert(Alert.AlertType.INFORMATION);
+        a.setTitle("ProjectPilot");
+        a.setHeaderText(header);
+        a.setContentText(text);
+        a.showAndWait();
     }
 
     private static Label key(String t) {

@@ -237,6 +237,8 @@ public final class NotificationCenterPopover {
                         "-fx-text-fill: white;" +
                         "-fx-padding: 6 10;"
         );
+        mark.setMinWidth(Region.USE_PREF_SIZE);
+        mark.setMaxWidth(Region.USE_PREF_SIZE);
         mark.setOnAction(e -> markRead(it));
 
         Button view = new Button("View");
@@ -247,6 +249,8 @@ public final class NotificationCenterPopover {
                         "-fx-text-fill: white;" +
                         "-fx-padding: 6 12;"
         );
+        view.setMinWidth(Region.USE_PREF_SIZE);
+        view.setMaxWidth(Region.USE_PREF_SIZE);
         view.setOnAction(e -> {
             markRead(it);
             popup.hide();
@@ -255,12 +259,15 @@ public final class NotificationCenterPopover {
 
         HBox actions = new HBox(6, view);
         actions.setAlignment(Pos.CENTER_RIGHT);
+        actions.setMinWidth(Region.USE_PREF_SIZE);
         if (!it.read()) actions.getChildren().add(mark);
 
         VBox text = new VBox(2, t, d);
+        text.setMaxWidth(Double.MAX_VALUE);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox.setHgrow(text, Priority.ALWAYS);
 
         HBox row = new HBox(10, icon, text, spacer, ts, actions);
         row.setAlignment(Pos.TOP_LEFT);
@@ -282,23 +289,7 @@ public final class NotificationCenterPopover {
 
     private void markRead(NotificationItem it) {
         if (it == null || it.read()) return;
-
-        // no service API needed: update list in-place
-        var list = notifications.items();
-        int idx = list.indexOf(it);
-        if (idx >= 0) {
-            list.set(idx, it.withRead(true));
-            return;
-        }
-
-        // fallback: match by key
-        for (int i = 0; i < list.size(); i++) {
-            NotificationItem cur = list.get(i);
-            if (cur != null && Objects.equals(cur.key(), it.key())) {
-                list.set(i, cur.withRead(true));
-                return;
-            }
-        }
+        notifications.markRead(it.key());
     }
 
     private static String safe(String s) {

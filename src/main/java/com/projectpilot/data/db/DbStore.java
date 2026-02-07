@@ -198,6 +198,10 @@ public final class DbStore extends InMemoryStore {
         }
     }
 
+    public DbManager manager() {
+        return db;
+    }
+
     public java.util.List<TeamService.TeamRow> listTeams() {
         try {
             return new TeamService(db).listTeams();

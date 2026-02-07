@@ -2,9 +2,14 @@ package com.projectpilot.service;
 
 import com.projectpilot.core.AppState;
 import com.projectpilot.data.InMemoryStore;
+import com.projectpilot.data.db.DbManager;
+import com.projectpilot.data.db.DbStore;
+import com.projectpilot.data.db.repo.NotificationDao;
+import com.projectpilot.model.Notification;
 import com.projectpilot.model.NotificationItem;
 import com.projectpilot.model.Project;
 import com.projectpilot.model.Task;
+import com.projectpilot.model.enums.NotificationType;
 import com.projectpilot.model.enums.TaskStatus;
 import com.projectpilot.security.AccessPolicy;
 import javafx.application.Platform;
@@ -78,6 +83,7 @@ public final class NotificationService {
         List<NotificationItem> next = new ArrayList<>(items.size());
         for (NotificationItem it : items) next.add(it.withRead(true));
         items.setAll(next);
+        persistMarkAllRead();
     }
 
     public void markRead(String key) {
@@ -87,6 +93,7 @@ public final class NotificationService {
             next.add(Objects.equals(key, it.key()) ? it.withRead(true) : it);
         }
         items.setAll(next);
+        persistMarkRead(key);
     }
 
     public void markLoginShown() {
@@ -117,11 +124,17 @@ public final class NotificationService {
         for (NotificationItem it : items) wasRead.put(it.key(), it.read());
 
         List<NotificationItem> built = buildForCurrentUser();
+        String userId = currentUserId();
+        Map<String, Boolean> persisted = loadPersistentReadState(userId, built);
 
         // preserve read state by key
         List<NotificationItem> out = new ArrayList<>(built.size());
         for (NotificationItem it : built) {
             boolean r = wasRead.getOrDefault(it.key(), false);
+            if (userId != null) {
+                String id = notificationId(userId, it.key());
+                if (id != null) r = persisted.getOrDefault(id, r);
+            }
             out.add(r == it.read() ? it : it.withRead(r));
         }
         return out;
@@ -201,5 +214,126 @@ public final class NotificationService {
         if (v == null) return fallback;
         String s = v.trim();
         return s.isEmpty() ? fallback : s;
+    }
+
+    private String currentUserId() {
+        if (appState == null || appState.getSession() == null) return null;
+        String id = appState.getSession().id();
+        if (id == null) return null;
+        String v = id.trim();
+        return v.isEmpty() ? null : v;
+    }
+
+    private DbManager dbIfAvailable() {
+        if (store instanceof DbStore ds) return ds.manager();
+        return null;
+    }
+
+    private Map<String, Boolean> loadPersistentReadState(String userId, List<NotificationItem> items) {
+        DbManager db = dbIfAvailable();
+        if (db == null || userId == null || userId.isBlank()) return Map.of();
+
+        try {
+            return db.tx(conn -> {
+                try {
+                    NotificationDao dao = new NotificationDao(conn);
+                    Map<String, LocalDateTime> readAtById = dao.readStateByUser(userId);
+                    for (NotificationItem it : items) {
+                        String key = it == null ? null : it.key();
+                        if (key == null || key.isBlank()) continue;
+                        String id = notificationId(userId, key);
+                        if (id == null) continue;
+                        if (!readAtById.containsKey(id)) {
+                            dao.insertIgnore(toNotification(userId, id, it));
+                        }
+                    }
+                    Map<String, Boolean> out = new HashMap<>();
+                    for (Map.Entry<String, LocalDateTime> e : readAtById.entrySet()) {
+                        if (e.getKey() != null) out.put(e.getKey(), e.getValue() != null);
+                    }
+                    return out;
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        } catch (Exception e) {
+            System.err.println("[Notifications] Persisted read state failed: " + e.getMessage());
+            return Map.of();
+        }
+    }
+
+    private void persistMarkRead(String key) {
+        DbManager db = dbIfAvailable();
+        String userId = currentUserId();
+        if (db == null || userId == null || key == null || key.isBlank()) return;
+        String id = notificationId(userId, key);
+        if (id == null) return;
+
+        try {
+            db.tx(conn -> {
+                try {
+                    new NotificationDao(conn).markRead(id, LocalDateTime.now());
+                    return null;
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
+                }
+            });
+        } catch (Exception e) {
+            System.err.println("[Notifications] markRead failed: " + e.getMessage());
+        }
+    }
+
+    private void persistMarkAllRead() {
+        DbManager db = dbIfAvailable();
+        String userId = currentUserId();
+        if (db == null || userId == null) return;
+        try {
+            db.tx(conn -> {
+                try {
+                    new NotificationDao(conn).markAllRead(userId, LocalDateTime.now());
+                    return null;
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
+                }
+            });
+        } catch (Exception e) {
+            System.err.println("[Notifications] markAllRead failed: " + e.getMessage());
+        }
+    }
+
+    private static String notificationId(String userId, String key) {
+        if (userId == null || userId.isBlank() || key == null || key.isBlank()) return null;
+        return userId + "|" + key;
+    }
+
+    private static Notification toNotification(String userId, String id, NotificationItem it) {
+        String title = it == null ? "Notification" : safe(it.title(), "Notification");
+        String body = it == null ? "" : safe(it.detail(), "");
+        String key = it == null ? "" : safe(it.key(), "");
+        NotificationType type = mapType(title, key);
+
+        String entityKind = null;
+        String entityId = null;
+        if (key != null && !key.isBlank()) {
+            String[] parts = key.split(":", 3);
+            if (parts.length == 3) {
+                entityKind = "TASK";
+                entityId = parts[2];
+            }
+        }
+
+        LocalDateTime at = (it != null && it.at() != null) ? it.at() : LocalDateTime.now();
+        return new Notification(id, userId, at, type, title, body, entityKind, entityId, null, null);
+    }
+
+    private static NotificationType mapType(String title, String key) {
+        String t = title == null ? "" : title.toLowerCase();
+        if (t.contains("due") || t.contains("overdue") || key.startsWith("due-") || key.startsWith("overdue:")) {
+            return NotificationType.TASK_DUE_SOON;
+        }
+        if (t.contains("assigned") || key.startsWith("assigned:")) {
+            return NotificationType.TASK_ASSIGNED;
+        }
+        return NotificationType.TASK_UPDATED;
     }
 }

@@ -20,6 +20,15 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.TreeSet;
 import java.net.URL;
 
 public class TopBar extends HBox {
@@ -52,6 +61,27 @@ public class TopBar extends HBox {
         profileBtn.getStyleClass().add("profile-btn");
         profileBtn.setGraphic(avatar);
 
+        Label hostLabel = new Label("Hosting");
+        hostLabel.getStyleClass().add("host-label");
+
+        Region hostDot = new Region();
+        hostDot.getStyleClass().add("host-dot");
+
+        HBox hostGraphic = new HBox(6, hostDot, hostLabel);
+        hostGraphic.setAlignment(Pos.CENTER);
+
+        Button hostBtn = new Button();
+        hostBtn.getStyleClass().add("host-btn");
+        hostBtn.setGraphic(hostGraphic);
+
+        Tooltip hostTip = new Tooltip();
+        hostBtn.setTooltip(hostTip);
+
+        ContextMenu hostMenu = new ContextMenu();
+        hostMenu.getStyleClass().addAll("pp-root", "profile-menu-popup");
+        hostMenu.setOnShowing(e -> ensurePopupStyles(hostMenu));
+        hostMenu.setOnShown(e -> ensurePopupStyles(hostMenu));
+
         ContextMenu profileMenu = new ContextMenu();
         profileMenu.getStyleClass().addAll("pp-root", "profile-menu-popup");
         profileMenu.setOnShowing(e -> ensurePopupStyles(profileMenu));
@@ -66,13 +96,31 @@ public class TopBar extends HBox {
         syncUser.run();
         appState.sessionProperty().addListener((obs, o, n) -> syncUser.run());
 
+        Runnable syncHost = () -> {
+            boolean hosting = appState != null && appState.isHosting();
+            hostDot.getStyleClass().removeAll("host-dot-online", "host-dot-offline");
+            hostDot.getStyleClass().add(hosting ? "host-dot-online" : "host-dot-offline");
+            hostTip.setText(hosting ? "Hosting on LAN" : "Local only");
+        };
+        syncHost.run();
+        appState.hostingProperty().addListener((obs, o, n) -> syncHost.run());
+
+        Runnable syncAdmin = () -> {
+            boolean show = appState != null && appState.isAdmin();
+            hostBtn.setVisible(show);
+            hostBtn.setManaged(show);
+        };
+        syncAdmin.run();
+        appState.sessionProperty().addListener((obs, o, n) -> syncAdmin.run());
+
+        hostBtn.setOnAction(e -> toggleHostMenu(hostMenu, hostBtn, appState));
         profileBtn.setOnAction(e -> toggleProfileMenu(profileMenu, profileBtn, appState, store));
 
         HBox userBox = new HBox(8, userName, profileBtn);
         userBox.setAlignment(Pos.CENTER_RIGHT);
         userBox.getStyleClass().add("topbar-userbox");
 
-        getChildren().addAll(title, picker, bell, spacer, userBox);
+        getChildren().addAll(title, picker, bell, spacer, hostBtn, userBox);
     }
 
     // Backward compatible constructor (optional)
@@ -112,6 +160,48 @@ public class TopBar extends HBox {
             Label idLine = profileLine("ID", shortId);
             if (!shortId.equals(id)) idLine.setTooltip(new Tooltip(id));
             box.getChildren().add(idLine);
+        }
+
+        CustomMenuItem info = new CustomMenuItem(box, false);
+        menu.getItems().add(info);
+
+        menu.show(anchor, Side.BOTTOM, 0, 6);
+    }
+
+    private static void toggleHostMenu(ContextMenu menu, Button anchor, AppState appState) {
+        if (menu.isShowing()) {
+            menu.hide();
+            return;
+        }
+
+        menu.getItems().clear();
+
+        String mode = appState == null ? "local" : appState.getHostMode();
+        String status = switch (mode) {
+            case "host" -> "Hosting";
+            case "client" -> "Client";
+            default -> "Local only";
+        };
+
+        VBox box = new VBox(6);
+        box.getStyleClass().add("profile-menu-card");
+
+        Label title = new Label("LAN Hosting");
+        title.getStyleClass().add("profile-title");
+        box.getChildren().add(title);
+
+        box.getChildren().add(profileLine("Status", status));
+
+        if ("host".equals(mode) && appState != null) {
+            String ips = String.join(", ", localIpv4Addresses());
+            if (ips.isBlank()) ips = "Unknown";
+            box.getChildren().add(profileLine("IP", ips));
+            box.getChildren().add(profileLine("HTTP port", String.valueOf(appState.getHostPort())));
+            box.getChildren().add(profileLine("WS port", String.valueOf(appState.getHostWsPort())));
+            box.getChildren().add(profileLine("Connected", String.valueOf(appState.getHostConnections())));
+            box.getChildren().add(profileLine("Uptime", formatUptime(appState.getHostStartedAt())));
+        } else {
+            box.getChildren().add(profileLine("Hosting", "Off"));
         }
 
         CustomMenuItem info = new CustomMenuItem(box, false);
@@ -169,6 +259,37 @@ public class TopBar extends HBox {
 
     private static String safe(String v) {
         return v == null ? "" : v.trim();
+    }
+
+    private static List<String> localIpv4Addresses() {
+        TreeSet<String> out = new TreeSet<>();
+        try {
+            Enumeration<NetworkInterface> ifaces = NetworkInterface.getNetworkInterfaces();
+            while (ifaces.hasMoreElements()) {
+                NetworkInterface ni = ifaces.nextElement();
+                if (!ni.isUp() || ni.isLoopback()) continue;
+                Enumeration<InetAddress> addrs = ni.getInetAddresses();
+                while (addrs.hasMoreElements()) {
+                    InetAddress addr = addrs.nextElement();
+                    if (addr instanceof Inet4Address && !addr.isLoopbackAddress()) {
+                        out.add(addr.getHostAddress());
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return new ArrayList<>(out);
+    }
+
+    private static String formatUptime(long startedAt) {
+        if (startedAt <= 0) return "0m";
+        Duration d = Duration.between(Instant.ofEpochMilli(startedAt), Instant.now());
+        long hours = d.toHours();
+        long minutes = d.toMinutes() % 60;
+        long seconds = d.getSeconds() % 60;
+        if (hours > 0) return hours + "h " + minutes + "m";
+        if (minutes > 0) return minutes + "m " + seconds + "s";
+        return seconds + "s";
     }
 
     private static void ensurePopupStyles(ContextMenu menu) {

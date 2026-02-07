@@ -195,6 +195,16 @@
     -fx-border-color: rgba(59, 130, 246, 0.55);
 }
 
+.pp-root .sidebar-dot {
+    -fx-background-color: #ef4444;
+    -fx-background-radius: 999;
+    -fx-min-width: 8;
+    -fx-min-height: 8;
+    -fx-max-width: 8;
+    -fx-max-height: 8;
+    -fx-effect: dropshadow(gaussian, rgba(239,68,68,0.55), 6, 0.3, 0, 0);
+}
+
 /* ---- Scrollbars (basic) ---- */
 .pp-root .scroll-bar:vertical .thumb,
 .pp-root .scroll-bar:horizontal .thumb {

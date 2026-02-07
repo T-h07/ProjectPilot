@@ -70,6 +70,10 @@ public final class LanWsServer extends WebSocketServer {
         }
     }
 
+    public int connectedCount() {
+        return authed.size();
+    }
+
     private String extractToken(WebSocket conn) {
         try {
             String desc = conn.getResourceDescriptor();

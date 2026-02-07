@@ -164,6 +164,10 @@ public class TasksPage extends VBox {
 
             CreateTaskDialog d = new CreateTaskDialog(p);
             d.showAndWait().ifPresent(t -> {
+                if (isDuplicateTaskTitle(p, t.getTitle())) {
+                    alertInfo("Duplicate task", "A task with that title already exists in this project.");
+                    return;
+                }
                 store.addTask(p, t);
                 hookTaskOnce(t);
                 rebuildTaskSource(p);
@@ -299,7 +303,7 @@ public class TasksPage extends VBox {
         BooleanBinding canEditOwnFields = canEditSelected; // includes admin/leader + member for own tasks
         descField.disableProperty().bind(canEditOwnFields.not());
         statusBox.disableProperty().bind(canEditOwnFields.not());
-        duePicker.disableProperty().bind(canEditOwnFields.not());
+        duePicker.disableProperty().bind(canEditMeta.not());
     }
 
     private void refresh(Project p) {
@@ -471,5 +475,25 @@ public class TasksPage extends VBox {
         duePicker.setValue(t.getDueDate());
         try { phaseBox.setValue(t.getPhase()); } catch (Exception ignored) {}
         try { assigneeBox.setValue(t.getAssignee()); } catch (Exception ignored) {}
+    }
+
+    private boolean isDuplicateTaskTitle(Project p, String title) {
+        if (p == null) return false;
+        String n = normalizeName(title);
+        if (n.isBlank()) return false;
+        return p.getTasks().stream()
+                .anyMatch(t -> t != null && normalizeName(t.getTitle()).equals(n));
+    }
+
+    private String normalizeName(String name) {
+        return name == null ? "" : name.trim().toLowerCase();
+    }
+
+    private void alertInfo(String header, String text) {
+        Alert a = new Alert(Alert.AlertType.INFORMATION);
+        a.setTitle("ProjectPilot");
+        a.setHeaderText(header);
+        a.setContentText(text);
+        a.showAndWait();
     }
 }

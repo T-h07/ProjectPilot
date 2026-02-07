@@ -40,6 +40,28 @@ public final class NotificationDao {
         }
     }
 
+    public void insertIgnore(Notification n) throws SQLException {
+        String sql = """
+            INSERT OR IGNORE INTO notifications(
+              id, target_user_id, created_at, type, title, body,
+              entity_kind, entity_id, actor_user_id, read_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?)
+            """;
+        try (PreparedStatement ps = cx.prepareStatement(sql)) {
+            ps.setString(1, n.id());
+            ps.setString(2, n.targetUserId());
+            ps.setString(3, toDb(n.createdAt()));
+            ps.setString(4, n.type().name());
+            ps.setString(5, n.title());
+            ps.setString(6, n.body());
+            ps.setString(7, n.entityKind());
+            ps.setString(8, n.entityId());
+            ps.setString(9, n.actorUserId());
+            ps.setString(10, n.readAt() == null ? null : toDb(n.readAt()));
+            ps.executeUpdate();
+        }
+    }
+
     public List<Notification> listRecent(String userId, int limit) throws SQLException {
         String sql = """
             SELECT * FROM notifications
@@ -109,6 +131,22 @@ public final class NotificationDao {
             ps.setString(1, toDb(at));
             ps.setString(2, userId);
             ps.executeUpdate();
+        }
+    }
+
+    public Map<String, LocalDateTime> readStateByUser(String userId) throws SQLException {
+        String sql = "SELECT id, read_at FROM notifications WHERE target_user_id = ?";
+        try (PreparedStatement ps = cx.prepareStatement(sql)) {
+            ps.setString(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                Map<String, LocalDateTime> out = new HashMap<>();
+                while (rs.next()) {
+                    String id = rs.getString("id");
+                    LocalDateTime readAt = fromDb(rs.getString("read_at"));
+                    if (id != null) out.put(id, readAt);
+                }
+                return out;
+            }
         }
     }
 
