@@ -6,7 +6,7 @@ import java.util.Set;
 
 final class DbMigrations {
 
-    private static final int LATEST = 6;
+    private static final int LATEST = 8;
 
     private DbMigrations() {}
 
@@ -40,14 +40,31 @@ final class DbMigrations {
                 migrate2to3(conn); // idempotent: CREATE TABLE IF NOT EXISTS + ensureColumn
                 migrate3to5(conn);
                 migrate5to6(conn);
-                setUserVersion(conn, 6);
-                version = 6;
+                migrate6to7(conn);
+                migrate7to8(conn);
+                setUserVersion(conn, 8);
+                version = 8;
             }
 
             if (version == 5) {
                 migrate5to6(conn);
-                setUserVersion(conn, 6);
-                version = 6;
+                migrate6to7(conn);
+                migrate7to8(conn);
+                setUserVersion(conn, 8);
+                version = 8;
+            }
+
+            if (version == 6) {
+                migrate6to7(conn);
+                migrate7to8(conn);
+                setUserVersion(conn, 8);
+                version = 8;
+            }
+
+            if (version == 7) {
+                migrate7to8(conn);
+                setUserVersion(conn, 8);
+                version = 8;
             }
 
             if (version > LATEST) {
@@ -123,6 +140,18 @@ final class DbMigrations {
 
     private static void migrate5to6(Connection conn) throws SQLException {
         SqlScriptRunner.run(conn, SchemaSql.v6());
+    }
+
+    // ---------------- v6 -> v7 ----------------
+
+    private static void migrate6to7(Connection conn) throws SQLException {
+        ensureColumn(conn, "auth_users", "last_online_at", "INTEGER");
+    }
+
+    // ---------------- v7 -> v8 ----------------
+
+    private static void migrate7to8(Connection conn) throws SQLException {
+        SqlScriptRunner.run(conn, SchemaSql.v8());
     }
 
     // ---------------- helpers ----------------

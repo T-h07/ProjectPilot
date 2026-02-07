@@ -123,6 +123,16 @@ public final class AuthRepository {
         }
     }
 
+    public void setLastOnline(Connection conn, String memberId, long nowMillis) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE auth_users SET last_online_at = ? WHERE member_id = ?"
+        )) {
+            ps.setLong(1, nowMillis);
+            ps.setString(2, memberId);
+            ps.executeUpdate();
+        }
+    }
+
     public void setPasswordHash(Connection conn, String memberId, String passwordHash, long nowMillis) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "UPDATE auth_users SET password_hash = ?, updated_at = ? WHERE member_id = ?"

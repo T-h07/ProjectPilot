@@ -67,6 +67,10 @@ public final class LanClient {
         return token;
     }
 
+    public String baseUrl() {
+        return baseUrl;
+    }
+
     public SnapshotDto fetchSnapshot() {
         ensureToken();
         try {

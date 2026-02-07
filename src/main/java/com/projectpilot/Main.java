@@ -1,5 +1,8 @@
 package com.projectpilot;
 
+import com.projectpilot.chat.ChatService;
+import com.projectpilot.chat.DbChatService;
+import com.projectpilot.chat.LanChatService;
 import com.projectpilot.core.AppState;
 import com.projectpilot.core.PageId;
 import com.projectpilot.core.Router;
@@ -17,6 +20,7 @@ import com.projectpilot.ui.pages.auth.LoginPage;
 import com.projectpilot.ui.pages.auth.SetupAdminPage;
 import javafx.application.Application;
 import javafx.scene.Scene;
+import javafx.scene.image.Image;
 import javafx.scene.layout.StackPane;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
@@ -53,6 +57,7 @@ public class Main extends Application {
     private LanSessionRegistry lanSessions;
     private LanStoreBroadcaster lanBroadcaster;
     private LanSyncService lanSync;
+    private ChatService chatService;
 
     @Override
     public void start(Stage stage) {
@@ -76,6 +81,7 @@ public class Main extends Application {
         scene.getStylesheets().add(getClass().getResource("/css/app.css").toExternalForm());
 
         stage.setTitle("ProjectPilot");
+        loadIcon(stage, "/icons/app.png");
         stage.setScene(scene);
 
         if (auth.needsInitialAdmin()) showSetup();
@@ -110,11 +116,13 @@ public class Main extends Application {
             });
             lanSync = new LanSyncService(remote, lanClient, appState, lanConfig.pollMs(), wsClient);
             lanSync.start();
+            chatService = new LanChatService(lanClient);
         } else {
             store = new DbStore(db);
 
             appState = new AppState();
             appState.setSession(session);
+            chatService = new DbChatService(db);
 
             // Pick first project the user is allowed to see
             var initial = store.getProjects().stream()
@@ -129,7 +137,7 @@ public class Main extends Application {
                 lanWsServer = new LanWsServer(lanConfig.wsPort(), lanSessions);
                 lanWsServer.start();
 
-                lanServer = new LanServer(store, localAuth, lanSessions, lanWsServer, lanConfig.port());
+                lanServer = new LanServer(store, localAuth, chatService, lanSessions, lanWsServer, lanConfig.port());
                 lanServer.start();
                 lanBroadcaster = new LanStoreBroadcaster(store, lanWsServer);
                 lanBroadcaster.start();
@@ -144,6 +152,7 @@ public class Main extends Application {
         router.register(PageId.TASKS, () -> new TasksPage(store, appState));
         router.register(PageId.GANTT, () -> new GanttPage(store, appState));
         router.register(PageId.TEAM, () -> new TeamPage(store, appState));
+        router.register(PageId.MESSAGES, () -> new MessagesPage(chatService, appState));
         router.register(PageId.HISTORY, () -> new HistoryPage(store, appState));
         router.register(PageId.EXPORT_REPORT, () -> new ExportReportPage(store, appState));
 
@@ -181,7 +190,14 @@ public class Main extends Application {
             lanServer = null;
         }
         if (lanWsServer != null) {
-            lanWsServer.stop();
+            try {
+                lanWsServer.stop();
+            } catch (Exception e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                System.err.println("[LAN] WS shutdown failed: " + e.getMessage());
+            }
             lanWsServer = null;
         }
         if (lanBroadcaster != null) {
@@ -200,6 +216,19 @@ public class Main extends Application {
             Font.loadFont(in, size);
         } catch (Exception e) {
             System.err.println("[UI] Failed to load font: " + path + " (" + e.getMessage() + ")");
+        }
+    }
+
+    private void loadIcon(Stage stage, String path) {
+        if (stage == null || path == null) return;
+        try (InputStream in = getClass().getResourceAsStream(path)) {
+            if (in == null) {
+                System.err.println("[UI] Missing icon resource: " + path);
+                return;
+            }
+            stage.getIcons().add(new Image(in));
+        } catch (Exception e) {
+            System.err.println("[UI] Failed to load icon: " + path + " (" + e.getMessage() + ")");
         }
     }
 

@@ -7,6 +7,7 @@ public enum PageId {
     TASKS,
     GANTT,
     TEAM,
+    MESSAGES,
     HISTORY,
     EXPORT_REPORT,
     ADMIN

@@ -40,6 +40,8 @@ public final class AuthService implements AuthProvider {
                 if (!row.active()) throw new AuthException("This account is disabled.");
                 if (!hasher.verify(password, row.passwordHash())) throw new AuthException("Invalid username or password.");
 
+                repo.setLastOnline(conn, row.memberId(), System.currentTimeMillis());
+
                 // member_id is the user identity; displayName can come from members table
                 return new UserSession(row.memberId(), row.username(), row.displayName(), row.globalRole());
             } catch (AuthException ae) {
@@ -71,6 +73,7 @@ public final class AuthService implements AuthProvider {
                 // 2) create auth row
                 String hash = hasher.hash(password);
                 repo.insertAuthUser(conn, memberId, username.trim(), hash, GlobalRole.ADMIN, true, now);
+                repo.setLastOnline(conn, memberId, now);
 
                 return new UserSession(memberId, username.trim(), displayName.trim(), GlobalRole.ADMIN);
 

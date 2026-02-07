@@ -16,7 +16,7 @@ public final class UserAdminService {
         this.db = db;
     }
 
-    public record UserRow(String id, String username, String name, String email, GlobalRole globalRole, boolean active) {}
+    public record UserRow(String id, String username, String name, String email, GlobalRole globalRole, boolean active, Long lastOnlineAt) {}
 
     public List<UserRow> listLoginUsers() {
         return db.tx(conn -> {
@@ -28,7 +28,8 @@ public final class UserAdminService {
                         COALESCE(m.name, '') AS display_name,
                         COALESCE(m.email, '') AS email,
                         au.global_role,
-                        au.is_active
+                        au.is_active,
+                        au.last_online_at
                     FROM auth_users au
                     LEFT JOIN members m ON m.id = au.member_id
                     ORDER BY lower(au.username)
@@ -49,7 +50,8 @@ public final class UserAdminService {
                     try { role = GlobalRole.valueOf(gr == null ? "USER" : gr); }
                     catch (Exception ignored) { role = GlobalRole.USER; }
 
-                    out.add(new UserRow(id, username, name, email, role, active));
+                    Long lastOnline = rs.getObject("last_online_at") == null ? null : rs.getLong("last_online_at");
+                    out.add(new UserRow(id, username, name, email, role, active, lastOnline));
                 }
                 return out;
             } catch (Exception e) {

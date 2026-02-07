@@ -28,6 +28,7 @@ public class Sidebar extends VBox {
         Button tasks      = nav("Tasks", PageId.TASKS, onNavigate);
         Button gantt      = nav("Gantt", PageId.GANTT, onNavigate);
         Button team       = nav("Team", PageId.TEAM, onNavigate);
+        Button messages   = nav("Messages", PageId.MESSAGES, onNavigate);
         Button history    = nav("History", PageId.HISTORY, onNavigate);
         Button export     = nav("Export", PageId.EXPORT_REPORT, onNavigate);
 
@@ -37,6 +38,7 @@ public class Sidebar extends VBox {
         bindVisible(tasks,      canShow(appState, PageId.TASKS));
         bindVisible(gantt,      canShow(appState, PageId.GANTT));
         bindVisible(team,       canShow(appState, PageId.TEAM));
+        bindVisible(messages,   canShow(appState, PageId.MESSAGES));
         bindVisible(history,    canShow(appState, PageId.HISTORY));
         bindVisible(export,     canShow(appState, PageId.EXPORT_REPORT));
 
@@ -52,7 +54,7 @@ public class Sidebar extends VBox {
         logout.setOnAction(e -> onLogout.run());
 
         getChildren().addAll(
-                dashboard, projects, overview, tasks, gantt, team, history, export,
+                dashboard, projects, overview, tasks, gantt, team, messages, history, export,
                 spacer,
                 admin,
                 logout

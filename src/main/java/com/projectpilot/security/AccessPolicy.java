@@ -30,7 +30,7 @@ public final class AccessPolicy {
         if (id == null) return false;
 
         return switch (id) {
-            case DASHBOARD, PROJECTS, PROJECT_OVERVIEW, TASKS, GANTT, TEAM -> true;
+            case DASHBOARD, PROJECTS, PROJECT_OVERVIEW, TASKS, GANTT, TEAM, MESSAGES -> true;
 
             case EXPORT_REPORT ->
                     isAdmin(appState) || appState.getCurrentProjectRole() == ProjectRole.LEADER;

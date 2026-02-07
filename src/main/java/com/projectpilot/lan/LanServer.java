@@ -4,6 +4,10 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.projectpilot.chat.ChatService;
+import com.projectpilot.chat.ChatThread;
+import com.projectpilot.chat.ChatMessage;
+import com.projectpilot.chat.ChatUser;
 import com.projectpilot.data.InMemoryStore;
 import com.projectpilot.data.db.auth.AuthException;
 import com.projectpilot.data.db.auth.AuthService;
@@ -32,14 +36,16 @@ public final class LanServer {
 
     private final InMemoryStore store;
     private final AuthService auth;
+    private final ChatService chatService;
     private final HttpServer server;
     private final ObjectMapper mapper;
     private final LanSessionRegistry sessions;
     private final LanWsServer wsServer;
 
-    public LanServer(InMemoryStore store, AuthService auth, LanSessionRegistry sessions, LanWsServer wsServer, int port) {
+    public LanServer(InMemoryStore store, AuthService auth, ChatService chatService, LanSessionRegistry sessions, LanWsServer wsServer, int port) {
         this.store = Objects.requireNonNull(store);
         this.auth = Objects.requireNonNull(auth);
+        this.chatService = Objects.requireNonNull(chatService);
         this.sessions = Objects.requireNonNull(sessions);
         this.wsServer = wsServer;
         this.mapper = new ObjectMapper()
@@ -57,6 +63,7 @@ public final class LanServer {
         server.createContext("/api/auth/login", this::handleLogin);
         server.createContext("/api/snapshot", this::handleSnapshot);
         server.createContext("/api/sync", this::handleSync);
+        server.createContext("/api/chat", this::handleChat);
         server.setExecutor(Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "pp-lan-http");
             t.setDaemon(true);
@@ -138,9 +145,70 @@ public final class LanServer {
                 return null;
             });
             broadcastRefresh();
-            sendJson(ex, 200, SyncResponse.ok());
+            sendJson(ex, 200, SyncResponse.success());
         } catch (Exception e) {
             sendJson(ex, 500, SyncResponse.error("Sync failed"));
+        }
+    }
+
+    private void handleChat(HttpExchange ex) throws IOException {
+        UserSession session = requireSession(ex);
+        if (session == null) {
+            sendText(ex, 401, "Unauthorized");
+            return;
+        }
+
+        String path = ex.getRequestURI() == null ? "" : ex.getRequestURI().getPath();
+        String sub = path.startsWith("/api/chat") ? path.substring("/api/chat".length()) : path;
+        if (sub.isEmpty()) sub = "/";
+
+        try {
+            if ("/threads".equals(sub) && "GET".equalsIgnoreCase(ex.getRequestMethod())) {
+                sendJson(ex, 200, chatService.listThreads(session.id()));
+                return;
+            }
+
+            if ("/users".equals(sub) && "GET".equalsIgnoreCase(ex.getRequestMethod())) {
+                sendJson(ex, 200, chatService.listUsers(session.id()));
+                return;
+            }
+
+            if ("/direct".equals(sub) && "POST".equalsIgnoreCase(ex.getRequestMethod())) {
+                ChatDirectRequest req = readJson(ex, ChatDirectRequest.class);
+                ChatThread thread = chatService.getOrCreateDirect(session.id(), req == null ? null : req.otherId());
+                sendJson(ex, 200, thread);
+                return;
+            }
+
+            if ("/messages".equals(sub)) {
+                if ("GET".equalsIgnoreCase(ex.getRequestMethod())) {
+                    String threadId = getQueryParam(ex.getRequestURI(), "threadId");
+                    int limit = getQueryParamInt(ex.getRequestURI(), "limit", 120);
+                    if (threadId == null || threadId.isBlank()) {
+                        sendText(ex, 400, "threadId is required");
+                        return;
+                    }
+                    sendJson(ex, 200, chatService.listMessages(threadId, session.id(), limit));
+                    return;
+                }
+
+                if ("POST".equalsIgnoreCase(ex.getRequestMethod())) {
+                    ChatSendRequest req = readJson(ex, ChatSendRequest.class);
+                    if (req == null || req.threadId() == null || req.threadId().isBlank()) {
+                        sendText(ex, 400, "threadId is required");
+                        return;
+                    }
+                    ChatMessage msg = chatService.sendMessage(req.threadId(), session.id(), req.body());
+                    sendJson(ex, 200, msg);
+                    return;
+                }
+            }
+
+            sendText(ex, 404, "Not Found");
+        } catch (IllegalArgumentException iae) {
+            sendText(ex, 400, iae.getMessage());
+        } catch (Exception e) {
+            sendText(ex, 500, "Chat failed");
         }
     }
 
@@ -404,6 +472,16 @@ public final class LanServer {
             }
         }
         return null;
+    }
+
+    private int getQueryParamInt(URI uri, String key, int fallback) {
+        String v = getQueryParam(uri, key);
+        if (v == null || v.isBlank()) return fallback;
+        try {
+            return Integer.parseInt(v.trim());
+        } catch (Exception e) {
+            return fallback;
+        }
     }
 
     private String decode(String v) {

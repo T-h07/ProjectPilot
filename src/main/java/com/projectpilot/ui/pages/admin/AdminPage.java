@@ -22,9 +22,14 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
 public final class AdminPage extends BorderPane {
+
+    private static final DateTimeFormatter LAST_ONLINE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final UserAdminService users;
     private final ObservableList<UserAdminService.UserRow> items = FXCollections.observableArrayList();
@@ -217,6 +222,12 @@ public final class AdminPage extends BorderPane {
         TableColumn<UserAdminService.UserRow, String> colEmail = new TableColumn<>("Email");
         colEmail.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue().email()));
 
+        TableColumn<UserAdminService.UserRow, String> colLastOnline = new TableColumn<>("Last online");
+        colLastOnline.setMinWidth(140);
+        colLastOnline.setCellValueFactory(cd -> new ReadOnlyStringWrapper(
+                formatLastOnline(cd.getValue().lastOnlineAt())
+        ));
+
         TableColumn<UserAdminService.UserRow, String> colRole = new TableColumn<>("Role");
         colRole.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue().globalRole().name()));
 
@@ -354,7 +365,7 @@ public final class AdminPage extends BorderPane {
             }
         });
 
-        table.getColumns().setAll(colId, colUser, colName, colEmail, colRole, colActive, colActions);
+        table.getColumns().setAll(colId, colUser, colName, colEmail, colLastOnline, colRole, colActive, colActions);
 
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> reload());
@@ -423,5 +434,13 @@ public final class AdminPage extends BorderPane {
         String s = id.trim();
         if (s.length() <= 12) return s;
         return s.substring(0, 8) + "..." + s.substring(s.length() - 4);
+    }
+
+    private static String formatLastOnline(Long epochMillis) {
+        if (epochMillis == null || epochMillis <= 0) return "Never";
+        return Instant.ofEpochMilli(epochMillis)
+                .atZone(ZoneId.systemDefault())
+                .toLocalDateTime()
+                .format(LAST_ONLINE_FMT);
     }
 }

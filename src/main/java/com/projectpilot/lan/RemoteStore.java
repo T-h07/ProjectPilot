@@ -9,6 +9,7 @@ import com.projectpilot.model.enums.TaskStatus;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.ListChangeListener;
+import javafx.collections.ObservableList;
 
 import java.util.*;
 
@@ -460,7 +461,7 @@ public final class RemoteStore extends InMemoryStore {
         ));
     }
 
-    private void applyProjects(List<Project> target, List<ProjectDto> incoming, boolean history) {
+    private void applyProjects(ObservableList<Project> target, List<ProjectDto> incoming, boolean history) {
         List<ProjectDto> list = incoming == null ? List.of() : incoming;
         Map<String, Project> existing = new HashMap<>();
         for (Project p : target) existing.put(p.getId(), p);
@@ -584,7 +585,8 @@ public final class RemoteStore extends InMemoryStore {
         }
     }
 
-    private static String safe(String v) {
+    @Override
+    protected String safe(String v) {
         return v == null ? "" : v;
     }
 }
