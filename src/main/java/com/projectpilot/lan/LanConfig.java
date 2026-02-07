@@ -1,6 +1,6 @@
 package com.projectpilot.lan;
 
-public record LanConfig(Mode mode, String host, int port, int pollMs) {
+public record LanConfig(Mode mode, String host, int port, int wsPort, int pollMs) {
 
     public enum Mode { OFF, HOST, CLIENT }
 
@@ -9,6 +9,7 @@ public record LanConfig(Mode mode, String host, int port, int pollMs) {
         String hostRaw = sys("pp.lan.host");
         String portRaw = sys("pp.lan.port");
         String pollRaw = sys("pp.lan.pollMs");
+        String wsPortRaw = sys("pp.lan.wsPort");
 
         Mode mode = Mode.OFF;
         if (modeRaw != null && !modeRaw.isBlank()) {
@@ -19,9 +20,10 @@ public record LanConfig(Mode mode, String host, int port, int pollMs) {
 
         int port = parseInt(portRaw, 8090);
         int poll = parseInt(pollRaw, 2000);
-        String host = normalizeHost(hostRaw);
+        int wsPort = parseInt(wsPortRaw, port + 1);
+        String host = normalizeHost(hostRaw, port);
 
-        return new LanConfig(mode, host, port, poll);
+        return new LanConfig(mode, host, port, wsPort, poll);
     }
 
     public boolean isHost() { return mode == Mode.HOST; }
@@ -30,6 +32,20 @@ public record LanConfig(Mode mode, String host, int port, int pollMs) {
     public String baseUrl() {
         if (host == null || host.isBlank()) return null;
         return host;
+    }
+
+    public String wsUrl() {
+        if (host == null || host.isBlank()) return null;
+        try {
+            java.net.URI uri = java.net.URI.create(host);
+            String scheme = uri.getScheme();
+            String wsScheme = "https".equalsIgnoreCase(scheme) ? "wss" : "ws";
+            String h = uri.getHost();
+            if (h == null || h.isBlank()) return null;
+            return wsScheme + "://" + h + ":" + wsPort + "/ws";
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static String sys(String key) {
@@ -68,12 +84,24 @@ public record LanConfig(Mode mode, String host, int port, int pollMs) {
         }
     }
 
-    private static String normalizeHost(String raw) {
+    private static String normalizeHost(String raw, int port) {
         if (raw == null || raw.isBlank()) return null;
         String v = raw.trim();
         if (!v.startsWith("http://") && !v.startsWith("https://")) {
             v = "http://" + v;
         }
-        return v;
+        try {
+            java.net.URI uri = java.net.URI.create(v);
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            int p = uri.getPort();
+            if (host == null || host.isBlank()) return v;
+            if (p == -1 && port > 0) {
+                return scheme + "://" + host + ":" + port;
+            }
+            return v;
+        } catch (Exception e) {
+            return v;
+        }
     }
 }

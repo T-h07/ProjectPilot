@@ -16,15 +16,18 @@ public final class LanSyncService {
     private final LanClient client;
     private final AppState appState;
     private final int pollMs;
+    private final LanWsClient wsClient;
     private final AccessPolicy policy = new AccessPolicy();
 
     private ScheduledExecutorService exec;
+    private volatile boolean polling = false;
 
-    public LanSyncService(RemoteStore store, LanClient client, AppState appState, int pollMs) {
+    public LanSyncService(RemoteStore store, LanClient client, AppState appState, int pollMs, LanWsClient wsClient) {
         this.store = store;
         this.client = client;
         this.appState = appState;
         this.pollMs = pollMs;
+        this.wsClient = wsClient;
     }
 
     public void start() {
@@ -35,21 +38,33 @@ public final class LanSyncService {
             return t;
         });
         exec.scheduleWithFixedDelay(this::poll, 0, pollMs, TimeUnit.MILLISECONDS);
+        if (wsClient != null) {
+            wsClient.connect(client.token());
+        }
     }
 
     public void stop() {
         if (exec == null) return;
         exec.shutdownNow();
         exec = null;
+        if (wsClient != null) wsClient.close();
     }
 
     private void poll() {
+        if (polling) return;
+        polling = true;
         try {
             SnapshotDto snapshot = client.fetchSnapshot();
             Platform.runLater(() -> applySnapshot(snapshot));
         } catch (Exception e) {
             System.err.println("[LAN] Sync failed: " + e.getMessage());
+        } finally {
+            polling = false;
         }
+    }
+
+    public void requestRefresh() {
+        poll();
     }
 
     private void applySnapshot(SnapshotDto snapshot) {

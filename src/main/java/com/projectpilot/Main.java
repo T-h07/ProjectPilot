@@ -26,7 +26,11 @@ import com.projectpilot.lan.LanAuthClient;
 import com.projectpilot.lan.LanClient;
 import com.projectpilot.lan.LanConfig;
 import com.projectpilot.lan.LanServer;
+import com.projectpilot.lan.LanSessionRegistry;
+import com.projectpilot.lan.LanStoreBroadcaster;
 import com.projectpilot.lan.LanSyncService;
+import com.projectpilot.lan.LanWsClient;
+import com.projectpilot.lan.LanWsServer;
 import com.projectpilot.lan.RemoteStore;
 
 public class Main extends Application {
@@ -41,6 +45,14 @@ public class Main extends Application {
     private Scene scene;
 
     private final AccessPolicy policy = new AccessPolicy();
+
+    private LanConfig lanConfig;
+    private LanClient lanClient;
+    private LanServer lanServer;
+    private LanWsServer lanWsServer;
+    private LanSessionRegistry lanSessions;
+    private LanStoreBroadcaster lanBroadcaster;
+    private LanSyncService lanSync;
 
     @Override
     public void start(Stage stage) {
@@ -69,7 +81,7 @@ public class Main extends Application {
         if (auth.needsInitialAdmin()) showSetup();
         else showLogin();
 
-        stage.setOnCloseRequest(e -> shutdownDbStore());
+        stage.setOnCloseRequest(e -> shutdownServices());
         stage.show();
     }
 
@@ -93,7 +105,10 @@ public class Main extends Application {
             appState = new AppState();
             appState.setSession(session);
 
-            lanSync = new LanSyncService(remote, lanClient, appState, lanConfig.pollMs());
+            LanWsClient wsClient = new LanWsClient(lanConfig.wsUrl(), () -> {
+                if (lanSync != null) lanSync.requestRefresh();
+            });
+            lanSync = new LanSyncService(remote, lanClient, appState, lanConfig.pollMs(), wsClient);
             lanSync.start();
         } else {
             store = new DbStore(db);
@@ -110,9 +125,15 @@ public class Main extends Application {
             appState.setSelectedProject(initial);
 
             if (lanConfig.isHost()) {
-                lanServer = new LanServer(store, localAuth, lanConfig.port());
+                lanSessions = new LanSessionRegistry();
+                lanWsServer = new LanWsServer(lanConfig.wsPort(), lanSessions);
+                lanWsServer.start();
+
+                lanServer = new LanServer(store, localAuth, lanSessions, lanWsServer, lanConfig.port());
                 lanServer.start();
-                System.out.println("LAN HOST listening on port " + lanConfig.port());
+                lanBroadcaster = new LanStoreBroadcaster(store, lanWsServer);
+                lanBroadcaster.start();
+                System.out.println("LAN HOST listening on port " + lanConfig.port() + " (ws " + lanConfig.wsPort() + ")");
             }
         }
 
@@ -159,6 +180,14 @@ public class Main extends Application {
             lanServer.stop();
             lanServer = null;
         }
+        if (lanWsServer != null) {
+            lanWsServer.stop();
+            lanWsServer = null;
+        }
+        if (lanBroadcaster != null) {
+            lanBroadcaster.stop();
+            lanBroadcaster = null;
+        }
         if (store instanceof DbStore ds) ds.shutdown();
     }
 
@@ -178,7 +207,3 @@ public class Main extends Application {
         launch(args);
     }
 }
-    private LanConfig lanConfig;
-    private LanClient lanClient;
-    private LanServer lanServer;
-    private LanSyncService lanSync;

@@ -34,11 +34,14 @@ public final class LanServer {
     private final AuthService auth;
     private final HttpServer server;
     private final ObjectMapper mapper;
-    private final Map<String, UserSession> sessions = new ConcurrentHashMap<>();
+    private final LanSessionRegistry sessions;
+    private final LanWsServer wsServer;
 
-    public LanServer(InMemoryStore store, AuthService auth, int port) {
+    public LanServer(InMemoryStore store, AuthService auth, LanSessionRegistry sessions, LanWsServer wsServer, int port) {
         this.store = Objects.requireNonNull(store);
         this.auth = Objects.requireNonNull(auth);
+        this.sessions = Objects.requireNonNull(sessions);
+        this.wsServer = wsServer;
         this.mapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
@@ -134,6 +137,7 @@ public final class LanServer {
                 applyAction(action);
                 return null;
             });
+            broadcastRefresh();
             sendJson(ex, 200, SyncResponse.ok());
         } catch (Exception e) {
             sendJson(ex, 500, SyncResponse.error("Sync failed"));
@@ -383,6 +387,10 @@ public final class LanServer {
         }
         if (token == null || token.isBlank()) return null;
         return sessions.get(token.trim());
+    }
+
+    private void broadcastRefresh() {
+        if (wsServer != null) wsServer.broadcastRefresh();
     }
 
     private String getQueryParam(URI uri, String key) {

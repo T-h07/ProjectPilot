@@ -63,6 +63,10 @@ public final class LanClient {
         }
     }
 
+    public String token() {
+        return token;
+    }
+
     public SnapshotDto fetchSnapshot() {
         ensureToken();
         try {
