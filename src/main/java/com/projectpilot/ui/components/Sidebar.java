@@ -20,7 +20,7 @@ public class Sidebar extends VBox {
     private final AccessPolicy policy = new AccessPolicy();
 
     public Sidebar(Consumer<PageId> onNavigate, Runnable onLogout, AppState appState) {
-        setPadding(new Insets(14));
+        setPadding(new Insets(16));
         setSpacing(10);
         getStyleClass().add("sidebar");
 
@@ -98,7 +98,7 @@ public class Sidebar extends VBox {
         StackPane wrap = new StackPane(button, dot);
         wrap.setMaxWidth(Double.MAX_VALUE);
         StackPane.setAlignment(dot, Pos.TOP_RIGHT);
-        StackPane.setMargin(dot, new Insets(4, 10, 0, 0));
+        StackPane.setMargin(dot, new Insets(8, 8, 0, 0));
         return wrap;
     }
 

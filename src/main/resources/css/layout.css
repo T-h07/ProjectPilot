@@ -1,7 +1,7 @@
 /* ---- Layout containers ---- */
 .pp-root .topbar {
-    -fx-background-color: rgba(15, 23, 42, 0.75);
-    -fx-border-color: rgba(255,255,255,0.06);
+    -fx-background-color: -pp-glass-strong;
+    -fx-border-color: -pp-border;
     -fx-border-width: 0 0 1 0;
 }
 
@@ -20,17 +20,24 @@
 
 .pp-root .topbar-user {
     -fx-font-weight: 600;
+    -fx-text-fill: -pp-text;
 }
 
 .pp-root .profile-btn {
     -fx-background-color: transparent;
-    -fx-padding: 2;
+    -fx-padding: 8;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
+.pp-root .profile-btn:hover {
+    -fx-background-color: -pp-control-ghost;
 }
 
 .pp-root .profile-avatar {
-    -fx-background-color: rgba(59, 130, 246, 0.18);
+    -fx-background-color: -pp-accent-soft;
     -fx-background-radius: 999;
-    -fx-border-color: rgba(255,255,255,0.12);
+    -fx-border-color: -pp-border-strong;
     -fx-border-radius: 999;
     -fx-border-width: 1;
     -fx-min-width: 28;
@@ -41,7 +48,7 @@
 }
 
 .pp-root .profile-btn:hover .profile-avatar {
-    -fx-background-color: rgba(59, 130, 246, 0.28);
+    -fx-background-color: -pp-accent-strong;
 }
 
 .pp-root .profile-initials {
@@ -50,17 +57,20 @@
 }
 
 .pp-root .host-btn {
-    -fx-background-color: rgba(148,163,184,0.16);
+    -fx-background-color: -pp-control-ghost;
+    -fx-border-color: -pp-border;
+    -fx-border-radius: 999;
     -fx-background-radius: 999;
-    -fx-padding: 4 10 4 10;
+    -fx-padding: 8 12 8 12;
 }
 
 .pp-root .host-btn:hover {
-    -fx-background-color: rgba(148,163,184,0.26);
+    -fx-background-color: -pp-control-ghost-hover;
 }
 
 .pp-root .host-label {
     -fx-font-weight: 600;
+    -fx-text-fill: -pp-text;
 }
 
 .pp-root .host-dot {
@@ -74,24 +84,21 @@
 }
 
 .pp-root .host-dot-online {
-    -fx-background-color: #22c55e;
+    -fx-background-color: -pp-success;
 }
 
 .pp-root .host-dot-offline {
-    -fx-background-color: #ef4444;
+    -fx-background-color: -pp-danger;
 }
 
 .profile-menu-popup {
-    -pp-text: #e6edf7;
-    -pp-muted: rgba(230,237,247,0.70);
-    -pp-card: #111b33;
-    -pp-card2: #0f1930;
-    -fx-background-color: #0f172a;
+    -fx-background-color: -pp-surface;
     -fx-background-radius: 12;
-    -fx-border-color: rgba(255,255,255,0.08);
+    -fx-border-color: -pp-border;
     -fx-border-radius: 12;
     -fx-border-width: 1;
-    -fx-padding: 6;
+    -fx-padding: 8;
+    -fx-effect: dropshadow(gaussian, -pp-shadow-strong, 16, 0.2, 0, 8);
 }
 
 .profile-menu-popup .custom-menu-item {
@@ -103,9 +110,9 @@
     -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
     -fx-background-radius: 12;
     -fx-border-radius: 12;
-    -fx-border-color: rgba(255,255,255,0.08);
+    -fx-border-color: -pp-border;
     -fx-border-width: 1;
-    -fx-padding: 10;
+    -fx-padding: 12;
 }
 
 .profile-title {
@@ -125,33 +132,32 @@
 }
 
 .profile-hint {
-    -fx-text-fill: rgba(230,237,247,0.55);
+    -fx-text-fill: -pp-muted-2;
     -fx-font-size: 11px;
 }
 
 .profile-input {
-    -fx-background-color: rgba(255,255,255,0.06);
-    -fx-background-radius: 8;
-    -fx-border-color: rgba(255,255,255,0.12);
-    -fx-border-radius: 8;
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 12;
+    -fx-border-color: -pp-border;
+    -fx-border-radius: 12;
     -fx-text-fill: -pp-text;
-    -fx-prompt-text-fill: rgba(230,237,247,0.45);
+    -fx-prompt-text-fill: -pp-muted-2;
 }
 
 .pp-root .sidebar {
-    -fx-background-color: rgba(15, 23, 42, 0.55);
-    -fx-border-color: rgba(255,255,255,0.06);
+    -fx-background-color: -pp-glass;
+    -fx-border-color: -pp-border;
     -fx-border-width: 0 1 0 0;
 }
 
 /* ---- Cards ---- */
 .pp-root .card {
     -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
-    -fx-background-radius: 16;
-    -fx-border-radius: 16;
-    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: -pp-border;
     -fx-border-width: 1;
     -fx-padding: 16;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 18, 0.20, 0, 6);
+    -fx-effect: dropshadow(gaussian, -pp-shadow, 16, 0.18, 0, 6);
 }
-

@@ -6,16 +6,12 @@
     -fx-background-color: transparent;
     -fx-background-insets: 0;
     -fx-padding: 0;
-
-    -fx-control-inner-background: rgba(10, 18, 32, 0.85);
-    -fx-control-inner-background-alt: rgba(10, 18, 32, 0.65);
-
+    -fx-control-inner-background: -pp-surface-3;
+    -fx-control-inner-background-alt: -pp-surface;
     -fx-table-cell-border-color: transparent;
     -fx-table-header-border-color: transparent;
-
-    /* selection */
-    -fx-selection-bar: #2f5ea8;
-    -fx-selection-bar-non-focused: rgba(47,94,168,0.70);
+    -fx-selection-bar: -pp-accent-strong;
+    -fx-selection-bar-non-focused: -pp-accent-soft;
 }
 
 /* Remove default white layers */
@@ -28,43 +24,43 @@
 
 /* Header */
 .pp-root .pp-table .column-header-background {
-    -fx-background-color: rgba(14, 26, 46, 0.95);
+    -fx-background-color: -pp-surface-2;
     -fx-background-insets: 0;
 }
 
 .pp-root .pp-table .column-header,
 .pp-root .pp-table .filler {
     -fx-background-color: transparent;
-    -fx-border-color: rgba(255,255,255,0.08);
+    -fx-border-color: -pp-border-subtle;
     -fx-border-width: 0 0 1 0;
 }
 
 .pp-root .pp-table .column-header .label {
-    -fx-text-fill: rgba(255,255,255,0.85);
+    -fx-text-fill: -pp-muted;
     -fx-font-weight: 700;
 }
 
 /* Rows */
 .pp-root .pp-table .table-row-cell {
-    -fx-background-color: rgba(10, 18, 32, 0.65);
+    -fx-background-color: -pp-surface-3;
     -fx-background-insets: 0;
 }
 .pp-root .pp-table .table-row-cell:odd {
-    -fx-background-color: rgba(10, 18, 32, 0.50);
+    -fx-background-color: -pp-surface;
 }
 
 /* Cells */
 .pp-root .pp-table .table-cell {
-    -fx-text-fill: rgba(255,255,255,0.90);
+    -fx-text-fill: -pp-text;
     -fx-background-color: transparent;
     -fx-border-color: transparent;
-    -fx-padding: 6 12 6 12;
+    -fx-padding: 8 12 8 12;
     -fx-alignment: CENTER_LEFT;
 }
 
 /* Hover */
 .pp-root .pp-table .table-row-cell:filled:hover {
-    -fx-background-color: rgba(255,255,255,0.04);
+    -fx-background-color: -pp-control-ghost-hover;
 }
 
 /* Selection background */
@@ -73,40 +69,16 @@
     -fx-background-color: -fx-selection-bar;
 }
 
-/* Selection text (force full white and full opacity) */
-.pp-root .pp-table .table-row-cell:filled:selected .table-cell {
-    -fx-text-fill: #ffffff;
-    -fx-opacity: 1;
-}
+/* Selection text */
+.pp-root .pp-table .table-row-cell:filled:selected .table-cell,
 .pp-root .pp-table .table-row-cell:filled:selected .text {
-    -fx-fill: #ffffff;
+    -fx-text-fill: -pp-on-accent;
     -fx-opacity: 1;
 }
 
-/* Optional: soften scrollbars inside pp-table */
+/* soften scrollbars inside pp-table */
 .pp-root .pp-table .scroll-bar:vertical,
 .pp-root .pp-table .scroll-bar:horizontal { -fx-background-color: transparent; }
 
-.pp-root .pp-table .scroll-bar .track { -fx-background-color: rgba(255,255,255,0.05); }
-.pp-root .pp-table .scroll-bar .thumb { -fx-background-color: rgba(255,255,255,0.18); }
-
-/* HARD OVERRIDE: force white body text in pp-table */
-.pp-root .table-view.pp-table .table-row-cell:filled .table-cell {
-    -fx-text-fill: #ffffff;
-    -fx-opacity: 1;
-}
-.pp-root .table-view.pp-table .table-row-cell:filled .table-cell .text {
-    -fx-fill: #ffffff;
-    -fx-opacity: 1;
-}
-.pp-root .table-view.pp-table .table-row-cell:filled:selected .table-cell,
-.pp-root .table-view.pp-table .table-row-cell:filled:selected:hover .table-cell {
-    -fx-text-fill: #ffffff;
-    -fx-opacity: 1;
-}
-.pp-root .table-view.pp-table .table-row-cell:filled:selected .table-cell .text,
-.pp-root .table-view.pp-table .table-row-cell:filled:selected:hover .table-cell .text {
-    -fx-fill: #ffffff;
-    -fx-opacity: 1;
-}
-
+.pp-root .pp-table .scroll-bar .track { -fx-background-color: -pp-scroll-track; }
+.pp-root .pp-table .scroll-bar .thumb { -fx-background-color: -pp-scroll-thumb; }

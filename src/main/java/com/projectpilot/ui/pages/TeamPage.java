@@ -147,7 +147,7 @@ public class TeamPage extends VBox {
 
         VBox topCard = new VBox(10, header, sub, myTeams, existingLbl, addExistingRow, teamLbl, addTeamRow, teamStatus);
         topCard.getStyleClass().add("card");
-        topCard.setPadding(new Insets(14));
+        topCard.setPadding(new Insets(16));
 
         // Members list
         Label membersTitle = new Label("Members");
@@ -174,7 +174,7 @@ public class TeamPage extends VBox {
         Label detailsTitle = new Label("Member Details");
         detailsTitle.getStyleClass().add("section-title");
 
-        selectedName.setStyle("-fx-font-size: 16px; -fx-font-weight: 700;");
+        selectedName.getStyleClass().add("panel-title");
         selectedRole.getStyleClass().add("muted");
 
         removeBtn.getStyleClass().add("secondary");

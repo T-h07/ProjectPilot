@@ -7,7 +7,7 @@ import javafx.scene.layout.VBox;
 public final class AccessDeniedPage extends VBox {
 
     public AccessDeniedPage(String message) {
-        setPadding(new Insets(18));
+        setPadding(new Insets(16));
         setSpacing(8);
 
         Label title = new Label("Access denied");

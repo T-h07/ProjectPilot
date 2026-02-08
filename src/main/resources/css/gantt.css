@@ -4,11 +4,11 @@
 
 .pp-root .gantt-card {
     -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
-    -fx-background-radius: 16;
-    -fx-border-radius: 16;
-    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: -pp-border;
     -fx-border-width: 1;
-    -fx-padding: 12;
+    -fx-padding: 16;
 }
 
 .pp-root .gantt-scroll {
@@ -19,17 +19,17 @@
 .pp-root .gantt-scroll > .viewport { -fx-background-color: transparent; }
 
 .pp-root .gantt-sheet {
-    -fx-background-color: rgba(10, 18, 32, 0.75);
-    -fx-background-radius: 14;
-    -fx-border-radius: 14;
-    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-background-color: -pp-surface-3;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border;
     -fx-border-width: 1;
-    -fx-padding: 10;
+    -fx-padding: 12;
 }
 
 /* Range strip line */
 .pp-root .gantt-range-line {
-    -fx-background-color: rgba(255,255,255,0.18);
+    -fx-background-color: -pp-border-strong;
     -fx-min-height: 1;
     -fx-pref-height: 1;
     -fx-max-height: 1;
@@ -37,48 +37,53 @@
 
 /* Header row */
 .pp-root .gantt-header-row {
-    -fx-background-color: rgba(14, 26, 46, 0.95);
+    -fx-background-color: -pp-surface-2;
     -fx-background-radius: 12;
-    -fx-padding: 8 10;
-    -fx-border-color: rgba(255,255,255,0.08);
+    -fx-padding: 8 12;
+    -fx-border-color: -pp-border;
     -fx-border-radius: 12;
     -fx-border-width: 1;
 }
 
 .pp-root .gantt-header-label {
-    -fx-text-fill: rgba(255,255,255,0.85);
+    -fx-text-fill: -pp-text;
     -fx-font-weight: 700;
+    -fx-font-size: 11px;
+}
+
+.pp-root .gantt-header-label-compact {
+    -fx-font-size: 10px;
 }
 
 /* Rows */
 .pp-root .gantt-row {
-    -fx-padding: 6 10;
-    -fx-background-radius: 10;
+    -fx-padding: 8 12;
+    -fx-background-radius: 12;
 }
-.pp-root .gantt-row:odd { -fx-background-color: rgba(255,255,255,0.03); }
-.pp-root .gantt-row:hover { -fx-background-color: rgba(255,255,255,0.05); }
-.pp-root .gantt-row-selected { -fx-background-color: rgba(59,130,246,0.16); }
+.pp-root .gantt-row:odd { -fx-background-color: -pp-control-ghost; }
+.pp-root .gantt-row:hover { -fx-background-color: -pp-control-ghost-hover; }
+.pp-root .gantt-row-selected { -fx-background-color: -pp-accent-soft; }
 
-.pp-root .gantt-task-label { -fx-text-fill: rgba(255,255,255,0.92); }
-.pp-root .gantt-task-muted { -fx-text-fill: rgba(255,255,255,0.60); }
+.pp-root .gantt-task-label { -fx-text-fill: -pp-text; }
+.pp-root .gantt-task-muted { -fx-text-fill: -pp-muted; }
 
 /* Phase rows */
 .pp-root .gantt-phase-row {
-    -fx-background-color: rgba(59,130,246,0.10);
-    -fx-background-radius: 10;
-    -fx-padding: 8 10;
-    -fx-border-color: rgba(59,130,246,0.28);
-    -fx-border-radius: 10;
+    -fx-background-color: -pp-accent-soft;
+    -fx-background-radius: 12;
+    -fx-padding: 8 12;
+    -fx-border-color: -pp-accent;
+    -fx-border-radius: 12;
     -fx-border-width: 1;
 }
 
 .pp-root .gantt-phase-toggle {
-    -fx-background-color: rgba(15, 23, 42, 0.70);
+    -fx-background-color: -pp-control-ghost;
     -fx-text-fill: -pp-text;
-    -fx-border-color: rgba(255,255,255,0.10);
-    -fx-border-radius: 6;
-    -fx-background-radius: 6;
-    -fx-padding: 2 6;
+    -fx-border-color: -pp-border;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-padding: 8 12;
     -fx-font-size: 11px;
 }
 
@@ -87,47 +92,47 @@
 }
 
 .pp-root .gantt-phase-progress {
-    -fx-background-color: rgba(255,255,255,0.08);
+    -fx-background-color: -pp-control-ghost;
     -fx-background-radius: 999;
     -fx-border-radius: 999;
     -fx-padding: 0;
 }
 
 .pp-root .gantt-phase-progress-fill {
-    -fx-background-color: rgba(59,130,246,0.85);
+    -fx-background-color: -pp-accent;
     -fx-background-radius: 999;
 }
 
 /* Bars */
 .pp-root .gantt-bar {
-    -fx-background-radius: 10;
-    -fx-border-radius: 10;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 10, 0.2, 0, 3);
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-effect: dropshadow(gaussian, -pp-shadow, 10, 0.2, 0, 3);
 }
-.pp-root .gantt-bar.todo {        -fx-background-color: rgba(148,163,184,0.75); }
-.pp-root .gantt-bar.inprogress {  -fx-background-color: rgba(59,130,246,0.85); }
-.pp-root .gantt-bar.blocked {     -fx-background-color: rgba(239,68,68,0.85); }
-.pp-root .gantt-bar.done {        -fx-background-color: rgba(34,197,94,0.80); }
+.pp-root .gantt-bar.todo {        -fx-background-color: -pp-status-todo; }
+.pp-root .gantt-bar.inprogress {  -fx-background-color: -pp-status-inprogress; }
+.pp-root .gantt-bar.blocked {     -fx-background-color: -pp-status-blocked; }
+.pp-root .gantt-bar.done {        -fx-background-color: -pp-status-done; }
 
-.pp-root .gantt-bar.prio-low { -fx-border-color: rgba(148,163,184,0.55); -fx-border-width: 1; }
-.pp-root .gantt-bar.prio-medium { -fx-border-color: rgba(59,130,246,0.50); -fx-border-width: 1; }
-.pp-root .gantt-bar.prio-high { -fx-border-color: rgba(251,191,36,0.75); -fx-border-width: 1.6; }
+.pp-root .gantt-bar.prio-low { -fx-border-color: -pp-prio-low; -fx-border-width: 1; }
+.pp-root .gantt-bar.prio-medium { -fx-border-color: -pp-prio-medium; -fx-border-width: 1; }
+.pp-root .gantt-bar.prio-high { -fx-border-color: -pp-prio-high; -fx-border-width: 1.6; }
 
 .pp-root .gantt-bar.critical {
-    -fx-border-color: rgba(253,224,71,0.95);
+    -fx-border-color: -pp-prio-critical;
     -fx-border-width: 2;
-    -fx-effect: dropshadow(gaussian, rgba(253,224,71,0.35), 14, 0.25, 0, 0);
+    -fx-effect: dropshadow(gaussian, -pp-prio-critical-glow, 14, 0.25, 0, 0);
 }
 
 /* Gantt vertical tick lines (subtle) */
-.pp-root .gantt-tick { -fx-background-color: rgba(255,255,255,0.06); }
+.pp-root .gantt-tick { -fx-background-color: -pp-border-subtle; }
 
 /* Dependency lines */
-.pp-root .gantt-dep-line { -fx-stroke: rgba(255,255,255,0.28); -fx-stroke-width: 1.2; }
-.pp-root .gantt-dep-arrow { -fx-fill: rgba(255,255,255,0.28); }
+.pp-root .gantt-dep-line { -fx-stroke: -pp-border-strong; -fx-stroke-width: 1.2; }
+.pp-root .gantt-dep-arrow { -fx-fill: -pp-border-strong; }
 
 /* Today line */
-.pp-root .gantt-today-line { -fx-stroke: rgba(253,224,71,0.85); -fx-stroke-width: 1.2; }
+.pp-root .gantt-today-line { -fx-stroke: -pp-warning; -fx-stroke-width: 1.2; }
 
 /* Legend dots */
 .pp-root .gantt-legend-dot {
@@ -137,27 +142,27 @@
     -fx-max-height: 10;
     -fx-background-radius: 999;
 }
-.pp-root .gantt-legend-dot.legend-todo { -fx-background-color: rgba(148,163,184,0.85); }
-.pp-root .gantt-legend-dot.legend-inprogress { -fx-background-color: rgba(59,130,246,0.95); }
-.pp-root .gantt-legend-dot.legend-blocked { -fx-background-color: rgba(239,68,68,0.95); }
-.pp-root .gantt-legend-dot.legend-done { -fx-background-color: rgba(34,197,94,0.90); }
-.pp-root .gantt-legend-dot.legend-prio-low { -fx-background-color: rgba(148,163,184,0.55); }
-.pp-root .gantt-legend-dot.legend-prio-medium { -fx-background-color: rgba(59,130,246,0.55); }
-.pp-root .gantt-legend-dot.legend-prio-high { -fx-background-color: rgba(251,191,36,0.85); }
+.pp-root .gantt-legend-dot.legend-todo { -fx-background-color: -pp-status-todo; }
+.pp-root .gantt-legend-dot.legend-inprogress { -fx-background-color: -pp-status-inprogress; }
+.pp-root .gantt-legend-dot.legend-blocked { -fx-background-color: -pp-status-blocked; }
+.pp-root .gantt-legend-dot.legend-done { -fx-background-color: -pp-status-done; }
+.pp-root .gantt-legend-dot.legend-prio-low { -fx-background-color: -pp-prio-low; }
+.pp-root .gantt-legend-dot.legend-prio-medium { -fx-background-color: -pp-prio-medium; }
+.pp-root .gantt-legend-dot.legend-prio-high { -fx-background-color: -pp-prio-high; }
 .pp-root .gantt-legend-dot.legend-critical {
-    -fx-background-color: rgba(253,224,71,0.95);
-    -fx-border-color: rgba(15,23,42,0.65);
+    -fx-background-color: -pp-prio-critical;
+    -fx-border-color: -pp-surface-2;
     -fx-border-width: 1;
 }
 
 /* Workload bars */
 .pp-root .gantt-workload-bar {
-    -fx-background-color: rgba(255,255,255,0.08);
+    -fx-background-color: -pp-control-ghost;
     -fx-background-radius: 999;
     -fx-border-radius: 999;
 }
 .pp-root .gantt-workload-fill {
-    -fx-background-color: rgba(59,130,246,0.85);
+    -fx-background-color: -pp-accent;
     -fx-background-radius: 999;
 }
 
@@ -172,9 +177,9 @@
     -fx-background-color: transparent;
     -fx-opacity: 0;
 }
-.pp-root .gantt-scroll .scroll-bar .track { -fx-background-color: rgba(255,255,255,0.05); }
-.pp-root .gantt-scroll .scroll-bar .thumb { -fx-background-color: rgba(255,255,255,0.18); }
+.pp-root .gantt-scroll .scroll-bar .track { -fx-background-color: -pp-scroll-track; }
+.pp-root .gantt-scroll .scroll-bar .thumb { -fx-background-color: -pp-scroll-thumb; }
 
 /* Gantt: checkbox text color */
-.pp-root .gantt-check .text { -fx-fill: rgba(255,255,255,0.92); }
-.pp-root .gantt-check { -fx-text-fill: rgba(255,255,255,0.92); }
+.pp-root .gantt-check .text { -fx-fill: -pp-text; }
+.pp-root .gantt-check { -fx-text-fill: -pp-text; }

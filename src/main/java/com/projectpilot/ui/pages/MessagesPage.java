@@ -97,7 +97,7 @@ public final class MessagesPage extends BorderPane {
 
         VBox chatHeader = new VBox(4, chatTitle, chatSubtitle);
         chatHeader.getStyleClass().add("chat-header");
-        chatHeader.setPadding(new Insets(10));
+        chatHeader.setPadding(new Insets(12));
 
         messageList.setPlaceholder(new Label("No messages yet"));
         messageList.getStyleClass().add("chat-messages");
@@ -114,7 +114,7 @@ public final class MessagesPage extends BorderPane {
         composer.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(input, Priority.ALWAYS);
         composer.getStyleClass().add("chat-composer");
-        composer.setPadding(new Insets(10, 0, 0, 0));
+        composer.setPadding(new Insets(12, 0, 0, 0));
 
         VBox right = new VBox(10, chatHeader, messageList, composer);
         right.getStyleClass().add("chat-panel");

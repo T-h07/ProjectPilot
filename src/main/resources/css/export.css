@@ -1,9 +1,9 @@
 /* ---- Export page ---- */
 .pp-root .export-preview {
-    -fx-background-color: #f8fafc;
+    -fx-background-color: -pp-surface;
     -fx-background-radius: 12;
     -fx-border-radius: 12;
-    -fx-border-color: rgba(15, 23, 42, 0.18);
+    -fx-border-color: -pp-border;
     -fx-border-width: 1;
 }
 

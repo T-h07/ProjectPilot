@@ -1,26 +1,33 @@
 /* ---- Inputs (TextField / TextArea base) ---- */
 .pp-root .text-field,
 .pp-root .text-area {
-    -fx-background-color: rgba(17, 27, 51, 0.9);
+    -fx-background-color: -pp-control;
     -fx-text-fill: -pp-text;
-    -fx-prompt-text-fill: rgba(230,237,247,0.45);
-    -fx-background-radius: 10;
-    -fx-border-radius: 10;
+    -fx-prompt-text-fill: -pp-muted-2;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
     -fx-border-color: -pp-border;
     -fx-border-width: 1;
-    -fx-padding: 8 10;
+    -fx-padding: 8 12;
+    -fx-highlight-fill: -pp-accent-soft;
+    -fx-highlight-text-fill: -pp-text;
+}
+
+.pp-root .text-field:focused,
+.pp-root .text-area:focused {
+    -fx-border-color: -pp-focus;
 }
 
 /* TextArea: remove inner white panel + keep dark content */
 .pp-root .text-area,
 .pp-root .text-area:focused {
     -fx-background-color: transparent;
-    -fx-control-inner-background: rgba(17, 27, 51, 0.55);
+    -fx-control-inner-background: -pp-control;
     -fx-background-insets: 0;
 }
 
 .pp-root .text-area .content {
-    -fx-background-color: rgba(17, 27, 51, 0.55);
+    -fx-background-color: -pp-control;
     -fx-background-insets: 0;
     -fx-background-radius: 12;
 }
@@ -33,60 +40,110 @@
 
 .pp-root .text-area .text { -fx-fill: -pp-text; }
 
-.pp-root .text-area:focused { -fx-border-color: rgba(59,130,246,0.55); }
-
 /* Optional helper class you used in code */
 .pp-root .pp-textarea .content {
-    -fx-background-color: rgba(17, 27, 51, 0.55);
+    -fx-background-color: -pp-control;
 }
 
-/* ---- ComboBox ---- */
-.pp-root .combo-box-base {
-    -fx-background-color: rgba(17, 27, 51, 0.9);
-    -fx-background-radius: 10;
-    -fx-border-radius: 10;
+/* ---- ComboBox / DatePicker ---- */
+.pp-root .combo-box-base,
+.pp-root .date-picker {
+    -fx-background-color: -pp-control;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
     -fx-border-color: -pp-border;
     -fx-border-width: 1;
-    -fx-padding: 4 8;
+    -fx-padding: 8 12;
+}
+
+.pp-root .combo-box-base:focused,
+.pp-root .date-picker:focused {
+    -fx-border-color: -pp-focus;
 }
 
 .pp-root .combo-box .list-cell { -fx-text-fill: -pp-text; }
 
-/* ComboBox popup (dropdown) - solid (no transparency) */
-.pp-root .combo-box-popup .list-view {
-    -fx-background-color: #0f172a;
-    -fx-control-inner-background: #0f172a;
+/* ComboBox popup (dropdown) */
+.pp-root .combo-box-popup .list-view,
+.combo-box-popup .list-view {
+    -fx-background-color: -pp-surface;
+    -fx-control-inner-background: -pp-surface;
     -fx-background-insets: 0;
     -fx-background-radius: 12;
     -fx-border-radius: 12;
-    -fx-border-color: rgba(255,255,255,0.10);
+    -fx-border-color: -pp-border-strong;
     -fx-border-width: 1;
-    -fx-padding: 6;
+    -fx-padding: 8;
 }
 
-.pp-root .combo-box-popup .list-cell {
+.pp-root .combo-box-popup .list-cell,
+.combo-box-popup .list-cell {
     -fx-background-color: transparent;
     -fx-text-fill: -pp-text;
-    -fx-padding: 10 12;
+    -fx-padding: 8 12;
 }
 
-.pp-root .combo-box-popup .list-cell:filled:hover {
-    -fx-background-color: rgba(255,255,255,0.06);
+.pp-root .combo-box-popup .list-cell:filled:hover,
+.combo-box-popup .list-cell:filled:hover {
+    -fx-background-color: -pp-control-ghost-hover;
 }
 
-.pp-root .combo-box-popup .list-cell:filled:selected {
-    -fx-background-color: rgba(59,130,246,0.22);
+.pp-root .combo-box-popup .list-cell:filled:selected,
+.combo-box-popup .list-cell:filled:selected {
+    -fx-background-color: -pp-accent-soft;
 }
 
-.pp-root .combo-box-popup {
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.55), 22, 0.2, 0, 8);
+.pp-root .combo-box-popup,
+.combo-box-popup {
+    -fx-effect: dropshadow(gaussian, -pp-shadow-strong, 22, 0.2, 0, 8);
+}
+
+/* Context menus */
+.context-menu {
+    -fx-background-color: -pp-surface;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-padding: 8;
+    -fx-effect: dropshadow(gaussian, -pp-shadow-strong, 16, 0.2, 0, 8);
+}
+
+.context-menu .menu-item {
+    -fx-background-color: transparent;
+    -fx-padding: 8 12;
+}
+
+.context-menu .menu-item .label {
+    -fx-text-fill: -pp-text;
+}
+
+.context-menu .menu-item:focused {
+    -fx-background-color: -pp-control-ghost-hover;
+}
+
+.context-menu .separator {
+    -fx-background-color: -pp-border-subtle;
+    -fx-padding: 8 0 8 0;
+}
+
+/* Tooltips */
+.tooltip {
+    -fx-background-color: -pp-surface;
+    -fx-text-fill: -pp-text;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-padding: 8 12;
+    -fx-effect: dropshadow(gaussian, -pp-shadow, 10, 0.2, 0, 4);
 }
 
 /* ---- Spinner ---- */
 .pp-root .pp-spinner {
-    -fx-background-color: rgba(17, 27, 51, 0.9);
-    -fx-background-radius: 10;
-    -fx-border-radius: 10;
+    -fx-background-color: -pp-control;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
     -fx-border-color: -pp-border;
     -fx-border-width: 1;
 }
@@ -94,64 +151,95 @@
 .pp-root .pp-spinner .text-field {
     -fx-background-color: transparent;
     -fx-text-fill: -pp-text;
-    -fx-prompt-text-fill: rgba(230,237,247,0.45);
+    -fx-prompt-text-fill: -pp-muted-2;
 }
 
 .pp-root .pp-spinner .increment-arrow-button,
 .pp-root .pp-spinner .decrement-arrow-button {
-    -fx-background-color: rgba(17, 27, 51, 0.9);
+    -fx-background-color: -pp-control;
     -fx-border-color: -pp-border;
     -fx-border-width: 0 0 0 1;
 }
 
 .pp-root .pp-spinner .increment-arrow,
 .pp-root .pp-spinner .decrement-arrow {
-    -fx-background-color: rgba(230,237,247,0.85);
+    -fx-background-color: -pp-text;
 }
 
 /* ---- Buttons ---- */
-.pp-root .button {
-    -fx-background-color: rgba(17, 27, 51, 0.85);
+.pp-root .button,
+.pp-root .toggle-button {
+    -fx-background-color: -pp-control;
     -fx-text-fill: -pp-text;
-    -fx-background-radius: 10;
-    -fx-border-radius: 10;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
     -fx-border-color: -pp-border;
     -fx-border-width: 1;
-    -fx-padding: 10 12;
+    -fx-padding: 8 12;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
 }
 
-.pp-root .button:hover { -fx-background-color: rgba(30, 41, 59, 0.9); }
-.pp-root .button:pressed { -fx-background-color: rgba(30, 41, 59, 0.7); }
+.pp-root .button:hover,
+.pp-root .toggle-button:hover {
+    -fx-background-color: -pp-control-hover;
+}
+
+.pp-root .button:pressed,
+.pp-root .toggle-button:pressed {
+    -fx-background-color: -pp-control-pressed;
+}
+
+.pp-root .button:focused,
+.pp-root .toggle-button:focused {
+    -fx-border-color: -pp-focus;
+}
 
 .pp-root .button.primary {
     -fx-background-color: linear-gradient(to bottom, -pp-accent, -pp-accent2);
-    -fx-border-color: rgba(255,255,255,0.10);
-}
-/* ---- Small buttons (tables) ---- */
-.pp-root .button.sm {
-    -fx-padding: 6 10;
-    -fx-font-size: 12px;
-    -fx-background-radius: 10;
-    -fx-border-radius: 10;
+    -fx-border-color: -pp-border-on-accent;
+    -fx-text-fill: -pp-on-accent;
 }
 
-/* ---- Danger outline button (good on dark tables) ---- */
+.pp-root .button.primary:hover { -fx-opacity: 0.95; }
+
+.pp-root .button.subtle {
+    -fx-background-color: -pp-control-ghost;
+    -fx-border-color: -pp-border-subtle;
+}
+
+.pp-root .button.ghost {
+    -fx-background-color: transparent;
+    -fx-border-color: -pp-border;
+}
+
+.pp-root .button.secondary {
+    -fx-background-color: -pp-control-ghost;
+    -fx-border-color: -pp-border;
+}
+
+.pp-root .button.danger {
+    -fx-background-color: -pp-danger-soft;
+    -fx-border-color: -pp-danger-border;
+    -fx-text-fill: -pp-danger;
+}
+
+/* ---- Small buttons (tables) ---- */
+.pp-root .button.sm {
+    -fx-font-size: 12px;
+}
+
+/* ---- Danger outline button ---- */
 .pp-root .button.danger-outline {
     -fx-background-color: transparent;
-    -fx-text-fill: rgba(239,68,68,0.95);
-    -fx-border-color: rgba(239,68,68,0.55);
+    -fx-text-fill: -pp-danger;
+    -fx-border-color: -pp-danger-border;
     -fx-border-width: 1;
 }
 
 .pp-root .button.danger-outline:hover {
-    -fx-background-color: rgba(239,68,68,0.14);
+    -fx-background-color: -pp-danger-soft;
 }
-
-.pp-root .button.danger-outline:pressed {
-    -fx-background-color: rgba(239,68,68,0.22);
-}
-
-.pp-root .button.primary:hover { -fx-opacity: 0.95; }
 
 /* ---- CheckBox ---- */
 .pp-root .check-box {
@@ -162,9 +250,33 @@
     -fx-fill: -pp-text;
 }
 
+.pp-root .check-box .box {
+    -fx-background-color: -pp-control;
+    -fx-border-color: -pp-border;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+}
+
+.pp-root .check-box:selected .box {
+    -fx-background-color: -pp-accent;
+    -fx-border-color: -pp-accent2;
+}
+
+.pp-root .check-box:selected .mark {
+    -fx-background-color: -pp-on-accent;
+}
+
+.pp-root .check-box:focused .box {
+    -fx-border-color: -pp-focus;
+}
+
 /* ---- Slider ---- */
+.pp-root .slider {
+    -fx-padding: 0;
+}
+
 .pp-root .slider .track {
-    -fx-background-color: rgba(255,255,255,0.12);
+    -fx-background-color: -pp-scroll-track;
     -fx-background-radius: 999;
     -fx-pref-height: 4;
 }
@@ -172,53 +284,81 @@
 .pp-root .slider .thumb {
     -fx-background-color: -pp-accent;
     -fx-background-radius: 999;
+    -fx-border-color: -pp-border-strong;
+    -fx-border-width: 1;
+    -fx-pref-width: 14;
+    -fx-pref-height: 14;
 }
 
 .pp-root .slider .axis .tick-label {
-    -fx-text-fill: rgba(230,237,247,0.75);
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 10px;
 }
 
 /* Sidebar nav buttons */
 .pp-root .nav-button {
-    -fx-background-color: rgba(17, 27, 51, 0.70);
+    -fx-background-color: -pp-control-ghost;
     -fx-text-fill: -pp-text;
     -fx-background-radius: 12;
     -fx-border-radius: 12;
-    -fx-border-color: rgba(255,255,255,0.06);
-    -fx-padding: 12 12;
+    -fx-border-color: -pp-border-subtle;
+    -fx-padding: 8 12;
 }
 
-.pp-root .nav-button:hover { -fx-background-color: rgba(30, 41, 59, 0.75); }
+.pp-root .nav-button:hover { -fx-background-color: -pp-control-ghost-hover; }
 
 .pp-root .nav-button-active {
-    -fx-background-color: rgba(59, 130, 246, 0.18);
-    -fx-border-color: rgba(59, 130, 246, 0.55);
+    -fx-background-color: -pp-accent-soft;
+    -fx-border-color: -pp-accent;
 }
 
 .pp-root .sidebar-dot {
-    -fx-background-color: #ef4444;
+    -fx-background-color: -pp-danger;
     -fx-background-radius: 999;
     -fx-min-width: 8;
     -fx-min-height: 8;
     -fx-max-width: 8;
     -fx-max-height: 8;
-    -fx-effect: dropshadow(gaussian, rgba(239,68,68,0.55), 6, 0.3, 0, 0);
+    -fx-effect: dropshadow(gaussian, -pp-danger-glow, 6, 0.3, 0, 0);
 }
 
-/* ---- Scrollbars (basic) ---- */
-.pp-root .scroll-bar:vertical .thumb,
-.pp-root .scroll-bar:horizontal .thumb {
-    -fx-background-color: rgba(255,255,255,0.12);
-    -fx-background-radius: 10;
+/* ---- Scrollbars ---- */
+.pp-root .scroll-bar:vertical,
+.pp-root .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+    -fx-pref-width: 8;
+    -fx-pref-height: 8;
+}
+
+.pp-root .scroll-bar .track {
+    -fx-background-color: -pp-scroll-track;
+    -fx-background-radius: 999;
+}
+
+.pp-root .scroll-bar .thumb {
+    -fx-background-color: -pp-scroll-thumb;
+    -fx-background-radius: 999;
+}
+
+.pp-root .scroll-bar .thumb:hover {
+    -fx-background-color: -pp-scroll-thumb-hover;
+}
+
+.pp-root .scroll-bar .increment-button,
+.pp-root .scroll-bar .decrement-button,
+.pp-root .scroll-bar .increment-arrow,
+.pp-root .scroll-bar .decrement-arrow {
+    -fx-opacity: 0;
+    -fx-padding: 0;
 }
 
 /* ---- ListView ---- */
 .pp-root .list-view {
-    -fx-background-color: rgba(17, 27, 51, 0.55);
-    -fx-control-inner-background: rgba(17, 27, 51, 0.55);
-    -fx-background-radius: 14;
-    -fx-border-radius: 14;
-    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-background-color: -pp-surface-3;
+    -fx-control-inner-background: -pp-surface-3;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border;
     -fx-border-width: 1;
     -fx-padding: 8;
 }
@@ -226,57 +366,104 @@
 .pp-root .list-view .list-cell {
     -fx-background-color: transparent;
     -fx-text-fill: -pp-text;
-    -fx-padding: 10 12;
+    -fx-padding: 8 12;
 }
 
 .pp-root .list-view .list-cell:filled:hover {
-    -fx-background-color: rgba(255,255,255,0.04);
+    -fx-background-color: -pp-control-ghost-hover;
 }
 
 .pp-root .list-view .list-cell:filled:selected {
-    -fx-background-color: rgba(59, 130, 246, 0.18);
+    -fx-background-color: -pp-accent-soft;
     -fx-text-fill: -pp-text;
 }
 
 .pp-root .list-view .virtual-flow { -fx-background-color: transparent; }
 
+/* ---- Tabs (segmented style) ---- */
+.pp-root .tab-pane {
+    -fx-background-color: transparent;
+    -fx-tab-min-height: 32;
+    -fx-tab-max-height: 32;
+}
+
+.pp-root .tab-pane .tab-header-area {
+    -fx-padding: 8;
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 12;
+    -fx-border-color: -pp-border;
+    -fx-border-radius: 12;
+}
+
+.pp-root .tab-pane .headers-region {
+    -fx-background-color: transparent;
+}
+
+.pp-root .tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: transparent;
+    -fx-padding: 8 12;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.pp-root .tab-pane .tab .tab-label {
+    -fx-text-fill: -pp-muted;
+    -fx-font-weight: 600;
+}
+
+.pp-root .tab-pane .tab:selected {
+    -fx-background-color: -pp-accent-soft;
+    -fx-border-color: -pp-accent;
+}
+
+.pp-root .tab-pane .tab:selected .tab-label {
+    -fx-text-fill: -pp-text;
+}
+
+.pp-root .tab-pane .tab-content-area {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
 /* ---- TableView base (general tables) ---- */
 .pp-root .table-view {
-    -fx-background-color: rgba(17, 27, 51, 0.55);
-    -fx-control-inner-background: rgba(17, 27, 51, 0.55);
-    -fx-background-radius: 14;
-    -fx-border-radius: 14;
-    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-background-color: -pp-surface-3;
+    -fx-control-inner-background: -pp-surface-3;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border;
     -fx-border-width: 1;
     -fx-padding: 8;
 }
 
 .pp-root .table-view .column-header-background {
-    -fx-background-color: rgba(15, 23, 42, 0.95);
-    -fx-background-radius: 14 14 0 0;
+    -fx-background-color: -pp-surface-2;
+    -fx-background-radius: 12 12 0 0;
 }
 
 .pp-root .table-view .column-header,
 .pp-root .table-view .filler {
     -fx-background-color: transparent;
-    -fx-border-color: rgba(255,255,255,0.06);
+    -fx-border-color: -pp-border-subtle;
     -fx-border-width: 0 0 1 0;
 }
 
 .pp-root .table-view .column-header .label {
-    -fx-text-fill: rgba(230,237,247,0.85);
+    -fx-text-fill: -pp-muted;
     -fx-font-weight: 700;
 }
 
 .pp-root .table-row-cell { -fx-background-color: transparent; }
-.pp-root .table-row-cell:filled:hover { -fx-background-color: rgba(255,255,255,0.04); }
-.pp-root .table-row-cell:filled:selected { -fx-background-color: rgba(59, 130, 246, 0.18); }
+.pp-root .table-row-cell:filled:hover { -fx-background-color: -pp-control-ghost-hover; }
+.pp-root .table-row-cell:filled:selected { -fx-background-color: -pp-accent-soft; }
 
 /* ---- Metric tiles ---- */
 .pp-root .metric-tile {
-    -fx-background-color: rgba(255,255,255,0.04);
-    -fx-background-radius: 14;
-    -fx-border-color: rgba(255,255,255,0.06);
-    -fx-border-radius: 14;
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 12;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-radius: 12;
 }
-

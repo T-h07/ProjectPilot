@@ -52,10 +52,9 @@ public class DashboardPage extends BorderPane {
         this.appState = appState;
         this.filteredActivity = new FilteredList<>(store.getActivity(), a -> true);
 
-        setPadding(new Insets(14));
+        setPadding(new Insets(16));
 
         title.getStyleClass().add("page-title");
-        title.setStyle("-fx-font-size: 18px; -fx-font-weight: 700;");
 
         search.setPromptText("Search...");
         search.setPrefWidth(320);
@@ -332,7 +331,7 @@ public class DashboardPage extends BorderPane {
 
         MetricTile(String title, String initialValue) {
             getStyleClass().add("metric-tile");
-            setPadding(new Insets(14));
+            setPadding(new Insets(16));
             setSpacing(6);
             setMinHeight(92);
             setPrefWidth(240);
@@ -341,7 +340,7 @@ public class DashboardPage extends BorderPane {
             label.getStyleClass().add("muted");
 
             value.setText(initialValue);
-            value.setStyle("-fx-font-size: 22px; -fx-font-weight: 800;");
+            value.getStyleClass().add("metric-value");
 
             getChildren().addAll(label, value);
         }

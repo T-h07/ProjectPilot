@@ -66,7 +66,7 @@ public class HistoryPage extends BorderPane {
         detailsCard.setPadding(new Insets(16));
 
         Label detailsTitle = new Label("Completed Project Details");
-        detailsTitle.setStyle("-fx-font-size: 22px; -fx-font-weight: 800;");
+        detailsTitle.getStyleClass().add("panel-title");
 
         name.getStyleClass().add("muted");
         dates.getStyleClass().add("muted");
@@ -187,7 +187,7 @@ public class HistoryPage extends BorderPane {
 
     private static Label labelBold(String s) {
         Label l = new Label(s);
-        l.setStyle("-fx-font-weight: 700;");
+        l.getStyleClass().add("label-strong");
         return l;
     }
 

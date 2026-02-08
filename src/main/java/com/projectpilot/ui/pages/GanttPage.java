@@ -219,7 +219,7 @@ public class GanttPage extends VBox {
 
         VBox topCard = new VBox(10, header, sub, rangeRow, legendRow, statusRow, priorityRow, togglesRow, viewRow);
         topCard.getStyleClass().add("card");
-        topCard.setPadding(new Insets(14));
+        topCard.setPadding(new Insets(16));
 
         scroll.getStyleClass().add("gantt-scroll");
         scroll.setFitToWidth(true);
@@ -1047,7 +1047,7 @@ public class GanttPage extends VBox {
 
         VBox card = new VBox(10, title, grid, taskMeta);
         card.getStyleClass().add("card");
-        card.setPadding(new Insets(14));
+        card.setPadding(new Insets(16));
         return card;
     }
 
@@ -1065,7 +1065,7 @@ public class GanttPage extends VBox {
 
         VBox card = new VBox(10, title, workloadMeta, workloadList);
         card.getStyleClass().add("card");
-        card.setPadding(new Insets(14));
+        card.setPadding(new Insets(16));
         return card;
     }
 
@@ -1197,8 +1197,9 @@ public class GanttPage extends VBox {
                     double x = i * dayWidth;
                     Label lbl = new Label(formatHeaderLabel(d));
                     lbl.getStyleClass().add("gantt-header-label");
-                    double fs = dayWidth < 16 ? 10 : 11;
-                    lbl.setStyle("-fx-font-size: " + fs + "px;");
+                    if (dayWidth < 16) {
+                        lbl.getStyleClass().add("gantt-header-label-compact");
+                    }
                     lbl.setLayoutX(x + 6);
                     lbl.setLayoutY(4);
                     timelineHeader.getChildren().add(lbl);

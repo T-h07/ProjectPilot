@@ -51,7 +51,7 @@ Example:
         GridPane grid = new GridPane();
         grid.setHgap(12);
         grid.setVgap(10);
-        grid.setPadding(new Insets(14));
+        grid.setPadding(new Insets(12));
 
         int r = 0;
         grid.add(new Label("Name"), 0, r);

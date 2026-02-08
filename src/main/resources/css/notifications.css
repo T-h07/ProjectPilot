@@ -1,11 +1,22 @@
+.notif-wrap {
+    -fx-padding: 0;
+}
+
 .notif-bell {
-    -fx-background-radius: 10;
-    -fx-padding: 6 10;
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border;
+    -fx-padding: 8 12;
+}
+
+.notif-bell:hover {
+    -fx-background-color: -pp-control-ghost-hover;
 }
 
 .notif-badge {
-    -fx-background-color: #ff4d4d;
-    -fx-text-fill: white;
+    -fx-background-color: -pp-danger;
+    -fx-text-fill: -pp-on-accent;
     -fx-font-size: 10px;
     -fx-padding: 1 6;
     -fx-background-radius: 999;
@@ -14,125 +25,152 @@
 }
 
 .notif-popover {
-    -fx-background-color: rgba(20,20,24,0.98);
+    -fx-background-color: -pp-surface;
     -fx-background-radius: 14;
-    -fx-border-color: rgba(255,255,255,0.08);
+    -fx-border-color: -pp-border;
     -fx-border-radius: 14;
+    -fx-effect: dropshadow(gaussian, -pp-shadow-strong, 18, 0.2, 0, 8);
+}
+
+.notif-scroll,
+.notif-scroll > .viewport,
+.notif-scroll > .corner {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+.notif-list {
+    -fx-background-color: transparent;
+}
+
+.notif-dialog {
+    -fx-background-color: transparent;
 }
 
 .notif-title {
     -fx-font-size: 16px;
-    -fx-text-fill: white;
+    -fx-text-fill: -pp-text;
     -fx-font-weight: 700;
 }
 
 .notif-section-title {
-    -fx-text-fill: rgba(255,255,255,0.65);
-    -fx-font-size: 12px;
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 11px;
     -fx-font-weight: 700;
     -fx-opacity: 0.9;
-    -fx-padding: 8 0 2 0;
+    -fx-padding: 8 0 0 0;
 }
 
-.notif-item {
-    -fx-background-color: rgba(255,255,255,0.04);
+.notif-item,
+.notif-card {
+    -fx-background-color: -pp-control-ghost;
     -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
 }
 
-.notif-item.unread {
-    -fx-background-color: rgba(120,80,255,0.14);
-    -fx-border-color: rgba(120,80,255,0.25);
-    -fx-border-radius: 12;
+.notif-item.unread,
+.notif-card.unread {
+    -fx-background-color: -pp-accent-soft;
+    -fx-border-color: -pp-accent;
+}
+
+.notif-item.urgent,
+.notif-card.urgent,
+.notif-urgent {
+    -fx-border-color: -pp-danger;
+    -fx-border-width: 1;
 }
 
 .notif-item-title {
-    -fx-text-fill: white;
+    -fx-text-fill: -pp-text;
     -fx-font-weight: 700;
 }
 
 .notif-item-body {
-    -fx-text-fill: rgba(255,255,255,0.75);
+    -fx-text-fill: -pp-muted;
 }
 
 .notif-time {
-    -fx-text-fill: rgba(255,255,255,0.55);
+    -fx-text-fill: -pp-muted-2;
     -fx-font-size: 11px;
-    -fx-opacity: 0.7;
+    -fx-opacity: 0.9;
 }
 
 .notif-icon {
-    -fx-font-size: 16px;
+    -fx-text-fill: -pp-text;
+    -fx-font-size: 14px;
 }
 
-.notif-view, .notif-mark, .notif-markall {
-    -fx-background-radius: 10;
-    -fx-padding: 6 10;
+.notif-view,
+.notif-mark,
+.notif-markall {
+    -fx-background-color: -pp-control-ghost;
+    -fx-border-color: -pp-border;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-padding: 8 12;
+    -fx-text-fill: -pp-text;
+}
+
+.notif-view:hover,
+.notif-mark:hover,
+.notif-markall:hover {
+    -fx-background-color: -pp-control-ghost-hover;
+}
+
+.notif-markall.primary {
+    -fx-background-color: -pp-accent-soft;
+    -fx-border-color: -pp-accent;
 }
 
 .notif-empty {
-    -fx-text-fill: rgba(255,255,255,0.7);
-    -fx-padding: 14;
-    -fx-opacity: 0.6;
-}
-.notif-card {
-    -fx-background-color: rgba(255,255,255,0.06);
-    -fx-background-radius: 12;
-    -fx-border-radius: 12;
-}
-
-.notif-urgent {
-    -fx-border-color: rgba(255, 77, 77, 0.8);
-    -fx-border-width: 1;
-    -fx-border-radius: 12;
+    -fx-text-fill: -pp-muted;
+    -fx-padding: 16;
+    -fx-opacity: 0.7;
 }
 
 .notif-detail { -fx-opacity: 0.85; }
-/* ===== Notifications filter segmented buttons ===== */
 
+/* ---- Notifications filter segmented buttons ---- */
 .notif-popover .notif-seg {
-    -fx-padding: 2;
+    -fx-padding: 8;
     -fx-background-radius: 12;
     -fx-border-radius: 12;
-
-    -fx-background-color: rgba(255,255,255,0.06);
-    -fx-border-color: rgba(255,255,255,0.14);
+    -fx-background-color: -pp-control-ghost;
+    -fx-border-color: -pp-border;
     -fx-border-width: 1;
 }
 
 .notif-popover .notif-seg-btn {
     -fx-background-color: transparent;
     -fx-border-color: transparent;
-
-    -fx-text-fill: rgba(255,255,255,0.82);
+    -fx-text-fill: -pp-muted;
     -fx-font-weight: 600;
-
-    -fx-padding: 7 14;
+    -fx-padding: 8 12;
     -fx-cursor: hand;
-
-    /* kill default focus glow */
     -fx-focus-color: transparent;
     -fx-faint-focus-color: transparent;
 }
 
 .notif-popover .notif-seg-btn:hover {
-    -fx-background-color: rgba(255,255,255,0.08);
+    -fx-background-color: -pp-control-ghost-hover;
 }
 
 .notif-popover .notif-seg-btn:selected {
-    /* use your app's accent-ish look */
-    -fx-background-color: rgba(60, 190, 255, 0.16);
-    -fx-border-color: rgba(60, 190, 255, 0.55);
+    -fx-background-color: -pp-accent-soft;
+    -fx-border-color: -pp-accent;
     -fx-border-width: 1;
-    -fx-text-fill: white;
+    -fx-text-fill: -pp-text;
 }
 
 .notif-popover .notif-seg-btn.left {
-    -fx-background-radius: 10 0 0 10;
-    -fx-border-radius: 10 0 0 10;
+    -fx-background-radius: 12 0 0 12;
+    -fx-border-radius: 12 0 0 12;
 }
 
 .notif-popover .notif-seg-btn.right {
-    -fx-background-radius: 0 10 10 0;
-    -fx-border-radius: 0 10 10 0;
+    -fx-background-radius: 0 12 12 0;
+    -fx-border-radius: 0 12 12 0;
 }
-

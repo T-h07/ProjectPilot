@@ -5,22 +5,69 @@
 
 /* ---- GLOBAL TOKENS (needed for Popups like DatePicker) ---- */
 .root {
-    -fx-font-family: "Segoe UI", "Inter", "SF Pro Display", "Arial";
+    -fx-font-family: "Segoe UI Variable", "Segoe UI", "SF Pro Text", "Noto Sans";
     -fx-font-size: 13px;
 
-    /* Palette */
-    -pp-bg: #0b1220;
-    -pp-bg2: #070b14;
-    -pp-surface: #0f172a;
-    -pp-card: #111b33;
+    /* Core palette */
+    -pp-bg: #0a0f1c;
+    -pp-bg2: #0b1222;
+    -pp-surface: #0f1628;
+    -pp-surface-2: #111b33;
+    -pp-surface-3: #0c1324;
+    -pp-card: #121c33;
     -pp-card2: #0f1930;
+    -pp-glass: rgba(17,24,39,0.72);
+    -pp-glass-strong: rgba(17,24,39,0.88);
+
     -pp-border: rgba(255,255,255,0.08);
+    -pp-border-strong: rgba(255,255,255,0.16);
+    -pp-border-subtle: rgba(255,255,255,0.05);
 
-    -pp-text: #e6edf7;
-    -pp-muted: rgba(230,237,247,0.70);
+    -pp-text: #e8eef9;
+    -pp-muted: rgba(232,238,249,0.68);
+    -pp-muted-2: rgba(232,238,249,0.45);
+    -pp-muted-3: rgba(232,238,249,0.30);
+    -pp-on-accent: #ffffff;
 
-    -pp-accent: #3b82f6;
-    -pp-accent2: #2563eb;
+    -pp-accent: #4f8cff;
+    -pp-accent2: #2f6bff;
+    -pp-accent-soft: rgba(79,140,255,0.18);
+    -pp-accent-strong: rgba(79,140,255,0.36);
+
+    -pp-success: #22c55e;
+    -pp-success-soft: rgba(34,197,94,0.18);
+    -pp-danger: #ef4444;
+    -pp-danger-soft: rgba(239,68,68,0.20);
+    -pp-danger-border: rgba(239,68,68,0.55);
+    -pp-danger-glow: rgba(239,68,68,0.55);
+    -pp-warning: #f59e0b;
+
+    -pp-status-todo: rgba(148,163,184,0.8);
+    -pp-status-inprogress: rgba(79,140,255,0.9);
+    -pp-status-blocked: rgba(239,68,68,0.9);
+    -pp-status-done: rgba(34,197,94,0.85);
+
+    -pp-prio-low: rgba(148,163,184,0.6);
+    -pp-prio-medium: rgba(79,140,255,0.55);
+    -pp-prio-high: rgba(245,158,11,0.85);
+    -pp-prio-critical: rgba(253,224,71,0.95);
+    -pp-prio-critical-glow: rgba(253,224,71,0.35);
+
+    -pp-control: rgba(18,28,51,0.75);
+    -pp-control-hover: rgba(24,35,58,0.92);
+    -pp-control-pressed: rgba(20,30,50,0.90);
+    -pp-control-ghost: rgba(255,255,255,0.04);
+    -pp-control-ghost-hover: rgba(255,255,255,0.08);
+
+    -pp-focus: rgba(79,140,255,0.6);
+
+    -pp-scroll-track: rgba(255,255,255,0.04);
+    -pp-scroll-thumb: rgba(255,255,255,0.18);
+    -pp-scroll-thumb-hover: rgba(255,255,255,0.28);
+
+    -pp-shadow: rgba(0,0,0,0.45);
+    -pp-shadow-strong: rgba(0,0,0,0.65);
+    -pp-border-on-accent: rgba(255,255,255,0.18);
 }
 
 /* ---- App background only for your root container ---- */
@@ -32,8 +79,8 @@
 .pp-root .label { -fx-text-fill: -pp-text; }
 
 .pp-root .page-title {
-    -fx-font-size: 28px;
-    -fx-font-weight: 700;
+    -fx-font-size: 26px;
+    -fx-font-weight: 800;
 }
 
 .pp-root .section-title {
@@ -42,4 +89,24 @@
 }
 
 .pp-root .muted { -fx-text-fill: -pp-muted; }
+
+.pp-root .panel-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: 700;
+}
+
+.pp-root .metric-value {
+    -fx-font-size: 22px;
+    -fx-font-weight: 800;
+}
+
+.pp-root .label-strong {
+    -fx-font-weight: 700;
+}
+
+.pp-root .app-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: 700;
+    -fx-text-fill: -pp-text;
+}
 

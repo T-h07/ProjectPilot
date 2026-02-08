@@ -2,7 +2,6 @@ package com.projectpilot.ui.components;
 
 import com.projectpilot.model.NotificationItem;
 import com.projectpilot.service.NotificationService;
-import javafx.beans.binding.Bindings;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
@@ -12,6 +11,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Popup;
 
+import java.net.URL;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -35,7 +35,7 @@ public final class NotificationCenterPopover {
     public NotificationCenterPopover(NotificationService notifications) {
         this.notifications = Objects.requireNonNull(notifications);
 
-        root.getStyleClass().add("notif-popover");
+        root.getStyleClass().addAll("pp-root", "notif-popover");
         root.setPadding(new Insets(12));
         root.setPrefWidth(420);
 
@@ -47,21 +47,17 @@ public final class NotificationCenterPopover {
         scroller.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
 
         // ✅ kill the default white ScrollPane background (so it matches dark theme)
-        scroller.setStyle(
-                "-fx-background-color: transparent;" +
-                        "-fx-background: transparent;" +
-                        "-fx-control-inner-background: transparent;" +
-                        "-fx-padding: 0;"
-        );
+        scroller.getStyleClass().add("notif-scroll");
 
         listBox.setFillWidth(true);
-        listBox.setStyle("-fx-background-color: transparent;");
+        listBox.getStyleClass().add("notif-list");
 
         root.getChildren().addAll(header, scroller);
 
         popup.getContent().add(root);
         popup.setAutoHide(true);
         popup.setHideOnEscape(true);
+        ensurePopupStyles();
 
         // rebuild on list changes
         this.notifications.items().addListener((ListChangeListener<NotificationItem>) c -> rebuild());
@@ -88,7 +84,6 @@ public final class NotificationCenterPopover {
     private Node buildHeader() {
         Label title = new Label("Notifications");
         title.getStyleClass().add("notif-title");
-        title.setStyle("-fx-text-fill: white; -fx-font-size: 18px; -fx-font-weight: 800;");
 
         // ✅ filter buttons (styled to match dark theme)
         ToggleGroup group = new ToggleGroup();
@@ -98,31 +93,15 @@ public final class NotificationCenterPopover {
 
         allBtn.setFocusTraversable(false);
         unreadBtn.setFocusTraversable(false);
-
-        // apply initial styles
-        applyFilterStyle(allBtn, true);
-        applyFilterStyle(unreadBtn, false);
-
-        // keep style synced with selection
-        allBtn.selectedProperty().addListener((obs, ov, nv) -> applyFilterStyle(allBtn, nv));
-        unreadBtn.selectedProperty().addListener((obs, ov, nv) -> applyFilterStyle(unreadBtn, nv));
+        allBtn.getStyleClass().addAll("notif-seg-btn", "left");
+        unreadBtn.getStyleClass().addAll("notif-seg-btn", "right");
 
         allBtn.setOnAction(e -> { unreadOnly = false; rebuild(); });
         unreadBtn.setOnAction(e -> { unreadOnly = true; rebuild(); });
 
         Button markAll = new Button("Mark all read");
         markAll.setFocusTraversable(false);
-        markAll.getStyleClass().add("notif-markall");
-        // keep it consistent with your theme (pill, subtle)
-        markAll.setStyle(
-                "-fx-background-radius: 12;" +
-                        "-fx-border-radius: 12;" +
-                        "-fx-background-color: rgba(255,255,255,0.10);" +
-                        "-fx-border-color: rgba(120,90,255,0.65);" +
-                        "-fx-border-width: 1;" +
-                        "-fx-text-fill: white;" +
-                        "-fx-padding: 8 14;"
-        );
+        markAll.getStyleClass().addAll("notif-markall", "primary");
         markAll.setOnAction(e -> notifications.markAllRead());
 
         Region spacer = new Region();
@@ -131,37 +110,13 @@ public final class NotificationCenterPopover {
         HBox row1 = new HBox(10, title, spacer, markAll);
         row1.setAlignment(Pos.CENTER_LEFT);
 
-        HBox row2 = new HBox(8, allBtn, unreadBtn);
+        HBox row2 = new HBox(0, allBtn, unreadBtn);
         row2.setAlignment(Pos.CENTER_LEFT);
+        row2.getStyleClass().add("notif-seg");
 
         return new VBox(10, row1, row2);
     }
 
-    private void applyFilterStyle(ToggleButton btn, boolean active) {
-        btn.setMinHeight(30);
-        btn.setPadding(new Insets(6, 12, 6, 12));
-
-        // ✅ dark theme segmented look
-        if (active) {
-            btn.setStyle(
-                    "-fx-background-radius: 8;" +
-                            "-fx-border-radius: 8;" +
-                            "-fx-background-color: rgba(120,90,255,0.30);" +
-                            "-fx-border-color: rgba(120,90,255,0.85);" +
-                            "-fx-border-width: 1;" +
-                            "-fx-text-fill: white;"
-            );
-        } else {
-            btn.setStyle(
-                    "-fx-background-radius: 8;" +
-                            "-fx-border-radius: 8;" +
-                            "-fx-background-color: rgba(255,255,255,0.06);" +
-                            "-fx-border-color: rgba(255,255,255,0.18);" +
-                            "-fx-border-width: 1;" +
-                            "-fx-text-fill: rgba(255,255,255,0.90);"
-            );
-        }
-    }
 
     // ------------------------------------------------------------
     // List rendering
@@ -178,7 +133,6 @@ public final class NotificationCenterPopover {
         if (src.isEmpty()) {
             Label empty = new Label(unreadOnly ? "No unread notifications." : "No notifications yet.");
             empty.getStyleClass().add("notif-empty");
-            empty.setStyle("-fx-text-fill: rgba(255,255,255,0.65); -fx-padding: 12 4 0 4;");
             listBox.getChildren().add(empty);
             return;
         }
@@ -207,7 +161,6 @@ public final class NotificationCenterPopover {
 
         Label h = new Label(title);
         h.getStyleClass().add("notif-section-title");
-        h.setStyle("-fx-text-fill: rgba(255,255,255,0.55); -fx-font-size: 11px; -fx-padding: 10 0 0 0;");
         listBox.getChildren().add(h);
 
         for (NotificationItem it : items) {
@@ -217,38 +170,28 @@ public final class NotificationCenterPopover {
 
     private Node renderItem(NotificationItem it) {
         Label icon = new Label(it.urgent() ? "⏰" : "🧩");
-        icon.setStyle("-fx-text-fill: white; -fx-font-size: 14px;");
+        icon.getStyleClass().add("notif-icon");
 
         Label t = new Label(safe(it.title()));
-        t.setStyle("-fx-text-fill: white; -fx-font-weight: 800;");
+        t.getStyleClass().add("notif-item-title");
 
         Label d = new Label(safe(it.detail()));
         d.setWrapText(true);
-        d.setStyle("-fx-text-fill: rgba(255,255,255,0.75);");
+        d.getStyleClass().add("notif-item-body");
 
         Label ts = new Label(it.at().toLocalTime().format(TIME_FMT));
-        ts.setStyle("-fx-text-fill: rgba(255,255,255,0.45); -fx-font-size: 11px;");
+        ts.getStyleClass().add("notif-time");
 
         Button mark = new Button("✓");
         mark.setFocusTraversable(false);
-        mark.setStyle(
-                "-fx-background-radius: 10;" +
-                        "-fx-background-color: rgba(255,255,255,0.10);" +
-                        "-fx-text-fill: white;" +
-                        "-fx-padding: 6 10;"
-        );
+        mark.getStyleClass().add("notif-mark");
         mark.setMinWidth(Region.USE_PREF_SIZE);
         mark.setMaxWidth(Region.USE_PREF_SIZE);
         mark.setOnAction(e -> markRead(it));
 
         Button view = new Button("View");
         view.setFocusTraversable(false);
-        view.setStyle(
-                "-fx-background-radius: 10;" +
-                        "-fx-background-color: rgba(120,90,255,0.35);" +
-                        "-fx-text-fill: white;" +
-                        "-fx-padding: 6 12;"
-        );
+        view.getStyleClass().add("notif-view");
         view.setMinWidth(Region.USE_PREF_SIZE);
         view.setMaxWidth(Region.USE_PREF_SIZE);
         view.setOnAction(e -> {
@@ -271,18 +214,10 @@ public final class NotificationCenterPopover {
 
         HBox row = new HBox(10, icon, text, spacer, ts, actions);
         row.setAlignment(Pos.TOP_LEFT);
-        row.setPadding(new Insets(10));
-
-        // ✅ card look (dark)
-        row.setStyle(
-                "-fx-background-radius: 12;" +
-                        "-fx-border-radius: 12;" +
-                        "-fx-border-color: rgba(255,255,255,0.10);" +
-                        "-fx-border-width: 1;" +
-                        (it.read()
-                                ? "-fx-background-color: rgba(255,255,255,0.04);"
-                                : "-fx-background-color: rgba(120,90,255,0.18);")
-        );
+        row.setPadding(new Insets(8));
+        row.getStyleClass().add("notif-item");
+        if (!it.read()) row.getStyleClass().add("unread");
+        if (it.urgent()) row.getStyleClass().add("urgent");
 
         return row;
     }
@@ -294,5 +229,21 @@ public final class NotificationCenterPopover {
 
     private static String safe(String s) {
         return (s == null) ? "" : s;
+    }
+
+    private void ensurePopupStyles() {
+        URL css = NotificationCenterPopover.class.getResource("/css/app.css");
+        if (css == null) return;
+        String url = css.toExternalForm();
+
+        root.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null && !newScene.getStylesheets().contains(url)) {
+                newScene.getStylesheets().add(url);
+            }
+        });
+
+        if (root.getScene() != null && !root.getScene().getStylesheets().contains(url)) {
+            root.getScene().getStylesheets().add(url);
+        }
     }
 }

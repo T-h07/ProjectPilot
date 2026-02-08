@@ -89,7 +89,6 @@ public class ProjectsPage extends BorderPane {
 
         // LEFT
         header.getStyleClass().add("page-title");
-        header.setStyle("-fx-font-size: 28px; -fx-font-weight: 800;");
 
         newProjectBtn.getStyleClass().add("primary");
         newProjectBtn.visibleProperty().bind(canCreateProject);
@@ -115,8 +114,7 @@ public class ProjectsPage extends BorderPane {
         left.setPrefWidth(420);
 
         // RIGHT
-        detailsTitle.getStyleClass().add("page-title");
-        detailsTitle.setStyle("-fx-font-size: 28px; -fx-font-weight: 800;");
+        detailsTitle.getStyleClass().add("panel-title");
 
         Label nameKey = key("Name:");
         Label datesKey = key("Dates:");
@@ -373,7 +371,7 @@ public class ProjectsPage extends BorderPane {
 
     private static Label key(String t) {
         Label l = new Label(t);
-        l.setStyle("-fx-font-weight: 700;");
+        l.getStyleClass().add("label-strong");
         return l;
     }
 

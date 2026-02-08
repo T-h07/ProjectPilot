@@ -139,7 +139,6 @@ public class TasksPage extends VBox {
 
 
         showDone.setSelected(false);
-        showDone.setStyle("-fx-text-fill: white;");
         showDone.selectedProperty().addListener((obs, ov, nv) -> requestFilter());
 
         Button newTask = new Button("New Task");

@@ -60,7 +60,9 @@ public final class NotificationsDialog {
         root.getStyleClass().add("notif-dialog");
 
         if (items.isEmpty()) {
-            root.getChildren().add(new Label("No notifications."));
+            Label empty = new Label("No notifications.");
+            empty.getStyleClass().add("notif-empty");
+            root.getChildren().add(empty);
         } else {
             root.getChildren().add(section("Today", itemsForDay(items, 0)));
             root.getChildren().add(section("Yesterday", itemsForDay(items, 1)));
@@ -70,8 +72,8 @@ public final class NotificationsDialog {
         ScrollPane scroller = new ScrollPane(root);
         scroller.setFitToWidth(true);
         scroller.setPrefViewportHeight(520);
-        scroller.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
-        root.setStyle("-fx-background-color: transparent;");
+        scroller.getStyleClass().add("notif-scroll");
+        root.getStyleClass().add("notif-list");
 
         pane.setContent(scroller);
         pane.setPrefWidth(720);
@@ -100,7 +102,7 @@ public final class NotificationsDialog {
     private static VBox card(NotificationItem it) {
         VBox card = new VBox(4);
         card.getStyleClass().add("notif-card");
-        card.setPadding(new Insets(10));
+        card.setPadding(new Insets(12));
 
         Label title = new Label(it.title());
         title.getStyleClass().add("notif-item-title");

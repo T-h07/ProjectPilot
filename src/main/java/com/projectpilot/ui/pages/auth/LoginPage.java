@@ -78,6 +78,6 @@ public class LoginPage extends BorderPane {
 
         setCenter(card);
         BorderPane.setAlignment(card, Pos.CENTER);
-        setPadding(new Insets(32));
+        setPadding(new Insets(24));
     }
 }

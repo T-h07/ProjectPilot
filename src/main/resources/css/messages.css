@@ -4,26 +4,26 @@
 
 .pp-root .chat-sidebar {
     -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
-    -fx-background-radius: 16;
-    -fx-border-radius: 16;
-    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: -pp-border;
     -fx-border-width: 1;
 }
 
 .pp-root .chat-panel {
-    -fx-background-color: linear-gradient(to bottom, rgba(15,23,42,0.55), rgba(12,18,34,0.55));
-    -fx-background-radius: 16;
-    -fx-border-radius: 16;
-    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-background-color: linear-gradient(to bottom, -pp-surface, -pp-surface-3);
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: -pp-border;
     -fx-border-width: 1;
     -fx-padding: 12;
 }
 
 .pp-root .chat-header {
-    -fx-background-color: rgba(15, 23, 42, 0.75);
+    -fx-background-color: -pp-surface-2;
     -fx-background-radius: 12;
     -fx-border-radius: 12;
-    -fx-border-color: rgba(255,255,255,0.08);
+    -fx-border-color: -pp-border;
     -fx-border-width: 1;
 }
 
@@ -42,25 +42,25 @@
 }
 
 .pp-root .chat-messages .list-cell {
-    -fx-padding: 6 8;
+    -fx-padding: 8 12;
 }
 
 .pp-root .chat-bubble {
     -fx-background-radius: 12;
     -fx-border-radius: 12;
     -fx-border-width: 1;
-    -fx-padding: 8 10;
+    -fx-padding: 8 12;
     -fx-text-fill: -pp-text;
 }
 
 .pp-root .chat-bubble-self {
-    -fx-background-color: rgba(59,130,246,0.24);
-    -fx-border-color: rgba(59,130,246,0.45);
+    -fx-background-color: -pp-accent-soft;
+    -fx-border-color: -pp-accent;
 }
 
 .pp-root .chat-bubble-other {
-    -fx-background-color: rgba(255,255,255,0.06);
-    -fx-border-color: rgba(255,255,255,0.10);
+    -fx-background-color: -pp-control-ghost;
+    -fx-border-color: -pp-border;
 }
 
 .pp-root .chat-meta {
