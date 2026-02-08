@@ -6,12 +6,17 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.projectpilot.lan.dto.WsMessage;
 import com.projectpilot.util.SslUtil;
+import com.projectpilot.util.AppLog;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
 import java.time.Duration;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class LanWsClient implements WebSocket.Listener {
 
@@ -19,8 +24,13 @@ public final class LanWsClient implements WebSocket.Listener {
     private final Runnable onRefresh;
     private final HttpClient http;
     private final ObjectMapper mapper;
+    private final ScheduledExecutorService reconnectExec;
+    private final AtomicBoolean reconnectScheduled = new AtomicBoolean(false);
 
     private WebSocket socket;
+    private volatile String token;
+    private volatile boolean closed;
+    private int failures;
 
     public LanWsClient(String wsUrl, Runnable onRefresh) {
         this.wsUrl = wsUrl;
@@ -34,33 +44,35 @@ public final class LanWsClient implements WebSocket.Listener {
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        this.reconnectExec = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "pp-lan-ws-reconnect");
+            t.setDaemon(true);
+            return t;
+        });
     }
 
     public void connect(String token) {
         if (wsUrl == null || wsUrl.isBlank()) return;
         if (token == null || token.isBlank()) return;
-        String url = wsUrl + (wsUrl.contains("?") ? "&" : "?") + "token=" + token;
-        http.newWebSocketBuilder()
-                .buildAsync(URI.create(url), this)
-                .thenAccept(ws -> {
-                    this.socket = ws;
-                    ws.request(1);
-                })
-                .exceptionally(ex -> {
-                    System.err.println("[LAN] WS connect failed: " + ex.getMessage());
-                    return null;
-                });
+        this.token = token;
+        this.closed = false;
+        this.failures = 0;
+        openSocket();
     }
 
     public void close() {
+        closed = true;
+        token = null;
         if (socket != null) {
             socket.abort();
             socket = null;
         }
+        reconnectExec.shutdownNow();
     }
 
     @Override
     public void onOpen(WebSocket webSocket) {
+        failures = 0;
         webSocket.request(1);
     }
 
@@ -75,7 +87,14 @@ public final class LanWsClient implements WebSocket.Listener {
 
     @Override
     public void onError(WebSocket webSocket, Throwable error) {
-        System.err.println("[LAN] WS error: " + error.getMessage());
+        AppLog.warn("lan-ws", "WebSocket error: " + shortError(error));
+        scheduleReconnect();
+    }
+
+    @Override
+    public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+        scheduleReconnect();
+        return null;
     }
 
     private void handleMessage(String payload) {
@@ -88,5 +107,49 @@ public final class LanWsClient implements WebSocket.Listener {
         } catch (Exception e) {
             if (payload.contains("refresh") && onRefresh != null) onRefresh.run();
         }
+    }
+
+    private void openSocket() {
+        if (closed) return;
+        if (token == null || token.isBlank()) return;
+        String url = wsUrl + (wsUrl.contains("?") ? "&" : "?") + "token=" + token;
+        http.newWebSocketBuilder()
+                .buildAsync(URI.create(url), this)
+                .thenAccept(ws -> {
+                    this.socket = ws;
+                    ws.request(1);
+                })
+                .exceptionally(ex -> {
+                    AppLog.warn("lan-ws", "WebSocket connect failed: " + shortError(ex));
+                    scheduleReconnect();
+                    return null;
+                });
+    }
+
+    private void scheduleReconnect() {
+        if (closed) return;
+        if (!reconnectScheduled.compareAndSet(false, true)) return;
+        failures++;
+        long delay = computeBackoffMs();
+        reconnectExec.schedule(() -> {
+            reconnectScheduled.set(false);
+            openSocket();
+        }, delay, TimeUnit.MILLISECONDS);
+    }
+
+    private long computeBackoffMs() {
+        int attempts = Math.min(failures, 5);
+        long base = 1000L;
+        long backoff = base * (1L << attempts);
+        long max = 15000L;
+        return Math.min(backoff, max);
+    }
+
+    private static String shortError(Throwable e) {
+        if (e == null) return "unknown";
+        String msg = e.getMessage();
+        if (msg == null || msg.isBlank()) return e.getClass().getSimpleName();
+        String trimmed = msg.trim();
+        return trimmed.length() > 120 ? trimmed.substring(0, 117) + "..." : trimmed;
     }
 }

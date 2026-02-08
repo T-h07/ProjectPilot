@@ -13,5 +13,6 @@ public record TaskDto(
         Priority priority,
         LocalDate dueDate,
         String assigneeId,
-        String phaseId
+        String phaseId,
+        String checklistJson
 ) {}

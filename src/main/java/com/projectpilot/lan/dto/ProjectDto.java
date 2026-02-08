@@ -20,5 +20,7 @@ public record ProjectDto(
         List<PhaseDto> phases,
         List<TaskDto> tasks,
         List<MemberDto> members,
-        List<MilestoneDto> milestones
+        List<MilestoneDto> milestones,
+        List<ResourceDto> resources,
+        List<NoteDto> notes
 ) {}

@@ -38,9 +38,12 @@
     -pp-success-soft: rgba(34,197,94,0.18);
     -pp-danger: #ef4444;
     -pp-danger-soft: rgba(239,68,68,0.20);
+    -pp-danger-text: #fecaca;
     -pp-danger-border: rgba(239,68,68,0.55);
     -pp-danger-glow: rgba(239,68,68,0.55);
     -pp-warning: #f59e0b;
+    -pp-warning-soft: rgba(245,158,11,0.18);
+    -pp-warning-text: #fcd34d;
 
     -pp-status-todo: rgba(148,163,184,0.8);
     -pp-status-inprogress: rgba(79,140,255,0.9);
@@ -93,6 +96,21 @@
 .pp-root .panel-title {
     -fx-font-size: 16px;
     -fx-font-weight: 700;
+}
+
+.pp-root .pp-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: 800;
+}
+
+.pp-root .pp-error {
+    -fx-text-fill: -pp-danger-text;
+    -fx-background-color: -pp-danger-soft;
+    -fx-border-color: -pp-danger-border;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 8 10;
 }
 
 .pp-root .metric-value {

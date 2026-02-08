@@ -3,6 +3,7 @@ package com.projectpilot.lan;
 import com.projectpilot.data.InMemoryStore;
 import com.projectpilot.lan.dto.*;
 import com.projectpilot.model.*;
+import com.projectpilot.util.ChecklistCodec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +25,16 @@ public final class LanMapper {
 
         List<ActivityDto> activity = new ArrayList<>();
         for (ActivityItem it : safeActivity(store.getActivity())) {
-            activity.add(new ActivityDto(it.getProjectName(), it.getMessage(), it.getTime()));
+            activity.add(new ActivityDto(
+                    it.getProjectId(),
+                    it.getProjectName(),
+                    it.getActor(),
+                    it.getEntityType(),
+                    it.getEntityId(),
+                    it.getAction(),
+                    it.getMessage(),
+                    it.getTime()
+            ));
         }
 
         return new SnapshotDto(projects, history, activity);
@@ -64,7 +74,8 @@ public final class LanMapper {
                         t.getPriority(),
                         t.getDueDate(),
                         assigneeId,
-                        phaseId
+                        phaseId,
+                        ChecklistCodec.encode(t.getChecklist())
                 ));
             }
         }
@@ -78,6 +89,40 @@ public final class LanMapper {
                         ms.nameProperty().get(),
                         ms.dueDateProperty().get(),
                         ms.completedProperty().get()
+                ));
+            }
+        }
+
+        List<ResourceDto> resources = new ArrayList<>();
+        if (p.getResources() != null) {
+            for (ResourceItem r : p.getResources()) {
+                if (r == null) continue;
+                resources.add(new ResourceDto(
+                        r.getId(),
+                        r.getTaskId(),
+                        r.getType(),
+                        r.getTitle(),
+                        r.getTarget(),
+                        r.getNotes(),
+                        r.getAddedBy(),
+                        r.getCreatedAt(),
+                        r.getUpdatedAt()
+                ));
+            }
+        }
+
+        List<NoteDto> notes = new ArrayList<>();
+        if (p.getNotes() != null) {
+            for (PersonalNote note : p.getNotes()) {
+                if (note == null) continue;
+                notes.add(new NoteDto(
+                        note.getId(),
+                        note.getTaskId(),
+                        note.getOwnerId(),
+                        note.getTitle(),
+                        note.getBody(),
+                        note.getCreatedAt(),
+                        note.getUpdatedAt()
                 ));
             }
         }
@@ -96,7 +141,9 @@ public final class LanMapper {
                 phases,
                 tasks,
                 members,
-                milestones
+                milestones,
+                resources,
+                notes
         );
     }
 

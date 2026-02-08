@@ -15,6 +15,8 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 
+import com.projectpilot.util.AppLog;
+import com.projectpilot.util.ChecklistCodec;
 import static com.projectpilot.data.db.DbDates.*;
 
 public final class DbStore extends InMemoryStore {
@@ -131,6 +133,7 @@ public final class DbStore extends InMemoryStore {
                     t.setStatus(safeEnum(TaskStatus.class, tr.status, TaskStatus.TODO));
                     t.setPriority(safeEnum(Priority.class, tr.priority, Priority.MEDIUM));
                     if (tr.dueAt != null) t.setDueDate(fromEpochMillisToLocalDate(tr.dueAt));
+                    t.setChecklist(ChecklistCodec.decode(tr.checklistJson));
 
                     String aid = (tr.assigneeMemberId == null) ? null : tr.assigneeMemberId.trim();
                     if (aid != null && !aid.isBlank()) {
@@ -159,6 +162,37 @@ public final class DbStore extends InMemoryStore {
                     p.getMilestones().add(ms);
                 }
 
+                // Load resources
+                for (ResourceRow rr : selectResources(conn)) {
+                    Project p = projectById.get(rr.projectId);
+                    if (p == null) continue;
+
+                    ResourceItem r = new ResourceItem(rr.id, rr.projectId);
+                    r.setTaskId(rr.taskId);
+                    r.setType(safeEnum(ResourceType.class, rr.type, ResourceType.LINK));
+                    r.setTitle(rr.title);
+                    r.setTarget(rr.target);
+                    r.setNotes(rr.notes);
+                    r.setAddedBy(rr.addedBy);
+                    r.setCreatedAt(fromEpochMillisToLocalDateTime(rr.createdAt));
+                    r.setUpdatedAt(fromEpochMillisToLocalDateTime(rr.updatedAt));
+                    p.getResources().add(r);
+                }
+
+                // Load notes
+                for (NoteRow nr : selectNotes(conn)) {
+                    Project p = projectById.get(nr.projectId);
+                    if (p == null) continue;
+
+                    PersonalNote note = new PersonalNote(nr.id, nr.projectId, nr.ownerId);
+                    note.setTaskId(nr.taskId);
+                    note.setTitle(nr.title);
+                    note.setBody(nr.body);
+                    note.setCreatedAt(fromEpochMillisToLocalDateTime(nr.createdAt));
+                    note.setUpdatedAt(fromEpochMillisToLocalDateTime(nr.updatedAt));
+                    p.getNotes().add(note);
+                }
+
                 // Load activity
                 getActivity().clear();
                 for (ActivityRow ar : selectRecentActivity(conn, 50)) {
@@ -167,7 +201,15 @@ public final class DbStore extends InMemoryStore {
                         Project p = projectById.get(ar.projectId);
                         if (p != null) projectName = p.getName();
                     }
-                    ActivityItem item = new ActivityItem(projectName, ar.details);
+                    ActivityItem item = new ActivityItem(
+                            ar.projectId,
+                            projectName,
+                            null,
+                            ar.entityType,
+                            ar.entityId,
+                            ar.action,
+                            ar.details
+                    );
                     item.timeProperty().set(fromEpochMillisToLocalDateTime(ar.at));
                     getActivity().add(item);
                 }
@@ -361,6 +403,56 @@ public final class DbStore extends InMemoryStore {
     }
 
     @Override
+    public ResourceItem addResource(Project project, ResourceItem item) {
+        ResourceItem out = super.addResource(project, item);
+        if (loading || project == null || item == null) return out;
+
+        submitWrite(() -> db.tx(conn -> {
+            upsertResource(conn, project, item);
+            return null;
+        }));
+
+        return out;
+    }
+
+    @Override
+    public void removeResource(Project project, ResourceItem item) {
+        if (project == null || item == null) return;
+        super.removeResource(project, item);
+        if (loading) return;
+
+        submitWrite(() -> db.tx(conn -> {
+            deleteResourceById(conn, item.getId());
+            return null;
+        }));
+    }
+
+    @Override
+    public PersonalNote addNote(Project project, PersonalNote note) {
+        PersonalNote out = super.addNote(project, note);
+        if (loading || project == null || note == null) return out;
+
+        submitWrite(() -> db.tx(conn -> {
+            upsertNote(conn, project, note);
+            return null;
+        }));
+
+        return out;
+    }
+
+    @Override
+    public void removeNote(Project project, PersonalNote note) {
+        if (project == null || note == null) return;
+        super.removeNote(project, note);
+        if (loading) return;
+
+        submitWrite(() -> db.tx(conn -> {
+            deleteNoteById(conn, note.getId());
+            return null;
+        }));
+    }
+
+    @Override
     public void markProjectDone(Project project) {
         super.markProjectDone(project);
         if (loading || project == null) return;
@@ -531,10 +623,50 @@ public final class DbStore extends InMemoryStore {
         p.getMilestones().addListener(milestonesListener);
         detach.add(() -> p.getMilestones().removeListener(milestonesListener));
 
+        ListChangeListener<ResourceItem> resourcesListener = ch -> {
+            if (loading) return;
+            while (ch.next()) {
+                if (ch.wasAdded()) {
+                    for (ResourceItem r : ch.getAddedSubList()) {
+                        submitWrite(() -> db.tx(conn -> { upsertResource(conn, p, r); return null; }));
+                        attachListenersForResource(p, r);
+                    }
+                }
+                if (ch.wasRemoved()) {
+                    for (ResourceItem r : ch.getRemoved()) {
+                        submitWrite(() -> db.tx(conn -> { deleteResourceById(conn, r.getId()); return null; }));
+                    }
+                }
+            }
+        };
+        p.getResources().addListener(resourcesListener);
+        detach.add(() -> p.getResources().removeListener(resourcesListener));
+
+        ListChangeListener<PersonalNote> notesListener = ch -> {
+            if (loading) return;
+            while (ch.next()) {
+                if (ch.wasAdded()) {
+                    for (PersonalNote note : ch.getAddedSubList()) {
+                        submitWrite(() -> db.tx(conn -> { upsertNote(conn, p, note); return null; }));
+                        attachListenersForNote(p, note);
+                    }
+                }
+                if (ch.wasRemoved()) {
+                    for (PersonalNote note : ch.getRemoved()) {
+                        submitWrite(() -> db.tx(conn -> { deleteNoteById(conn, note.getId()); return null; }));
+                    }
+                }
+            }
+        };
+        p.getNotes().addListener(notesListener);
+        detach.add(() -> p.getNotes().removeListener(notesListener));
+
         for (Task t : p.getTasks()) attachListenersForTask(p, t);
         for (Phase ph : p.getPhases()) attachListenersForPhase(p, ph);
         for (Member m : p.getMembers()) attachListenersForMember(p, m);
         for (Milestone ms : p.getMilestones()) attachListenersForMilestone(p, ms);
+        for (ResourceItem r : p.getResources()) attachListenersForResource(p, r);
+        for (PersonalNote note : p.getNotes()) attachListenersForNote(p, note);
 
         detachByProjectId.put(pid, () -> detach.forEach(Runnable::run));
     }
@@ -554,6 +686,7 @@ public final class DbStore extends InMemoryStore {
         t.dueDateProperty().addListener(dirty);
         t.assigneeProperty().addListener(dirty);
         t.phaseProperty().addListener(dirty);
+        t.checklistVersionProperty().addListener(dirty);
     }
 
     private void attachListenersForPhase(Project p, Phase ph) {
@@ -599,6 +732,38 @@ public final class DbStore extends InMemoryStore {
         ms.completedProperty().addListener(dirty);
     }
 
+    private void attachListenersForResource(Project p, ResourceItem r) {
+        if (r == null || p == null) return;
+
+        ChangeListener<Object> dirty = (obs, o, n) -> {
+            if (loading) return;
+            submitWrite(() -> db.tx(conn -> { upsertResource(conn, p, r); return null; }));
+        };
+
+        r.taskIdProperty().addListener(dirty);
+        r.typeProperty().addListener(dirty);
+        r.titleProperty().addListener(dirty);
+        r.targetProperty().addListener(dirty);
+        r.notesProperty().addListener(dirty);
+        r.addedByProperty().addListener(dirty);
+        r.updatedAtProperty().addListener(dirty);
+    }
+
+    private void attachListenersForNote(Project p, PersonalNote note) {
+        if (note == null || p == null) return;
+
+        ChangeListener<Object> dirty = (obs, o, n) -> {
+            if (loading) return;
+            submitWrite(() -> db.tx(conn -> { upsertNote(conn, p, note); return null; }));
+        };
+
+        note.taskIdProperty().addListener(dirty);
+        note.ownerIdProperty().addListener(dirty);
+        note.titleProperty().addListener(dirty);
+        note.bodyProperty().addListener(dirty);
+        note.updatedAtProperty().addListener(dirty);
+    }
+
     private void detachAllProjectListeners() {
         for (String pid : new ArrayList<>(detachByProjectId.keySet())) detachProjectListeners(pid);
     }
@@ -613,14 +778,20 @@ public final class DbStore extends InMemoryStore {
     // -----------------------------------------
 
     private void submitWrite(Runnable job) {
-        dbExec.submit(() -> {
-            try {
-                job.run();
-            } catch (Exception ex) {
-                System.err.println("[DB] write failed: " + ex.getMessage());
-                ex.printStackTrace();
-            }
-        });
+        if (dbExec.isShutdown() || dbExec.isTerminated()) {
+            return;
+        }
+        try {
+            dbExec.submit(() -> {
+                try {
+                    job.run();
+                } catch (Exception ex) {
+                    AppLog.error("db", "Write failed: " + ex.getMessage(), ex);
+                }
+            });
+        } catch (RejectedExecutionException ignored) {
+            // shutting down
+        }
     }
 
     private void persistInitialProjectContent(Connection conn, Project p) {
@@ -646,6 +817,16 @@ public final class DbStore extends InMemoryStore {
         for (Milestone ms : p.getMilestones()) {
             if (ms == null) continue;
             upsertMilestone(conn, p, ms);
+        }
+
+        for (ResourceItem r : p.getResources()) {
+            if (r == null) continue;
+            upsertResource(conn, p, r);
+        }
+
+        for (PersonalNote note : p.getNotes()) {
+            if (note == null) continue;
+            upsertNote(conn, p, note);
         }
     }
 
@@ -768,6 +949,7 @@ public final class DbStore extends InMemoryStore {
 
     private static final class TaskRow {
         String id, projectId, phaseId, title, details, status, priority, assigneeMemberId;
+        String checklistJson;
         Long dueAt;
         int sortIndex;
     }
@@ -776,6 +958,16 @@ public final class DbStore extends InMemoryStore {
         String id, projectId, title;
         Long targetAt;
         boolean isDone;
+    }
+
+    private static final class ResourceRow {
+        String id, projectId, taskId, type, title, target, notes, addedBy;
+        long createdAt, updatedAt;
+    }
+
+    private static final class NoteRow {
+        String id, projectId, taskId, ownerId, title, body;
+        long createdAt, updatedAt;
     }
 
     private static final class ActivityRow {
@@ -880,7 +1072,7 @@ public final class DbStore extends InMemoryStore {
     private List<TaskRow> selectTasks(Connection conn) {
         try (Statement st = conn.createStatement();
              ResultSet rs = st.executeQuery("""
-                SELECT id, project_id, phase_id, title, details, status, priority, assignee_member_id, due_at, sort_index
+                SELECT id, project_id, phase_id, title, details, status, priority, assignee_member_id, due_at, sort_index, checklist_json
                 FROM tasks
                 ORDER BY project_id, sort_index
                 """)) {
@@ -898,6 +1090,7 @@ public final class DbStore extends InMemoryStore {
                 r.assigneeMemberId = rs.getString("assignee_member_id");
                 r.dueAt = readNullableLong(rs, "due_at");
                 r.sortIndex = rs.getInt("sort_index");
+                r.checklistJson = rs.getString("checklist_json");
                 out.add(r);
             }
             return out;
@@ -927,6 +1120,62 @@ public final class DbStore extends InMemoryStore {
             return out;
         } catch (Exception e) {
             throw new DbException("Failed to select milestones", e);
+        }
+    }
+
+    private List<ResourceRow> selectResources(Connection conn) {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("""
+                SELECT id, project_id, task_id, type, title, target, notes, added_by, created_at, updated_at
+                FROM resources
+                ORDER BY project_id, created_at
+                """)) {
+
+            List<ResourceRow> out = new ArrayList<>();
+            while (rs.next()) {
+                ResourceRow r = new ResourceRow();
+                r.id = rs.getString("id");
+                r.projectId = rs.getString("project_id");
+                r.taskId = rs.getString("task_id");
+                r.type = rs.getString("type");
+                r.title = rs.getString("title");
+                r.target = rs.getString("target");
+                r.notes = rs.getString("notes");
+                r.addedBy = rs.getString("added_by");
+                r.createdAt = rs.getLong("created_at");
+                r.updatedAt = rs.getLong("updated_at");
+                out.add(r);
+            }
+            return out;
+        } catch (Exception e) {
+            throw new DbException("Failed to select resources", e);
+        }
+    }
+
+    private List<NoteRow> selectNotes(Connection conn) {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("""
+                SELECT id, project_id, task_id, owner_id, title, body, created_at, updated_at
+                FROM notes
+                ORDER BY project_id, updated_at DESC
+                """)) {
+
+            List<NoteRow> out = new ArrayList<>();
+            while (rs.next()) {
+                NoteRow r = new NoteRow();
+                r.id = rs.getString("id");
+                r.projectId = rs.getString("project_id");
+                r.taskId = rs.getString("task_id");
+                r.ownerId = rs.getString("owner_id");
+                r.title = rs.getString("title");
+                r.body = rs.getString("body");
+                r.createdAt = rs.getLong("created_at");
+                r.updatedAt = rs.getLong("updated_at");
+                out.add(r);
+            }
+            return out;
+        } catch (Exception e) {
+            throw new DbException("Failed to select notes", e);
         }
     }
 
@@ -1084,8 +1333,8 @@ public final class DbStore extends InMemoryStore {
 
     private void upsertTask(Connection conn, Project p, Task t) {
         try (PreparedStatement ps = conn.prepareStatement("""
-            INSERT INTO tasks (id, project_id, phase_id, title, details, status, priority, assignee_member_id, due_at, sort_index, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO tasks (id, project_id, phase_id, title, details, status, priority, assignee_member_id, due_at, sort_index, checklist_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               phase_id=excluded.phase_id,
               title=excluded.title,
@@ -1095,6 +1344,7 @@ public final class DbStore extends InMemoryStore {
               assignee_member_id=excluded.assignee_member_id,
               due_at=excluded.due_at,
               sort_index=excluded.sort_index,
+              checklist_json=excluded.checklist_json,
               updated_at=excluded.updated_at
             """)) {
             long now = System.currentTimeMillis();
@@ -1108,8 +1358,9 @@ public final class DbStore extends InMemoryStore {
             ps.setString(8, t.getAssignee() == null ? null : t.getAssignee().getId());
             bindNullableLong(ps, 9, toEpochMillis(t.getDueDate()));
             ps.setInt(10, Math.max(0, p.getTasks().indexOf(t)));
-            ps.setLong(11, now);
+            ps.setString(11, ChecklistCodec.encode(t.getChecklist()));
             ps.setLong(12, now);
+            ps.setLong(13, now);
             ps.executeUpdate();
         } catch (Exception e) {
             throw new DbException("Failed to upsert task " + t.getId(), e);
@@ -1160,6 +1411,90 @@ public final class DbStore extends InMemoryStore {
         }
     }
 
+    private void upsertResource(Connection conn, Project p, ResourceItem r) {
+        try (PreparedStatement ps = conn.prepareStatement("""
+            INSERT INTO resources (id, project_id, task_id, type, title, target, notes, added_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              task_id=excluded.task_id,
+              type=excluded.type,
+              title=excluded.title,
+              target=excluded.target,
+              notes=excluded.notes,
+              added_by=excluded.added_by,
+              updated_at=excluded.updated_at
+            """)) {
+            long now = System.currentTimeMillis();
+            Long createdAt = toEpochMillis(r.getCreatedAt());
+            Long updatedAt = toEpochMillis(r.getUpdatedAt());
+            if (createdAt == null) createdAt = now;
+            if (updatedAt == null) updatedAt = now;
+
+            ps.setString(1, r.getId());
+            ps.setString(2, p.getId());
+            ps.setString(3, r.getTaskId());
+            ps.setString(4, r.getType() == null ? ResourceType.LINK.name() : r.getType().name());
+            ps.setString(5, nullToEmpty(r.getTitle()));
+            ps.setString(6, nullToEmpty(r.getTarget()));
+            ps.setString(7, nullToEmpty(r.getNotes()));
+            ps.setString(8, nullToEmpty(r.getAddedBy()));
+            ps.setLong(9, createdAt);
+            ps.setLong(10, updatedAt);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            throw new DbException("Failed to upsert resource " + r.getId(), e);
+        }
+    }
+
+    private void deleteResourceById(Connection conn, String id) {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM resources WHERE id = ?")) {
+            ps.setString(1, id);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            throw new DbException("Failed to delete resource " + id, e);
+        }
+    }
+
+    private void upsertNote(Connection conn, Project p, PersonalNote note) {
+        try (PreparedStatement ps = conn.prepareStatement("""
+            INSERT INTO notes (id, project_id, task_id, owner_id, title, body, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              task_id=excluded.task_id,
+              owner_id=excluded.owner_id,
+              title=excluded.title,
+              body=excluded.body,
+              updated_at=excluded.updated_at
+            """)) {
+            long now = System.currentTimeMillis();
+            Long createdAt = toEpochMillis(note.getCreatedAt());
+            Long updatedAt = toEpochMillis(note.getUpdatedAt());
+            if (createdAt == null) createdAt = now;
+            if (updatedAt == null) updatedAt = now;
+
+            ps.setString(1, note.getId());
+            ps.setString(2, p.getId());
+            ps.setString(3, note.getTaskId());
+            ps.setString(4, nullToEmpty(note.getOwnerId()));
+            ps.setString(5, nullToEmpty(note.getTitle()));
+            ps.setString(6, nullToEmpty(note.getBody()));
+            ps.setLong(7, createdAt);
+            ps.setLong(8, updatedAt);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            throw new DbException("Failed to upsert note " + note.getId(), e);
+        }
+    }
+
+    private void deleteNoteById(Connection conn, String id) {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM notes WHERE id = ?")) {
+            ps.setString(1, id);
+            ps.executeUpdate();
+        } catch (Exception e) {
+            throw new DbException("Failed to delete note " + id, e);
+        }
+    }
+
     private void appendActivity(Connection conn, long at, String projectId, String entityType, String entityId, String action, String details) {
         try (PreparedStatement ps = conn.prepareStatement("""
             INSERT INTO activity_log (id, at, actor, project_id, entity_type, entity_id, action, details)
@@ -1180,7 +1515,15 @@ public final class DbStore extends InMemoryStore {
                     Project p = findProjectById(projectId);
                     if (p != null) pn = p.getName();
                 }
-                ActivityItem item = new ActivityItem(pn, nullToEmpty(details));
+                ActivityItem item = new ActivityItem(
+                        projectId,
+                        pn,
+                        null,
+                        entityType,
+                        entityId,
+                        action,
+                        nullToEmpty(details)
+                );
                 item.timeProperty().set(LocalDateTime.now());
                 getActivity().add(0, item);
                 if (getActivity().size() > 50) getActivity().remove(getActivity().size() - 1);

@@ -19,6 +19,7 @@ import com.projectpilot.data.db.auth.AuthService;
 import com.projectpilot.data.db.auth.UserSession;
 import com.projectpilot.security.AccessPolicy;
 import com.projectpilot.ui.MainLayout;
+import com.projectpilot.ui.components.WindowChrome;
 import com.projectpilot.ui.pages.*;
 import com.projectpilot.ui.pages.admin.AdminPage;
 import com.projectpilot.lan.LanDiscovery;
@@ -33,6 +34,7 @@ import javafx.scene.image.Image;
 import javafx.scene.layout.StackPane;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 
 import java.io.InputStream;
 import java.util.concurrent.Executors;
@@ -59,6 +61,7 @@ public class Main extends Application {
     private AppState appState;
 
     private Scene scene;
+    private WindowChrome chrome;
 
     private final AccessPolicy policy = new AccessPolicy();
 
@@ -81,10 +84,14 @@ public class Main extends Application {
         loadFont("/fonts/Inter-Regular.ttf", 12);
         loadFont("/fonts/Inter-SemiBold.ttf", 12);
 
-        scene = new Scene(new StackPane(), 1200, 800);
+        stage.initStyle(StageStyle.UNDECORATED);
+
+        chrome = new WindowChrome(stage);
+        scene = new Scene(chrome, 1200, 800);
         scene.getStylesheets().add(getClass().getResource("/css/app.css").toExternalForm());
 
         stage.setTitle("ProjectPilot");
+        stage.setResizable(true);
         loadIcon(stage, "/icons/app.png");
         stage.setScene(scene);
 
@@ -98,19 +105,19 @@ public class Main extends Application {
     private void showLogin() {
         var root = new LoginPage(auth, this::onLoginSuccess);
         root.getStyleClass().add("pp-root");
-        scene.setRoot(root);
+        chrome.setContent(root);
     }
 
     private void showLanSetup() {
         var root = new LanSetupPage(lanConfig, this::bootstrapMode);
         root.getStyleClass().add("pp-root");
-        scene.setRoot(root);
+        chrome.setContent(root);
     }
 
     private void showSetup() {
         var root = new SetupAdminPage(auth, this::onLoginSuccess);
         root.getStyleClass().add("pp-root");
-        scene.setRoot(root);
+        chrome.setContent(root);
     }
 
     private void bootstrapMode(LanConfig config) {
@@ -182,10 +189,14 @@ public class Main extends Application {
 
             Router router = new Router();
             router.register(PageId.DASHBOARD, () -> new DashboardPage(store, appState));
+            router.register(PageId.ACTIVITY, () -> new ActivityTimelinePage(store, appState));
             router.register(PageId.PROJECTS, () -> new ProjectsPage(store, appState));
             router.register(PageId.PROJECT_OVERVIEW, () -> new ProjectOverviewPage(store, appState));
             router.register(PageId.TASKS, () -> new TasksPage(store, appState));
             router.register(PageId.GANTT, () -> new GanttPage(store, appState));
+            router.register(PageId.CALENDAR, () -> new CalendarPage(store, appState));
+            router.register(PageId.RESOURCES, () -> new ResourcesPage(store, appState));
+            router.register(PageId.NOTES, () -> new NotesPage(store, appState));
             router.register(PageId.TEAM, () -> new TeamPage(store, appState));
             router.register(PageId.MESSAGES, () -> new MessagesPage(chatService, appState));
             router.register(PageId.HISTORY, () -> new HistoryPage(store, appState));
@@ -203,7 +214,7 @@ public class Main extends Application {
 
             MainLayout appRoot = new MainLayout(router, store, appState, this::logout);
             appRoot.getStyleClass().add("pp-root");
-            scene.setRoot(appRoot);
+            chrome.setContent(appRoot);
 
             if (lanConfig.isHost() && lanServer == null && appState.isAdmin()) {
                 startLanHostServices();

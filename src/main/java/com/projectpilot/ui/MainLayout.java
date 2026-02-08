@@ -8,12 +8,16 @@ import com.projectpilot.security.AccessPolicy;
 import com.projectpilot.service.NotificationService;
 import com.projectpilot.ui.components.Sidebar;
 import com.projectpilot.ui.components.TopBar;
+import com.projectpilot.ui.dialogs.CommandPaletteDialog;
 import com.projectpilot.ui.dialogs.NotificationsDialog;
 import com.projectpilot.ui.pages.AccessDeniedPage;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.Window;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.event.EventHandler;
 
 public class MainLayout extends BorderPane {
 
@@ -25,6 +29,7 @@ public class MainLayout extends BorderPane {
     private final AccessPolicy policy = new AccessPolicy();
 
     private final NotificationService notifications;
+    private final EventHandler<KeyEvent> paletteShortcut;
 
     // ensure login dialog shows only once per session instance
     private Object lastShownSessionRef = null;
@@ -40,6 +45,13 @@ public class MainLayout extends BorderPane {
         this.store = store;
         this.appState = appState;
         this.notifications = notifications;
+        this.paletteShortcut = event -> {
+            if (event.isControlDown() && event.getCode() == KeyCode.K) {
+                Window owner = (getScene() == null) ? null : getScene().getWindow();
+                CommandPaletteDialog.show(owner, store, appState, appState::setCurrentPage);
+                event.consume();
+            }
+        };
 
         TopBar topBar = new TopBar(store, appState, notifications);
         sidebar = new Sidebar(page -> appState.setCurrentPage(page), onLogout, appState);
@@ -72,7 +84,11 @@ public class MainLayout extends BorderPane {
         });
 
         // If scene becomes available later, try showing login notifications then
-        sceneProperty().addListener((obs, o, n) -> maybeShowLoginNotifications());
+        sceneProperty().addListener((obs, o, n) -> {
+            if (o != null) o.removeEventFilter(KeyEvent.KEY_PRESSED, paletteShortcut);
+            if (n != null) n.addEventFilter(KeyEvent.KEY_PRESSED, paletteShortcut);
+            maybeShowLoginNotifications();
+        });
     }
 
     private void maybeShowLoginNotifications() {

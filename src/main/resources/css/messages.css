@@ -41,6 +41,17 @@
     -fx-font-size: 11px;
 }
 
+.pp-root .chat-unread-dot {
+    -fx-min-width: 8;
+    -fx-min-height: 8;
+    -fx-pref-width: 8;
+    -fx-pref-height: 8;
+    -fx-max-width: 8;
+    -fx-max-height: 8;
+    -fx-background-radius: 999;
+    -fx-background-color: -pp-accent;
+}
+
 .pp-root .chat-messages .list-cell {
     -fx-padding: 8 12;
 }

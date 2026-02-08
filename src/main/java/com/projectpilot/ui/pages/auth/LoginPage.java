@@ -8,6 +8,10 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 import java.util.function.Consumer;
@@ -15,19 +19,51 @@ import java.util.function.Consumer;
 public class LoginPage extends BorderPane {
 
     public LoginPage(AuthProvider auth, Consumer<UserSession> onSuccess) {
-        VBox card = new VBox(10);
-        card.setPadding(new Insets(24));
-        card.setMaxWidth(420);
-        card.setAlignment(Pos.CENTER_LEFT);
+        getStyleClass().add("auth-root");
+
+        VBox hero = new VBox(10);
+        hero.getStyleClass().add("auth-hero");
+        hero.setAlignment(Pos.TOP_LEFT);
+
+        Label brand = new Label("ProjectPilot");
+        brand.getStyleClass().add("auth-brand");
+
+        Label tagline = new Label("Plan. Track. Deliver.");
+        tagline.getStyleClass().add("auth-tagline");
+
+        Label heroSub = new Label("One workspace for tasks, schedules, and team delivery.");
+        heroSub.getStyleClass().add("auth-sub");
+        heroSub.setWrapText(true);
+
+        VBox bullets = new VBox(6,
+                bullet("Live progress across teams"),
+                bullet("Gantt + Calendar views"),
+                bullet("Files and links per task")
+        );
+        bullets.getStyleClass().add("auth-bullets");
+
+        hero.getChildren().addAll(brand, tagline, heroSub, bullets);
+
+        VBox form = new VBox(10);
+        form.getStyleClass().add("auth-form");
+        form.setAlignment(Pos.CENTER_LEFT);
 
         Label title = new Label("Sign in");
-        title.getStyleClass().add("pp-title");
+        title.getStyleClass().add("auth-title");
 
+        Label sub = new Label("Use your ProjectPilot account to continue.");
+        sub.getStyleClass().add("auth-sub");
+        sub.setWrapText(true);
+
+        Label userLabel = new Label("Username");
+        userLabel.getStyleClass().add("field-label");
         TextField username = new TextField();
-        username.setPromptText("Username");
+        username.setPromptText("Enter your username");
 
+        Label passLabel = new Label("Password");
+        passLabel.getStyleClass().add("field-label");
         PasswordField password = new PasswordField();
-        password.setPromptText("Password");
+        password.setPromptText("Enter your password");
 
         Label error = new Label();
         error.getStyleClass().add("pp-error");
@@ -36,6 +72,7 @@ public class LoginPage extends BorderPane {
 
         Button login = new Button("Login");
         login.setDefaultButton(true);
+        login.getStyleClass().add("primary");
 
         ProgressIndicator spinner = new ProgressIndicator();
         spinner.setMaxSize(20, 20);
@@ -74,10 +111,46 @@ public class LoginPage extends BorderPane {
             new Thread(t, "auth-login").start();
         });
 
-        card.getChildren().addAll(title, username, password, new VBox(6, login, spinner), error);
+        HBox actions = new HBox(8, login, spinner);
+        actions.getStyleClass().add("auth-actions");
+        actions.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(login, Priority.ALWAYS);
 
-        setCenter(card);
-        BorderPane.setAlignment(card, Pos.CENTER);
+        Label hint = new Label("Tip: Press Enter to sign in.");
+        hint.getStyleClass().add("auth-footnote");
+
+        form.getChildren().addAll(
+                title,
+                sub,
+                userLabel,
+                username,
+                passLabel,
+                password,
+                error,
+                actions,
+                hint
+        );
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        HBox shell = new HBox(hero, form);
+        shell.getStyleClass().add("auth-shell");
+        shell.setAlignment(Pos.CENTER);
+
+        StackPane surface = new StackPane(shell);
+        surface.setPadding(new Insets(24));
+        surface.setAlignment(Pos.CENTER);
+
+        setCenter(surface);
+        BorderPane.setAlignment(surface, Pos.CENTER);
         setPadding(new Insets(24));
+    }
+
+    private static Label bullet(String text) {
+        Label label = new Label("- " + (text == null ? "" : text));
+        label.getStyleClass().add("auth-bullet");
+        label.setWrapText(true);
+        return label;
     }
 }

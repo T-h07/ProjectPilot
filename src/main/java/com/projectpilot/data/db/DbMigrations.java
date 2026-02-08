@@ -6,7 +6,7 @@ import java.util.Set;
 
 final class DbMigrations {
 
-    private static final int LATEST = 8;
+    private static final int LATEST = 11;
 
     private DbMigrations() {}
 
@@ -65,6 +65,24 @@ final class DbMigrations {
                 migrate7to8(conn);
                 setUserVersion(conn, 8);
                 version = 8;
+            }
+
+            if (version == 8) {
+                migrate8to9(conn);
+                setUserVersion(conn, 9);
+                version = 9;
+            }
+
+            if (version == 9) {
+                migrate9to10(conn);
+                setUserVersion(conn, 10);
+                version = 10;
+            }
+
+            if (version == 10) {
+                migrate10to11(conn);
+                setUserVersion(conn, 11);
+                version = 11;
             }
 
             if (version > LATEST) {
@@ -154,6 +172,73 @@ final class DbMigrations {
         SqlScriptRunner.run(conn, SchemaSql.v8(conn));
     }
 
+    // ---------------- v8 -> v9 ----------------
+
+    private static void migrate8to9(Connection conn) throws SQLException {
+        try (Statement st = conn.createStatement()) {
+            tryCreateUniqueIndex(st, "uq_projects_name", "projects", "lower(name)");
+            tryCreateUniqueIndex(st, "uq_teams_name", "teams", "lower(name)");
+            tryCreateUniqueIndex(st, "uq_tasks_title_project", "tasks", "project_id, lower(title)");
+            tryCreateUniqueIndex(st, "uq_phases_project_name", "phases", "project_id, lower(name)");
+            tryCreateUniqueIndex(st, "uq_milestones_project_title", "milestones", "project_id, lower(title)");
+        }
+    }
+
+    // ---------------- v9 -> v10 ----------------
+
+    private static void migrate9to10(Connection conn) throws SQLException {
+        ensureColumn(conn, "tasks", "checklist_json", "TEXT NOT NULL DEFAULT '[]'");
+    }
+
+    // ---------------- v10 -> v11 ----------------
+
+    private static void migrate10to11(Connection conn) throws SQLException {
+        try (Statement st = conn.createStatement()) {
+            st.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS resources (
+                        id         TEXT PRIMARY KEY,
+                        project_id TEXT NOT NULL,
+                        task_id    TEXT,
+                        type       TEXT NOT NULL,
+                        title      TEXT NOT NULL,
+                        target     TEXT NOT NULL,
+                        notes      TEXT NOT NULL DEFAULT '',
+                        added_by   TEXT NOT NULL DEFAULT '',
+                        created_at INTEGER NOT NULL,
+                        updated_at INTEGER NOT NULL,
+                        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+                    )
+                    """
+            );
+
+            st.execute("CREATE INDEX IF NOT EXISTS idx_resources_project ON resources(project_id)");
+            st.execute("CREATE INDEX IF NOT EXISTS idx_resources_task ON resources(task_id)");
+
+            st.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS notes (
+                        id         TEXT PRIMARY KEY,
+                        project_id TEXT NOT NULL,
+                        task_id    TEXT,
+                        owner_id   TEXT NOT NULL,
+                        title      TEXT NOT NULL,
+                        body       TEXT NOT NULL,
+                        created_at INTEGER NOT NULL,
+                        updated_at INTEGER NOT NULL,
+                        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+                    )
+                    """
+            );
+
+            st.execute("CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id)");
+            st.execute("CREATE INDEX IF NOT EXISTS idx_notes_owner ON notes(owner_id)");
+            st.execute("CREATE INDEX IF NOT EXISTS idx_notes_task ON notes(task_id)");
+        }
+    }
+
     // ---------------- helpers ----------------
 
     private static void ensureColumn(Connection conn, String table, String col, String ddl) throws SQLException {
@@ -228,6 +313,14 @@ final class DbMigrations {
     private static void ensureSchemaVersionTable(Connection conn) throws SQLException {
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)");
+        }
+    }
+
+    private static void tryCreateUniqueIndex(Statement st, String name, String table, String expr) throws SQLException {
+        try {
+            st.execute("CREATE UNIQUE INDEX IF NOT EXISTS " + name + " ON " + table + " (" + expr + ")");
+        } catch (SQLException ignored) {
+            // Existing duplicates can prevent index creation; keep running.
         }
     }
 }

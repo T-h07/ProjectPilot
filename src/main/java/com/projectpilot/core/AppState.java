@@ -53,6 +53,8 @@ public class AppState {
     private final IntegerProperty hostConnections = new SimpleIntegerProperty(0);
     private final LongProperty hostStartedAt = new SimpleLongProperty(0L);
     private final StringProperty hostMode = new SimpleStringProperty("local");
+    private final BooleanProperty clientOnline = new SimpleBooleanProperty(false);
+    private final StringProperty clientStatus = new SimpleStringProperty("offline");
 
     private final ListChangeListener<Member> membersListener = c -> refreshCurrentProjectRole();
     private Project membersBoundProject;
@@ -131,6 +133,12 @@ public class AppState {
     public StringProperty hostModeProperty() { return hostMode; }
     public String getHostMode() { return hostMode.get(); }
 
+    public BooleanProperty clientOnlineProperty() { return clientOnline; }
+    public boolean isClientOnline() { return clientOnline.get(); }
+
+    public StringProperty clientStatusProperty() { return clientStatus; }
+    public String getClientStatus() { return clientStatus.get(); }
+
     public boolean isAdmin() {
         UserSession s = getSession();
         return s != null && s.globalRole() == GlobalRole.ADMIN;
@@ -208,6 +216,15 @@ public class AppState {
         recomputeUnread();
     }
 
+    public boolean isChatThreadUnread(String threadId) {
+        String id = safe(threadId);
+        if (id == null) return false;
+        long lastAt = chatLastActivity.getOrDefault(id, 0L);
+        if (lastAt <= 0) return false;
+        long seen = chatLastSeen.getOrDefault(id, 0L);
+        return lastAt > seen;
+    }
+
     public void markChatThreadSeen(String threadId, Long lastAt) {
         String id = safe(threadId);
         if (id == null) return;
@@ -253,6 +270,16 @@ public class AppState {
         int safe = Math.max(0, connections);
         if (Platform.isFxApplicationThread()) hostConnections.set(safe);
         else Platform.runLater(() -> hostConnections.set(safe));
+    }
+
+    public void setClientStatus(boolean online, String status) {
+        String msg = status == null ? "" : status.trim();
+        Runnable update = () -> {
+            clientOnline.set(online);
+            clientStatus.set(msg.isEmpty() ? (online ? "online" : "offline") : msg);
+        };
+        if (Platform.isFxApplicationThread()) update.run();
+        else Platform.runLater(update);
     }
 
     private void resetChatState() {

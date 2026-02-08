@@ -29,6 +29,8 @@ public class Project {
     private final ObservableList<Task> tasks = FXCollections.observableArrayList();
     private final ObservableList<Member> members = FXCollections.observableArrayList();
     private final ObservableList<Milestone> milestones = FXCollections.observableArrayList();
+    private final ObservableList<ResourceItem> resources = FXCollections.observableArrayList();
+    private final ObservableList<PersonalNote> notes = FXCollections.observableArrayList();
 
     public Project(String name) {
         this(UUID.randomUUID().toString(), name);
@@ -81,6 +83,8 @@ public class Project {
     public ObservableList<Task> getTasks() { return tasks; }
     public ObservableList<Member> getMembers() { return members; }
     public ObservableList<Milestone> getMilestones() { return milestones; }
+    public ObservableList<ResourceItem> getResources() { return resources; }
+    public ObservableList<PersonalNote> getNotes() { return notes; }
 
     @Override public String toString() { return getName(); }
 }

@@ -8,5 +8,7 @@ public record SyncAction(
         TaskDto task,
         MemberDto member,
         PhaseDto phase,
-        MilestoneDto milestone
+        MilestoneDto milestone,
+        ResourceDto resource,
+        NoteDto note
 ) {}

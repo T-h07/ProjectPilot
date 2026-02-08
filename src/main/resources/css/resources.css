@@ -1,0 +1,93 @@
+/* Resources + Notes + Empty states + Help drawer */
+
+.pp-root .resource-toolbar {
+    -fx-alignment: center-left;
+    -fx-padding: 0 0 4 0;
+}
+
+.pp-root .resource-row,
+.pp-root .note-row {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+}
+
+.pp-root .resource-title,
+.pp-root .note-title {
+    -fx-text-fill: -pp-text;
+    -fx-font-weight: 700;
+}
+
+.pp-root .resource-meta,
+.pp-root .note-meta {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 11px;
+}
+
+.pp-root .resource-actions {
+    -fx-alignment: center-right;
+}
+
+.pp-root .list-view .list-cell:selected .resource-row,
+.pp-root .list-view .list-cell:selected .note-row {
+    -fx-background-color: -pp-accent-soft;
+    -fx-border-color: -pp-accent;
+}
+
+.pp-root .empty-state {
+    -fx-alignment: center;
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-padding: 18 24;
+    -fx-max-width: 520;
+}
+
+.pp-root .empty-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: 700;
+    -fx-text-fill: -pp-text;
+}
+
+.pp-root .empty-text {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 12px;
+    -fx-text-alignment: center;
+}
+
+.pp-root.help-drawer {
+    -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+}
+
+.pp-root .help-section {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+}
+
+.pp-root .help-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+    -fx-text-fill: -pp-text;
+}
+
+.pp-root .help-line {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 12px;
+}
+
+.pp-root .help-btn {
+    -fx-padding: 8 12;
+}

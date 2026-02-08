@@ -23,12 +23,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.prefs.Preferences;
 
 public final class NotificationService {
 
     private final InMemoryStore store;
     private final AppState appState;
     private final AccessPolicy policy = new AccessPolicy();
+    private final Preferences prefs = Preferences.userRoot().node("projectpilot/notifications");
 
     private final ObservableList<NotificationItem> items = FXCollections.observableArrayList();
     private LocalDateTime lastLoginShownAt = null;
@@ -231,7 +233,10 @@ public final class NotificationService {
 
     private Map<String, Boolean> loadPersistentReadState(String userId, List<NotificationItem> items) {
         DbManager db = dbIfAvailable();
-        if (db == null || userId == null || userId.isBlank()) return Map.of();
+        if (userId == null || userId.isBlank()) return Map.of();
+        if (db == null) {
+            return loadLocalReadState(userId, items);
+        }
 
         try {
             return db.tx(conn -> {
@@ -265,9 +270,14 @@ public final class NotificationService {
     private void persistMarkRead(String key) {
         DbManager db = dbIfAvailable();
         String userId = currentUserId();
-        if (db == null || userId == null || key == null || key.isBlank()) return;
+        if (userId == null || key == null || key.isBlank()) return;
         String id = notificationId(userId, key);
         if (id == null) return;
+
+        if (db == null) {
+            markLocalRead(userId, id, System.currentTimeMillis());
+            return;
+        }
 
         try {
             db.tx(conn -> {
@@ -286,7 +296,11 @@ public final class NotificationService {
     private void persistMarkAllRead() {
         DbManager db = dbIfAvailable();
         String userId = currentUserId();
-        if (db == null || userId == null) return;
+        if (userId == null) return;
+        if (db == null) {
+            markLocalAllRead(userId);
+            return;
+        }
         try {
             db.tx(conn -> {
                 try {
@@ -335,5 +349,81 @@ public final class NotificationService {
             return NotificationType.TASK_ASSIGNED;
         }
         return NotificationType.TASK_UPDATED;
+    }
+
+    private Map<String, Boolean> loadLocalReadState(String userId, List<NotificationItem> items) {
+        Map<String, Long> readAtById = parseLocalMap(userId);
+        Set<String> knownIds = new HashSet<>();
+        if (items != null) {
+            for (NotificationItem it : items) {
+                if (it == null) continue;
+                String id = notificationId(userId, it.key());
+                if (id != null) knownIds.add(id);
+            }
+        }
+
+        boolean changed = readAtById.keySet().removeIf(id -> !knownIds.contains(id));
+        if (changed) saveLocalMap(userId, readAtById);
+
+        Map<String, Boolean> out = new HashMap<>();
+        for (String id : knownIds) {
+            out.put(id, readAtById.containsKey(id));
+        }
+        return out;
+    }
+
+    private void markLocalRead(String userId, String id, long at) {
+        Map<String, Long> map = parseLocalMap(userId);
+        map.put(id, at);
+        saveLocalMap(userId, map);
+    }
+
+    private void markLocalAllRead(String userId) {
+        Map<String, Long> map = parseLocalMap(userId);
+        long now = System.currentTimeMillis();
+        for (NotificationItem it : items) {
+            if (it == null) continue;
+            String id = notificationId(userId, it.key());
+            if (id != null) map.put(id, now);
+        }
+        saveLocalMap(userId, map);
+    }
+
+    private Map<String, Long> parseLocalMap(String userId) {
+        String raw = prefs.get(prefKey(userId), "");
+        Map<String, Long> out = new HashMap<>();
+        if (raw == null || raw.isBlank()) return out;
+
+        String[] pairs = raw.split(";");
+        for (String pair : pairs) {
+            if (pair == null || pair.isBlank()) continue;
+            int idx = pair.indexOf('=');
+            if (idx <= 0) continue;
+            String id = pair.substring(0, idx);
+            String v = pair.substring(idx + 1);
+            try {
+                long ts = Long.parseLong(v);
+                out.put(id, ts);
+            } catch (NumberFormatException ignored) {}
+        }
+        return out;
+    }
+
+    private void saveLocalMap(String userId, Map<String, Long> map) {
+        if (map == null || map.isEmpty()) {
+            prefs.remove(prefKey(userId));
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, Long> e : map.entrySet()) {
+            if (e.getKey() == null || e.getKey().isBlank()) continue;
+            if (sb.length() > 0) sb.append(';');
+            sb.append(e.getKey()).append('=').append(e.getValue() == null ? 0L : e.getValue());
+        }
+        prefs.put(prefKey(userId), sb.toString());
+    }
+
+    private static String prefKey(String userId) {
+        return "read:" + userId;
     }
 }

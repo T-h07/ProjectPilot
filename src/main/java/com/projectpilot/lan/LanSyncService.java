@@ -4,6 +4,7 @@ import com.projectpilot.core.AppState;
 import com.projectpilot.lan.dto.SnapshotDto;
 import com.projectpilot.model.Project;
 import com.projectpilot.security.AccessPolicy;
+import com.projectpilot.util.AppLog;
 import javafx.application.Platform;
 
 import java.util.concurrent.Executors;
@@ -25,6 +26,8 @@ public final class LanSyncService {
     private final AtomicBoolean refreshPending = new AtomicBoolean(false);
     private final AtomicBoolean applyScheduled = new AtomicBoolean(false);
     private volatile SnapshotDto pendingSnapshot;
+    private volatile long nextAllowedAt = 0L;
+    private int failureCount = 0;
 
     public LanSyncService(RemoteStore store, LanClient client, AppState appState, int pollMs, LanWsClient wsClient) {
         this.store = store;
@@ -41,6 +44,9 @@ public final class LanSyncService {
             t.setDaemon(true);
             return t;
         });
+        if (appState != null) {
+            appState.setClientStatus(false, "connecting");
+        }
         exec.scheduleWithFixedDelay(this::poll, 0, pollMs, TimeUnit.MILLISECONDS);
         if (wsClient != null) {
             wsClient.connect(client.token());
@@ -52,9 +58,16 @@ public final class LanSyncService {
         exec.shutdownNow();
         exec = null;
         if (wsClient != null) wsClient.close();
+        if (appState != null) {
+            appState.setClientStatus(false, "offline");
+        }
     }
 
     private void poll() {
+        long now = System.currentTimeMillis();
+        if (now < nextAllowedAt && !refreshPending.get()) {
+            return;
+        }
         if (polling) {
             refreshPending.set(true);
             return;
@@ -64,8 +77,18 @@ public final class LanSyncService {
         try {
             SnapshotDto snapshot = client.fetchSnapshot();
             scheduleApply(snapshot);
+            failureCount = 0;
+            nextAllowedAt = 0L;
+            if (appState != null) {
+                appState.setClientStatus(true, "synced just now");
+            }
         } catch (Exception e) {
-            System.err.println("[LAN] Sync failed: " + e.getMessage());
+            AppLog.warn("lan-sync", "Sync failed: " + shortError(e));
+            failureCount++;
+            nextAllowedAt = now + computeBackoffMs();
+            if (appState != null) {
+                appState.setClientStatus(false, "sync failed");
+            }
         } finally {
             polling = false;
             if (refreshPending.getAndSet(false) && exec != null) {
@@ -77,6 +100,7 @@ public final class LanSyncService {
     public void requestRefresh() {
         if (exec == null) return;
         refreshPending.set(true);
+        nextAllowedAt = 0L;
         exec.execute(this::poll);
     }
 
@@ -122,5 +146,21 @@ public final class LanSyncService {
         }
 
         appState.refreshCurrentProjectRole();
+    }
+
+    private long computeBackoffMs() {
+        int attempts = Math.min(failureCount, 5);
+        long base = Math.max(1500L, pollMs);
+        long backoff = base * (1L << attempts);
+        long max = Math.max(8000L, pollMs * 6L);
+        return Math.min(backoff, max);
+    }
+
+    private static String shortError(Exception e) {
+        if (e == null) return "unknown";
+        String msg = e.getMessage();
+        if (msg == null || msg.isBlank()) return e.getClass().getSimpleName();
+        String trimmed = msg.trim();
+        return trimmed.length() > 120 ? trimmed.substring(0, 117) + "..." : trimmed;
     }
 }

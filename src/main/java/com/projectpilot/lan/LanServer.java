@@ -21,7 +21,9 @@ import com.projectpilot.lan.dto.*;
 import com.projectpilot.model.*;
 import com.projectpilot.model.enums.Priority;
 import com.projectpilot.model.enums.ProjectRole;
+import com.projectpilot.model.enums.ResourceType;
 import com.projectpilot.model.enums.TaskStatus;
+import com.projectpilot.util.ChecklistCodec;
 import javafx.application.Platform;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -132,6 +134,7 @@ public final class LanServer {
         target.createContext("/api/snapshot", this::handleSnapshot);
         target.createContext("/api/sync", this::handleSync);
         target.createContext("/api/chat", this::handleChat);
+        target.createContext("/api/directory", this::handleDirectory);
         target.createContext("/api/admin", this::handleAdmin);
         target.createContext("/api/teams", this::handleTeams);
         target.setExecutor(Executors.newCachedThreadPool(r -> {
@@ -288,6 +291,35 @@ public final class LanServer {
             sendText(ex, 400, iae.getMessage());
         } catch (Exception e) {
             sendText(ex, 500, "Chat failed");
+        }
+    }
+
+    private void handleDirectory(HttpExchange ex) throws IOException {
+        if (!allowRequest(ex)) return;
+        UserSession session = requireSession(ex);
+        if (session == null) {
+            sendText(ex, 401, "Unauthorized");
+            return;
+        }
+        if (dbStore == null) {
+            sendText(ex, 501, "Directory unavailable");
+            return;
+        }
+        if (!"GET".equalsIgnoreCase(ex.getRequestMethod())) {
+            sendText(ex, 405, "Method Not Allowed");
+            return;
+        }
+
+        try {
+            List<Member> directory = dbStore.listDirectoryUsers();
+            List<DirectoryUserDto> out = new ArrayList<>();
+            for (Member m : directory) {
+                if (m == null) continue;
+                out.add(new DirectoryUserDto(m.getId(), m.getName(), m.getRole()));
+            }
+            sendJson(ex, 200, out);
+        } catch (Exception e) {
+            sendText(ex, 500, "Directory failed");
         }
     }
 
@@ -526,6 +558,10 @@ public final class LanServer {
             case PHASE_DELETE -> deletePhase(action.projectId(), action.entityId());
             case MILESTONE_UPSERT -> upsertMilestone(action.projectId(), action.milestone());
             case MILESTONE_DELETE -> deleteMilestone(action.projectId(), action.entityId());
+            case RESOURCE_UPSERT -> upsertResource(action.projectId(), action.resource());
+            case RESOURCE_DELETE -> deleteResource(action.projectId(), action.entityId());
+            case NOTE_UPSERT -> upsertNote(action.projectId(), action.note());
+            case NOTE_DELETE -> deleteNote(action.projectId(), action.entityId());
             default -> { }
         }
     }
@@ -585,6 +621,7 @@ public final class LanServer {
         t.setDueDate(dto.dueDate());
         t.setAssignee(findMember(p, dto.assigneeId()));
         t.setPhase(findPhase(p, dto.phaseId()));
+        t.setChecklist(ChecklistCodec.decode(dto.checklistJson()));
     }
 
     private void deleteTask(String projectId, String taskId) {
@@ -673,6 +710,62 @@ public final class LanServer {
         if (ms != null) p.getMilestones().remove(ms);
     }
 
+    private void upsertResource(String projectId, ResourceDto dto) {
+        if (projectId == null || dto == null || dto.id() == null) return;
+        Project p = findProject(projectId);
+        if (p == null) return;
+
+        ResourceItem r = findResource(p, dto.id());
+        if (r == null) {
+            r = new ResourceItem(dto.id(), projectId);
+            store.addResource(p, r);
+        }
+
+        r.setTaskId(dto.taskId());
+        r.setType(dto.type() == null ? ResourceType.LINK : dto.type());
+        r.setTitle(safe(dto.title()));
+        r.setTarget(safe(dto.target()));
+        r.setNotes(safe(dto.notes()));
+        r.setAddedBy(safe(dto.addedBy()));
+        if (dto.createdAt() != null) r.setCreatedAt(dto.createdAt());
+        if (dto.updatedAt() != null) r.setUpdatedAt(dto.updatedAt());
+    }
+
+    private void deleteResource(String projectId, String resourceId) {
+        if (projectId == null || resourceId == null) return;
+        Project p = findProject(projectId);
+        if (p == null) return;
+        ResourceItem r = findResource(p, resourceId);
+        if (r != null) p.getResources().remove(r);
+    }
+
+    private void upsertNote(String projectId, NoteDto dto) {
+        if (projectId == null || dto == null || dto.id() == null) return;
+        Project p = findProject(projectId);
+        if (p == null) return;
+
+        PersonalNote note = findNote(p, dto.id());
+        if (note == null) {
+            note = new PersonalNote(dto.id(), projectId, safe(dto.ownerId()));
+            store.addNote(p, note);
+        }
+
+        note.setTaskId(dto.taskId());
+        note.setOwnerId(safe(dto.ownerId()));
+        note.setTitle(safe(dto.title()));
+        note.setBody(safe(dto.body()));
+        if (dto.createdAt() != null) note.setCreatedAt(dto.createdAt());
+        if (dto.updatedAt() != null) note.setUpdatedAt(dto.updatedAt());
+    }
+
+    private void deleteNote(String projectId, String noteId) {
+        if (projectId == null || noteId == null) return;
+        Project p = findProject(projectId);
+        if (p == null) return;
+        PersonalNote note = findNote(p, noteId);
+        if (note != null) p.getNotes().remove(note);
+    }
+
     private Project findProject(String id) {
         if (id == null) return null;
         for (Project p : store.getProjects()) if (id.equals(p.getId())) return p;
@@ -701,6 +794,18 @@ public final class LanServer {
     private Milestone findMilestone(Project p, String id) {
         if (p == null || id == null) return null;
         for (Milestone ms : p.getMilestones()) if (id.equals(ms.getId())) return ms;
+        return null;
+    }
+
+    private ResourceItem findResource(Project p, String id) {
+        if (p == null || id == null) return null;
+        for (ResourceItem r : p.getResources()) if (id.equals(r.getId())) return r;
+        return null;
+    }
+
+    private PersonalNote findNote(Project p, String id) {
+        if (p == null || id == null) return null;
+        for (PersonalNote note : p.getNotes()) if (id.equals(note.getId())) return note;
         return null;
     }
 

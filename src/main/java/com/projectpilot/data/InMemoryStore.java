@@ -5,6 +5,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
 import java.time.LocalDate;
+import java.util.Objects;
 
 public class InMemoryStore {
 
@@ -25,8 +26,14 @@ public class InMemoryStore {
     }
 
     protected void log(Project p, String msg) {
+        log(p, null, null, null, msg);
+    }
+
+    protected void log(Project p, String entityType, String entityId, String action, String msg) {
         String pn = (p == null) ? "-" : safe(p.getName());
-        activity.add(0, new ActivityItem(pn, msg)); // newest first
+        String pid = (p == null) ? null : p.getId();
+        ActivityItem item = new ActivityItem(pid, pn, null, entityType, entityId, action, msg);
+        activity.add(0, item); // newest first
         if (activity.size() > 50) activity.remove(activity.size() - 1);
     }
 
@@ -37,8 +44,11 @@ public class InMemoryStore {
     public Project createProject(Project project) {
         if (project == null) return null;
 
+        Project existing = findProjectByName(project.getName());
+        if (existing != null) return existing;
+
         projects.add(project);
-        log(project, "Project created");
+        log(project, "PROJECT", project.getId(), "CREATE", "Project created");
         autosave();
         return project;
     }
@@ -49,15 +59,18 @@ public class InMemoryStore {
         projects.remove(project);
         historyProjects.remove(project);
 
-        log(project, "Project deleted");
+        log(project, "PROJECT", project.getId(), "DELETE", "Project deleted");
         autosave();
     }
 
     public Task addTask(Project project, Task task) {
         if (project == null || task == null) return task;
 
+        Task existing = findTaskByTitle(project, task.getTitle());
+        if (existing != null) return existing;
+
         project.getTasks().add(task);
-        log(project, "Task added: " + safe(task.getTitle()));
+        log(project, "TASK", task.getId(), "ADD", "Task added: " + safe(task.getTitle()));
         autosave();
         return task;
     }
@@ -65,8 +78,11 @@ public class InMemoryStore {
     public Member addMember(Project project, Member member) {
         if (project == null || member == null) return member;
 
+        Member existing = findMemberById(project, member.getId());
+        if (existing != null) return existing;
+
         project.getMembers().add(member);
-        log(project, "Member added: " + safe(member.getName()));
+        log(project, "MEMBER", member.getId(), "ADD", "Member added: " + safe(member.getName()));
         autosave();
         return member;
     }
@@ -82,15 +98,18 @@ public class InMemoryStore {
         }
 
         project.getMembers().remove(member);
-        log(project, "Member removed: " + safe(member.getName()));
+        log(project, "MEMBER", member.getId(), "REMOVE", "Member removed: " + safe(member.getName()));
         autosave();
     }
 
     public Phase addPhase(Project project, Phase phase) {
         if (project == null || phase == null) return phase;
 
+        Phase existing = findPhaseByName(project, phase.getName());
+        if (existing != null) return existing;
+
         project.getPhases().add(phase);
-        log(project, "Phase added: " + safe(phase.getName()));
+        log(project, "PHASE", phase.getId(), "ADD", "Phase added: " + safe(phase.getName()));
         autosave();
         return phase;
     }
@@ -98,11 +117,52 @@ public class InMemoryStore {
     public Milestone addMilestone(Project project, Milestone milestone) {
         if (project == null || milestone == null) return milestone;
 
+        Milestone existing = findMilestoneByName(project, milestone.nameProperty().get());
+        if (existing != null) return existing;
+
         project.getMilestones().add(milestone);
         String name = safe(milestone.nameProperty().get());
-        log(project, "Milestone added: " + name);
+        log(project, "MILESTONE", milestone.getId(), "ADD", "Milestone added: " + name);
         autosave();
         return milestone;
+    }
+
+    public ResourceItem addResource(Project project, ResourceItem item) {
+        if (project == null || item == null) return item;
+
+        ResourceItem existing = findResourceByKey(project, item);
+        if (existing != null) return existing;
+
+        project.getResources().add(item);
+        log(project, "RESOURCE", item.getId(), "ADD", "Resource added: " + safe(item.getTitle()));
+        autosave();
+        return item;
+    }
+
+    public void removeResource(Project project, ResourceItem item) {
+        if (project == null || item == null) return;
+
+        project.getResources().remove(item);
+        log(project, "RESOURCE", item.getId(), "REMOVE", "Resource removed: " + safe(item.getTitle()));
+        autosave();
+    }
+
+    public PersonalNote addNote(Project project, PersonalNote note) {
+        if (project == null || note == null) return note;
+
+        PersonalNote existing = findNoteByKey(project, note);
+        if (existing != null) return existing;
+
+        project.getNotes().add(note);
+        autosave();
+        return note;
+    }
+
+    public void removeNote(Project project, PersonalNote note) {
+        if (project == null || note == null) return;
+
+        project.getNotes().remove(note);
+        autosave();
     }
 
     public void markProjectDone(Project project) {
@@ -115,7 +175,7 @@ public class InMemoryStore {
 
         if (!historyProjects.contains(project)) historyProjects.add(project);
 
-        log(project, "Project marked DONE");
+        log(project, "PROJECT", project.getId(), "DONE", "Project marked DONE");
         autosave();
     }
 
@@ -129,11 +189,105 @@ public class InMemoryStore {
 
         if (!projects.contains(project)) projects.add(project);
 
-        log(project, "Project restored to ACTIVE");
+        log(project, "PROJECT", project.getId(), "RESTORE", "Project restored to ACTIVE");
         autosave();
     }
 
     protected String safe(String s) {
         return s == null ? "" : s;
+    }
+
+    private Project findProjectByName(String name) {
+        String n = normalizeName(name);
+        if (n.isBlank()) return null;
+
+        for (Project p : projects) {
+            if (p != null && normalizeName(p.getName()).equals(n)) return p;
+        }
+        for (Project p : historyProjects) {
+            if (p != null && normalizeName(p.getName()).equals(n)) return p;
+        }
+        return null;
+    }
+
+    private Task findTaskByTitle(Project project, String title) {
+        if (project == null) return null;
+        String n = normalizeName(title);
+        if (n.isBlank()) return null;
+        for (Task t : project.getTasks()) {
+            if (t != null && normalizeName(t.getTitle()).equals(n)) return t;
+        }
+        return null;
+    }
+
+    private Member findMemberById(Project project, String id) {
+        if (project == null || id == null) return null;
+        String trimmed = id.trim();
+        if (trimmed.isBlank()) return null;
+        for (Member m : project.getMembers()) {
+            if (m != null && trimmed.equals(m.getId())) return m;
+        }
+        return null;
+    }
+
+    private Phase findPhaseByName(Project project, String name) {
+        if (project == null) return null;
+        String n = normalizeName(name);
+        if (n.isBlank()) return null;
+        for (Phase ph : project.getPhases()) {
+            if (ph != null && normalizeName(ph.getName()).equals(n)) return ph;
+        }
+        return null;
+    }
+
+    private Milestone findMilestoneByName(Project project, String name) {
+        if (project == null) return null;
+        String n = normalizeName(name);
+        if (n.isBlank()) return null;
+        for (Milestone ms : project.getMilestones()) {
+            if (ms != null && normalizeName(ms.nameProperty().get()).equals(n)) return ms;
+        }
+        return null;
+    }
+
+    private ResourceItem findResourceByKey(Project project, ResourceItem item) {
+        if (project == null || item == null) return null;
+        String n = normalizeName(item.getTitle());
+        String taskId = normalizeId(item.getTaskId());
+        if (n.isBlank()) return null;
+        for (ResourceItem r : project.getResources()) {
+            if (r == null) continue;
+            if (!normalizeName(r.getTitle()).equals(n)) continue;
+            if (!Objects.equals(normalizeId(r.getTaskId()), taskId)) continue;
+            if (r.getType() != item.getType()) continue;
+            return r;
+        }
+        return null;
+    }
+
+    private PersonalNote findNoteByKey(Project project, PersonalNote note) {
+        if (project == null || note == null) return null;
+        String n = normalizeName(note.getTitle());
+        String taskId = normalizeId(note.getTaskId());
+        String ownerId = normalizeId(note.getOwnerId());
+        if (n.isBlank()) return null;
+        for (PersonalNote pn : project.getNotes()) {
+            if (pn == null) continue;
+            if (!normalizeName(pn.getTitle()).equals(n)) continue;
+            if (!Objects.equals(normalizeId(pn.getTaskId()), taskId)) continue;
+            if (!Objects.equals(normalizeId(pn.getOwnerId()), ownerId)) continue;
+            return pn;
+        }
+        return null;
+    }
+
+    private String normalizeName(String name) {
+        return name == null ? "" : name.trim().toLowerCase();
+    }
+
+    private String normalizeId(String id) {
+        if (id == null) return null;
+        String v = id.trim();
+        return v.isEmpty() ? null : v;
     }
 }

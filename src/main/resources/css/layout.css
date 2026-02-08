@@ -106,6 +106,20 @@
     -fx-padding: 0;
 }
 
+.profile-menu-popup .menu-item {
+    -fx-background-color: transparent;
+    -fx-padding: 8 12;
+}
+
+.profile-menu-popup .menu-item:focused {
+    -fx-background-color: -pp-control-ghost;
+}
+
+.profile-menu-popup .menu-item .label {
+    -fx-text-fill: -pp-text;
+    -fx-font-weight: 600;
+}
+
 .profile-menu-card {
     -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
     -fx-background-radius: 12;
@@ -151,6 +165,143 @@
     -fx-border-width: 0 1 0 0;
 }
 
+/* ---- Auth pages ---- */
+.pp-root.auth-root {
+    -fx-background-color: linear-gradient(to bottom, -pp-bg, -pp-bg2);
+}
+
+.pp-root .auth-shell {
+    -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, -pp-shadow, 18, 0.18, 0, 8);
+    -fx-max-width: 920;
+}
+
+.pp-root .auth-hero {
+    -fx-padding: 28 32;
+    -fx-background-color: rgba(255,255,255,0.03);
+    -fx-background-radius: 16 0 0 16;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 0 1 0 0;
+    -fx-min-width: 300;
+    -fx-pref-width: 320;
+}
+
+.pp-root .auth-form {
+    -fx-padding: 28 32;
+    -fx-min-width: 320;
+    -fx-pref-width: 380;
+}
+
+.pp-root .auth-brand {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-weight: 700;
+    -fx-font-size: 12px;
+}
+
+.pp-root .auth-tagline {
+    -fx-text-fill: -pp-text;
+    -fx-font-weight: 800;
+    -fx-font-size: 20px;
+}
+
+.pp-root .auth-title {
+    -fx-text-fill: -pp-text;
+    -fx-font-weight: 800;
+    -fx-font-size: 18px;
+}
+
+.pp-root .auth-sub {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 12px;
+}
+
+.pp-root .auth-bullet {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 12px;
+}
+
+.pp-root .field-label {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+}
+
+.pp-root .auth-actions .button {
+    -fx-min-height: 36;
+}
+
+.pp-root .auth-footnote {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 11px;
+}
+
+/* ---- Window chrome ---- */
+.pp-root.window-chrome {
+    -fx-background-color: linear-gradient(to bottom, -pp-bg, -pp-bg2);
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+}
+
+.pp-root .window-titlebar {
+    -fx-background-color: -pp-glass-strong;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 0 0 1 0;
+    -fx-min-height: 32;
+}
+
+.pp-root .window-title {
+    -fx-text-fill: -pp-text;
+    -fx-font-weight: 700;
+    -fx-font-size: 12px;
+}
+
+.pp-root .window-controls {
+    -fx-alignment: center-right;
+}
+
+.pp-root .window-btn {
+    -fx-background-color: -pp-control-ghost;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 4 8;
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 11px;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.pp-root .window-max-icon {
+    -fx-min-width: 10;
+    -fx-min-height: 10;
+    -fx-pref-width: 10;
+    -fx-pref-height: 10;
+    -fx-max-width: 10;
+    -fx-max-height: 10;
+    -fx-background-color: transparent;
+    -fx-border-color: -pp-muted;
+    -fx-border-width: 1;
+}
+
+.pp-root .window-btn:hover {
+    -fx-background-color: -pp-control-ghost-hover;
+    -fx-text-fill: -pp-text;
+}
+
+.pp-root .window-btn:hover .window-max-icon {
+    -fx-border-color: -pp-text;
+}
+
+.pp-root .window-btn.window-close:hover {
+    -fx-background-color: -pp-danger-soft;
+    -fx-border-color: -pp-danger-border;
+    -fx-text-fill: -pp-danger-text;
+}
+
 /* ---- Cards ---- */
 .pp-root .card {
     -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
@@ -160,4 +311,18 @@
     -fx-border-width: 1;
     -fx-padding: 16;
     -fx-effect: dropshadow(gaussian, -pp-shadow, 16, 0.18, 0, 6);
+}
+
+/* ---- Health panel ---- */
+.pp-root .health-metric {
+    -fx-background-color: -pp-surface;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border-subtle;
+    -fx-padding: 10 12;
+    -fx-min-width: 150;
+}
+
+.pp-root .health-workload-list {
+    -fx-padding: 4 0 0 0;
 }

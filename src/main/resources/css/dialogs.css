@@ -74,3 +74,123 @@
     -fx-text-fill: -pp-text;
     -fx-fill: -pp-text;
 }
+
+/* Log viewer */
+.pp-root .log-list {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+}
+
+.pp-root .log-row {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 10;
+    -fx-border-color: -pp-border;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+}
+
+.pp-root .log-time {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 11px;
+}
+
+.pp-root .log-level {
+    -fx-font-weight: 700;
+    -fx-font-size: 11px;
+    -fx-padding: 2 6 2 6;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: -pp-border;
+    -fx-text-fill: -pp-text;
+}
+
+.pp-root .log-level-info {
+    -fx-background-color: -pp-control;
+}
+
+.pp-root .log-level-warn {
+    -fx-background-color: -pp-warning-soft;
+    -fx-text-fill: -pp-warning-text;
+}
+
+.pp-root .log-level-error {
+    -fx-background-color: -pp-danger-soft;
+    -fx-text-fill: -pp-danger-text;
+}
+
+.pp-root .log-source {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 11px;
+}
+
+.pp-root .log-message {
+    -fx-text-fill: -pp-text;
+}
+
+/* Command palette */
+.pp-root.pp-dialog.dialog-pane.command-palette {
+    -fx-min-width: 520;
+}
+
+.pp-root .command-search {
+    -fx-background-color: -pp-control;
+    -fx-text-fill: -pp-text;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-padding: 8 12;
+}
+
+.pp-root .command-list {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-padding: 4 0 4 0;
+}
+
+.pp-root .command-row {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+}
+
+.pp-root .command-list .list-cell:selected .command-row {
+    -fx-background-color: -pp-accent-soft;
+    -fx-border-color: -pp-accent;
+}
+
+.pp-root .command-title {
+    -fx-text-fill: -pp-text;
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+}
+
+.pp-root .command-hint {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 11px;
+}
+
+.pp-root .command-close {
+    -fx-min-width: 32;
+    -fx-min-height: 32;
+    -fx-max-width: 32;
+    -fx-max-height: 32;
+    -fx-background-color: -pp-control-ghost;
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-padding: 0;
+    -fx-alignment: center;
+}
+
+.pp-root .command-close:hover {
+    -fx-background-color: -pp-control-hover;
+    -fx-text-fill: -pp-text;
+}

@@ -153,6 +153,9 @@ public final class TeamService {
         final long now = System.currentTimeMillis();
 
         db.tx(conn -> {
+            if (teamNameExists(conn, nm)) {
+                throw new IllegalArgumentException("Team already exists: " + nm);
+            }
             insertTeam(conn, teamId, nm, now);
 
             insertTeamMember(conn, teamId, leader, ProjectRole.LEADER, now);
@@ -293,5 +296,19 @@ public final class TeamService {
     private static ProjectRole parseRole(String v, ProjectRole fallback) {
         if (v == null || v.isBlank()) return fallback;
         try { return ProjectRole.valueOf(v); } catch (Exception ignored) { return fallback; }
+    }
+
+    private static boolean teamNameExists(Connection conn, String name) {
+        if (name == null || name.isBlank()) return false;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM teams WHERE lower(name) = lower(?) LIMIT 1"
+        )) {
+            ps.setString(1, name);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (Exception e) {
+            throw new DbException("Check team name failed", e);
+        }
     }
 }

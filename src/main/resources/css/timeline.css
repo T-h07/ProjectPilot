@@ -1,0 +1,148 @@
+/* Activity timeline */
+.pp-root .timeline-list {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-padding: 0;
+}
+
+.pp-root .timeline-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 6 0;
+}
+
+.pp-root .timeline-card {
+    -fx-background-color: -pp-card;
+    -fx-background-radius: 14;
+    -fx-border-color: -pp-border;
+    -fx-border-radius: 14;
+    -fx-padding: 12 14;
+}
+
+.pp-root .timeline-time {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 11px;
+}
+
+.pp-root .timeline-project {
+    -fx-text-fill: -pp-text;
+    -fx-font-weight: 700;
+}
+
+.pp-root .timeline-action {
+    -fx-text-fill: -pp-muted;
+}
+
+.pp-root .timeline-link {
+    -fx-text-fill: -pp-accent;
+    -fx-underline: false;
+    -fx-padding: 0;
+}
+
+.pp-root .timeline-link:hover {
+    -fx-text-fill: -pp-on-accent;
+}
+
+.pp-root .timeline-dot {
+    -fx-min-width: 10;
+    -fx-min-height: 10;
+    -fx-max-width: 10;
+    -fx-max-height: 10;
+    -fx-background-radius: 10;
+    -fx-background-color: -pp-muted-2;
+    -fx-translate-y: 8;
+}
+
+.pp-root .timeline-dot-task { -fx-background-color: -pp-accent; }
+.pp-root .timeline-dot-project { -fx-background-color: -pp-success; }
+.pp-root .timeline-dot-milestone { -fx-background-color: -pp-warning; }
+.pp-root .timeline-dot-phase { -fx-background-color: -pp-muted; }
+.pp-root .timeline-dot-member { -fx-background-color: -pp-danger; }
+
+.pp-root .timeline-message {
+    -fx-text-fill: -pp-text;
+}
+
+.pp-root .timeline-text {
+    -fx-fill: -pp-text;
+}
+
+.pp-root .mention {
+    -fx-fill: -pp-accent;
+    -fx-font-weight: 700;
+}
+
+.pp-root .timeline-reactions {
+    -fx-padding: 4 0 0 0;
+}
+
+.pp-root .reaction-pill {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-color: -pp-border;
+    -fx-text-fill: -pp-text;
+    -fx-padding: 4 10;
+    -fx-font-size: 11px;
+}
+
+.pp-root .reaction-pill:hover {
+    -fx-background-color: -pp-control-ghost-hover;
+}
+
+/* Dashboard activity feed */
+.pp-root .activity-feed {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-padding: 4 0 0 0;
+}
+
+.pp-root .activity-feed .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 6 0;
+}
+
+.pp-root .activity-group {
+    -fx-text-fill: -pp-muted;
+    -fx-font-weight: 700;
+    -fx-font-size: 12px;
+    -fx-padding: 6 2 2 2;
+}
+
+.pp-root .activity-row {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+}
+
+.pp-root .activity-avatar {
+    -fx-background-color: -pp-accent-soft;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-color: -pp-border-strong;
+    -fx-border-width: 1;
+    -fx-min-width: 34;
+    -fx-min-height: 34;
+    -fx-pref-width: 34;
+    -fx-pref-height: 34;
+    -fx-alignment: center;
+}
+
+.pp-root .activity-initials {
+    -fx-text-fill: -pp-text;
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+}
+
+.pp-root .activity-message {
+    -fx-text-fill: -pp-text;
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+}
+
+.pp-root .activity-meta {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 11px;
+}

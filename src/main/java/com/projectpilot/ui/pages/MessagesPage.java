@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -146,6 +147,7 @@ public final class MessagesPage extends BorderPane {
         });
 
         appState.sessionProperty().addListener((obs, o, n) -> refreshThreadsAsync(true, null));
+        appState.unreadMessagesProperty().addListener((obs, o, n) -> threadList.refresh());
 
         refreshThreadsAsync(true, null);
     }
@@ -170,7 +172,9 @@ public final class MessagesPage extends BorderPane {
 
         runIo(() -> chat.listThreads(me), next -> {
             refreshingThreads = true;
-            threads.setAll(next);
+            if (!sameThreads(threads, next)) {
+                threads.setAll(next);
+            }
             refreshingThreads = false;
             status.setText("");
             appState.updateChatThreads(next);
@@ -339,6 +343,28 @@ public final class MessagesPage extends BorderPane {
         }
     }
 
+    private static boolean sameThreads(List<ChatThread> a, List<ChatThread> b) {
+        if (a == b) return true;
+        if (a == null || b == null) return false;
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < a.size(); i++) {
+            ChatThread left = a.get(i);
+            ChatThread right = b.get(i);
+            if (!sameThread(left, right)) return false;
+        }
+        return true;
+    }
+
+    private static boolean sameThread(ChatThread a, ChatThread b) {
+        if (a == b) return true;
+        if (a == null || b == null) return false;
+        return safe(a.id()).equals(safe(b.id()))
+                && Objects.equals(a.type(), b.type())
+                && Objects.equals(a.title(), b.title())
+                && Objects.equals(a.subtitle(), b.subtitle())
+                && Objects.equals(a.lastAt(), b.lastAt());
+    }
+
     private <T> void runIo(Supplier<T> task, java.util.function.Consumer<T> onSuccess, java.util.function.Consumer<Exception> onError) {
         if (ioExec.isShutdown()) return;
         ioExec.submit(() -> {
@@ -368,7 +394,19 @@ public final class MessagesPage extends BorderPane {
             sub.getStyleClass().add("chat-thread-sub");
 
             VBox box = new VBox(2, title, sub);
-            setGraphic(box);
+
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+
+            Region dot = new Region();
+            dot.getStyleClass().add("chat-unread-dot");
+            boolean unread = appState != null && appState.isChatThreadUnread(item.id());
+            dot.setVisible(unread);
+            dot.setManaged(unread);
+
+            HBox row = new HBox(8, box, spacer, dot);
+            row.setAlignment(Pos.CENTER_LEFT);
+            setGraphic(row);
         }
     }
 

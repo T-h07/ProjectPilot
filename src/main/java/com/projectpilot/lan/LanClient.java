@@ -118,7 +118,7 @@ public final class LanClient {
     public java.util.List<DirectoryUserDto> fetchDirectoryUsers() {
         ensureToken();
         try {
-            HttpRequest request = authed("/api/admin/directory")
+            HttpRequest request = authed("/api/directory")
                     .GET()
                     .build();
             HttpResponse<String> resp = http.send(request, HttpResponse.BodyHandlers.ofString());

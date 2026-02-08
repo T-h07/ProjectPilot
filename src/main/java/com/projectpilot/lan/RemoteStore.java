@@ -7,6 +7,7 @@ import com.projectpilot.model.*;
 import com.projectpilot.model.enums.Priority;
 import com.projectpilot.model.enums.ProjectRole;
 import com.projectpilot.model.enums.TaskStatus;
+import com.projectpilot.util.ChecklistCodec;
 import javafx.application.Platform;
 import javafx.beans.property.Property;
 import javafx.beans.value.ChangeListener;
@@ -25,6 +26,8 @@ public final class RemoteStore extends InMemoryStore {
     private final Map<String, Map<String, Runnable>> memberDetachers = new HashMap<>();
     private final Map<String, Map<String, Runnable>> phaseDetachers = new HashMap<>();
     private final Map<String, Map<String, Runnable>> milestoneDetachers = new HashMap<>();
+    private final Map<String, Map<String, Runnable>> resourceDetachers = new HashMap<>();
+    private final Map<String, Map<String, Runnable>> noteDetachers = new HashMap<>();
 
     public RemoteStore(LanClient client) {
         this.client = client;
@@ -128,7 +131,7 @@ public final class RemoteStore extends InMemoryStore {
                         SyncType.PROJECT_DELETE,
                         p.getId(),
                         p.getId(),
-                        null, null, null, null, null
+                        null, null, null, null, null, null, null
                 ));
             }
         });
@@ -249,6 +252,48 @@ public final class RemoteStore extends InMemoryStore {
 
         for (Milestone ms : p.getMilestones()) attachMilestoneListeners(p, ms);
 
+        ListChangeListener<ResourceItem> resourcesListener = ch -> {
+            while (ch.next()) {
+                if (ch.wasAdded()) {
+                    for (ResourceItem r : ch.getAddedSubList()) {
+                        attachResourceListeners(p, r);
+                        if (!syncing) sendResourceUpsert(p, r);
+                    }
+                }
+                if (ch.wasRemoved()) {
+                    for (ResourceItem r : ch.getRemoved()) {
+                        detachResourceListeners(p, r);
+                        if (!syncing) sendResourceDelete(p, r);
+                    }
+                }
+            }
+        };
+        p.getResources().addListener(resourcesListener);
+        detach.add(() -> p.getResources().removeListener(resourcesListener));
+
+        for (ResourceItem r : p.getResources()) attachResourceListeners(p, r);
+
+        ListChangeListener<PersonalNote> notesListener = ch -> {
+            while (ch.next()) {
+                if (ch.wasAdded()) {
+                    for (PersonalNote note : ch.getAddedSubList()) {
+                        attachNoteListeners(p, note);
+                        if (!syncing) sendNoteUpsert(p, note);
+                    }
+                }
+                if (ch.wasRemoved()) {
+                    for (PersonalNote note : ch.getRemoved()) {
+                        detachNoteListeners(p, note);
+                        if (!syncing) sendNoteDelete(p, note);
+                    }
+                }
+            }
+        };
+        p.getNotes().addListener(notesListener);
+        detach.add(() -> p.getNotes().removeListener(notesListener));
+
+        for (PersonalNote note : p.getNotes()) attachNoteListeners(p, note);
+
         detachByProjectId.put(p.getId(), () -> detach.forEach(Runnable::run));
     }
 
@@ -261,6 +306,8 @@ public final class RemoteStore extends InMemoryStore {
         memberDetachers.remove(projectId);
         phaseDetachers.remove(projectId);
         milestoneDetachers.remove(projectId);
+        resourceDetachers.remove(projectId);
+        noteDetachers.remove(projectId);
     }
 
     private void attachTaskListeners(Project p, Task t) {
@@ -280,6 +327,7 @@ public final class RemoteStore extends InMemoryStore {
         t.dueDateProperty().addListener(taskDirty);
         t.assigneeProperty().addListener(taskDirty);
         t.phaseProperty().addListener(taskDirty);
+        t.checklistVersionProperty().addListener(taskDirty);
 
         map.put(t.getId(), () -> {
             t.titleProperty().removeListener(taskDirty);
@@ -289,6 +337,7 @@ public final class RemoteStore extends InMemoryStore {
             t.dueDateProperty().removeListener(taskDirty);
             t.assigneeProperty().removeListener(taskDirty);
             t.phaseProperty().removeListener(taskDirty);
+            t.checklistVersionProperty().removeListener(taskDirty);
         });
     }
 
@@ -385,6 +434,76 @@ public final class RemoteStore extends InMemoryStore {
         if (detach != null) detach.run();
     }
 
+    private void attachResourceListeners(Project p, ResourceItem r) {
+        if (p == null || r == null || r.getId() == null) return;
+        Map<String, Runnable> map = resourceDetachers.computeIfAbsent(p.getId(), k -> new HashMap<>());
+        if (map.containsKey(r.getId())) return;
+
+        ChangeListener<Object> resourceDirty = (obs, o, n) -> {
+            if (syncing) return;
+            sendResourceUpsert(p, r);
+        };
+
+        r.taskIdProperty().addListener(resourceDirty);
+        r.typeProperty().addListener(resourceDirty);
+        r.titleProperty().addListener(resourceDirty);
+        r.targetProperty().addListener(resourceDirty);
+        r.notesProperty().addListener(resourceDirty);
+        r.addedByProperty().addListener(resourceDirty);
+        r.updatedAtProperty().addListener(resourceDirty);
+
+        map.put(r.getId(), () -> {
+            r.taskIdProperty().removeListener(resourceDirty);
+            r.typeProperty().removeListener(resourceDirty);
+            r.titleProperty().removeListener(resourceDirty);
+            r.targetProperty().removeListener(resourceDirty);
+            r.notesProperty().removeListener(resourceDirty);
+            r.addedByProperty().removeListener(resourceDirty);
+            r.updatedAtProperty().removeListener(resourceDirty);
+        });
+    }
+
+    private void detachResourceListeners(Project p, ResourceItem r) {
+        if (p == null || r == null) return;
+        Map<String, Runnable> map = resourceDetachers.get(p.getId());
+        if (map == null) return;
+        Runnable detach = map.remove(r.getId());
+        if (detach != null) detach.run();
+    }
+
+    private void attachNoteListeners(Project p, PersonalNote note) {
+        if (p == null || note == null || note.getId() == null) return;
+        Map<String, Runnable> map = noteDetachers.computeIfAbsent(p.getId(), k -> new HashMap<>());
+        if (map.containsKey(note.getId())) return;
+
+        ChangeListener<Object> noteDirty = (obs, o, n) -> {
+            if (syncing) return;
+            sendNoteUpsert(p, note);
+        };
+
+        note.taskIdProperty().addListener(noteDirty);
+        note.ownerIdProperty().addListener(noteDirty);
+        note.titleProperty().addListener(noteDirty);
+        note.bodyProperty().addListener(noteDirty);
+        note.updatedAtProperty().addListener(noteDirty);
+
+        map.put(note.getId(), () -> {
+            note.taskIdProperty().removeListener(noteDirty);
+            note.ownerIdProperty().removeListener(noteDirty);
+            note.titleProperty().removeListener(noteDirty);
+            note.bodyProperty().removeListener(noteDirty);
+            note.updatedAtProperty().removeListener(noteDirty);
+        });
+    }
+
+    private void detachNoteListeners(Project p, PersonalNote note) {
+        if (p == null || note == null) return;
+        Map<String, Runnable> map = noteDetachers.get(p.getId());
+        if (map == null) return;
+        Runnable detach = map.remove(note.getId());
+        if (detach != null) detach.run();
+    }
+
     private void sendProjectUpsert(Project p) {
         if (p == null) return;
         ProjectDto dto = new ProjectDto(
@@ -398,13 +517,13 @@ public final class RemoteStore extends InMemoryStore {
                 p.getStartDate(),
                 p.getEndDate(),
                 p.getCompletedDate(),
-                null, null, null, null
+                null, null, null, null, null, null
         );
         client.sendAction(new SyncAction(
                 SyncType.PROJECT_UPSERT,
                 p.getId(),
                 null,
-                dto, null, null, null, null
+                dto, null, null, null, null, null, null
         ));
     }
 
@@ -418,14 +537,15 @@ public final class RemoteStore extends InMemoryStore {
                 t.getPriority(),
                 t.getDueDate(),
                 t.getAssignee() == null ? null : t.getAssignee().getId(),
-                t.getPhase() == null ? null : t.getPhase().getId()
+                t.getPhase() == null ? null : t.getPhase().getId(),
+                ChecklistCodec.encode(t.getChecklist())
         );
         client.sendAction(new SyncAction(
                 SyncType.TASK_UPSERT,
                 p.getId(),
                 t.getId(),
                 null,
-                dto, null, null, null
+                dto, null, null, null, null, null
         ));
     }
 
@@ -435,7 +555,7 @@ public final class RemoteStore extends InMemoryStore {
                 SyncType.TASK_DELETE,
                 p.getId(),
                 t.getId(),
-                null, null, null, null, null
+                null, null, null, null, null, null, null
         ));
     }
 
@@ -446,7 +566,7 @@ public final class RemoteStore extends InMemoryStore {
                 SyncType.MEMBER_UPSERT,
                 p.getId(),
                 m.getId(),
-                null, null, dto, null, null
+                null, null, dto, null, null, null, null
         ));
     }
 
@@ -456,7 +576,7 @@ public final class RemoteStore extends InMemoryStore {
                 SyncType.MEMBER_REMOVE,
                 p.getId(),
                 m.getId(),
-                null, null, null, null, null
+                null, null, null, null, null, null, null
         ));
     }
 
@@ -468,7 +588,7 @@ public final class RemoteStore extends InMemoryStore {
                 SyncType.PHASE_UPSERT,
                 p.getId(),
                 ph.getId(),
-                null, null, null, dto, null
+                null, null, null, dto, null, null, null
         ));
     }
 
@@ -478,7 +598,7 @@ public final class RemoteStore extends InMemoryStore {
                 SyncType.PHASE_DELETE,
                 p.getId(),
                 ph.getId(),
-                null, null, null, null, null
+                null, null, null, null, null, null, null
         ));
     }
 
@@ -494,7 +614,7 @@ public final class RemoteStore extends InMemoryStore {
                 SyncType.MILESTONE_UPSERT,
                 p.getId(),
                 ms.getId(),
-                null, null, null, null, dto
+                null, null, null, null, dto, null, null
         ));
     }
 
@@ -504,7 +624,71 @@ public final class RemoteStore extends InMemoryStore {
                 SyncType.MILESTONE_DELETE,
                 p.getId(),
                 ms.getId(),
-                null, null, null, null, null
+                null, null, null, null, null, null, null
+        ));
+    }
+
+    private void sendResourceUpsert(Project p, ResourceItem r) {
+        if (p == null || r == null) return;
+        ResourceDto dto = new ResourceDto(
+                r.getId(),
+                r.getTaskId(),
+                r.getType(),
+                r.getTitle(),
+                r.getTarget(),
+                r.getNotes(),
+                r.getAddedBy(),
+                r.getCreatedAt(),
+                r.getUpdatedAt()
+        );
+        client.sendAction(new SyncAction(
+                SyncType.RESOURCE_UPSERT,
+                p.getId(),
+                r.getId(),
+                null, null, null, null, null,
+                dto, null
+        ));
+    }
+
+    private void sendResourceDelete(Project p, ResourceItem r) {
+        if (p == null || r == null) return;
+        client.sendAction(new SyncAction(
+                SyncType.RESOURCE_DELETE,
+                p.getId(),
+                r.getId(),
+                null, null, null, null, null,
+                null, null
+        ));
+    }
+
+    private void sendNoteUpsert(Project p, PersonalNote note) {
+        if (p == null || note == null) return;
+        NoteDto dto = new NoteDto(
+                note.getId(),
+                note.getTaskId(),
+                note.getOwnerId(),
+                note.getTitle(),
+                note.getBody(),
+                note.getCreatedAt(),
+                note.getUpdatedAt()
+        );
+        client.sendAction(new SyncAction(
+                SyncType.NOTE_UPSERT,
+                p.getId(),
+                note.getId(),
+                null, null, null, null, null,
+                null, dto
+        ));
+    }
+
+    private void sendNoteDelete(Project p, PersonalNote note) {
+        if (p == null || note == null) return;
+        client.sendAction(new SyncAction(
+                SyncType.NOTE_DELETE,
+                p.getId(),
+                note.getId(),
+                null, null, null, null, null,
+                null, null
         ));
     }
 
@@ -559,6 +743,8 @@ public final class RemoteStore extends InMemoryStore {
         Map<String, Phase> phases = applyPhases(p, dto.phases());
         applyTasks(p, dto.tasks(), members, phases);
         applyMilestones(p, dto.milestones());
+        applyResources(p, dto.resources());
+        applyNotes(p, dto.notes());
     }
 
     private Map<String, Member> applyMembers(Project p, List<MemberDto> list) {
@@ -646,6 +832,10 @@ public final class RemoteStore extends InMemoryStore {
                 Phase phase = dto.phaseId() == null || phases == null ? null : phases.get(dto.phaseId());
                 setIfDifferent(t.assigneeProperty(), assignee);
                 setIfDifferent(t.phaseProperty(), phase);
+                var checklist = ChecklistCodec.decode(dto.checklistJson());
+                if (!sameChecklist(t.getChecklist(), checklist)) {
+                    t.setChecklist(checklist);
+                }
                 next.add(t);
             }
         }
@@ -680,6 +870,66 @@ public final class RemoteStore extends InMemoryStore {
         }
     }
 
+    private void applyResources(Project p, List<ResourceDto> list) {
+        Map<String, ResourceItem> existing = new HashMap<>();
+        for (ResourceItem r : p.getResources()) {
+            if (r != null && r.getId() != null) existing.put(r.getId(), r);
+        }
+
+        List<ResourceItem> next = new ArrayList<>();
+        if (list != null) {
+            for (ResourceDto dto : list) {
+                if (dto == null || dto.id() == null) continue;
+                ResourceItem r = existing.get(dto.id());
+                if (r == null) {
+                    r = new ResourceItem(dto.id(), p.getId());
+                }
+                setIfDifferent(r.taskIdProperty(), dto.taskId());
+                setIfDifferent(r.typeProperty(), dto.type());
+                setIfDifferent(r.titleProperty(), safe(dto.title()));
+                setIfDifferent(r.targetProperty(), safe(dto.target()));
+                setIfDifferent(r.notesProperty(), safe(dto.notes()));
+                setIfDifferent(r.addedByProperty(), safe(dto.addedBy()));
+                setIfDifferent(r.createdAtProperty(), dto.createdAt());
+                setIfDifferent(r.updatedAtProperty(), dto.updatedAt());
+                next.add(r);
+            }
+        }
+
+        if (!sameList(p.getResources(), next)) {
+            p.getResources().setAll(next);
+        }
+    }
+
+    private void applyNotes(Project p, List<NoteDto> list) {
+        Map<String, PersonalNote> existing = new HashMap<>();
+        for (PersonalNote note : p.getNotes()) {
+            if (note != null && note.getId() != null) existing.put(note.getId(), note);
+        }
+
+        List<PersonalNote> next = new ArrayList<>();
+        if (list != null) {
+            for (NoteDto dto : list) {
+                if (dto == null || dto.id() == null) continue;
+                PersonalNote note = existing.get(dto.id());
+                if (note == null) {
+                    note = new PersonalNote(dto.id(), p.getId(), safe(dto.ownerId()));
+                }
+                setIfDifferent(note.taskIdProperty(), dto.taskId());
+                setIfDifferent(note.ownerIdProperty(), safe(dto.ownerId()));
+                setIfDifferent(note.titleProperty(), safe(dto.title()));
+                setIfDifferent(note.bodyProperty(), safe(dto.body()));
+                setIfDifferent(note.createdAtProperty(), dto.createdAt());
+                setIfDifferent(note.updatedAtProperty(), dto.updatedAt());
+                next.add(note);
+            }
+        }
+
+        if (!sameList(p.getNotes(), next)) {
+            p.getNotes().setAll(next);
+        }
+    }
+
     private void applyActivity(List<ActivityDto> list) {
         if (list == null) {
             if (!getActivity().isEmpty()) getActivity().clear();
@@ -691,7 +941,15 @@ public final class RemoteStore extends InMemoryStore {
         List<ActivityItem> next = new ArrayList<>();
         for (ActivityDto dto : list) {
             if (dto == null) continue;
-            ActivityItem it = new ActivityItem(safe(dto.projectName()), safe(dto.message()));
+            ActivityItem it = new ActivityItem(
+                    safe(dto.projectId()),
+                    safe(dto.projectName()),
+                    safe(dto.actor()),
+                    safe(dto.entityType()),
+                    safe(dto.entityId()),
+                    safe(dto.action()),
+                    safe(dto.message())
+            );
             if (dto.time() != null) it.timeProperty().set(dto.time());
             next.add(it);
         }
@@ -707,7 +965,12 @@ public final class RemoteStore extends InMemoryStore {
             ActivityDto dto = list.get(i);
             ActivityItem cur = getActivity().get(i);
             if (dto == null || cur == null) return false;
+            if (!Objects.equals(cur.getProjectId(), safe(dto.projectId()))) return false;
             if (!Objects.equals(cur.getProjectName(), safe(dto.projectName()))) return false;
+            if (!Objects.equals(cur.getActor(), safe(dto.actor()))) return false;
+            if (!Objects.equals(cur.getEntityType(), safe(dto.entityType()))) return false;
+            if (!Objects.equals(cur.getEntityId(), safe(dto.entityId()))) return false;
+            if (!Objects.equals(cur.getAction(), safe(dto.action()))) return false;
             if (!Objects.equals(cur.getMessage(), safe(dto.message()))) return false;
             if (!Objects.equals(cur.getTime(), dto.time())) return false;
         }
@@ -724,6 +987,20 @@ public final class RemoteStore extends InMemoryStore {
         if (left.size() != right.size()) return false;
         for (int i = 0; i < left.size(); i++) {
             if (left.get(i) != right.get(i)) return false;
+        }
+        return true;
+    }
+
+    private static boolean sameChecklist(List<ChecklistItem> left, List<ChecklistItem> right) {
+        if (left == right) return true;
+        if (left == null || right == null) return false;
+        if (left.size() != right.size()) return false;
+        for (int i = 0; i < left.size(); i++) {
+            ChecklistItem a = left.get(i);
+            ChecklistItem b = right.get(i);
+            if (a == null || b == null) return false;
+            if (!Objects.equals(a.getText(), b.getText())) return false;
+            if (a.isDone() != b.isDone()) return false;
         }
         return true;
     }

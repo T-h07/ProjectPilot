@@ -6,6 +6,8 @@ import com.projectpilot.data.db.DbStore;
 import com.projectpilot.data.db.auth.UserAdminService;
 import com.projectpilot.data.db.auth.UserSession;
 import com.projectpilot.service.NotificationService;
+import com.projectpilot.ui.dialogs.HelpDrawerDialog;
+import com.projectpilot.ui.dialogs.LogViewerDialog;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
@@ -13,6 +15,8 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.CustomMenuItem;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -44,6 +48,26 @@ public class TopBar extends HBox {
         ProjectPicker picker = new ProjectPicker(store, appState);
 
         NotificationBellButton bell = new NotificationBellButton(notifications);
+
+        Button helpBtn = new Button("Help");
+        helpBtn.getStyleClass().addAll("subtle", "help-btn");
+        helpBtn.setOnAction(e -> HelpDrawerDialog.show(getScene() == null ? null : getScene().getWindow()));
+
+        Label clientLabel = new Label("Server");
+        clientLabel.getStyleClass().add("host-label");
+
+        Region clientDot = new Region();
+        clientDot.getStyleClass().add("host-dot");
+
+        HBox clientGraphic = new HBox(6, clientDot, clientLabel);
+        clientGraphic.setAlignment(Pos.CENTER);
+
+        Button clientBtn = new Button();
+        clientBtn.getStyleClass().add("host-btn");
+        clientBtn.setGraphic(clientGraphic);
+
+        Tooltip clientTip = new Tooltip();
+        clientBtn.setTooltip(clientTip);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -105,6 +129,21 @@ public class TopBar extends HBox {
         syncHost.run();
         appState.hostingProperty().addListener((obs, o, n) -> syncHost.run());
 
+        Runnable syncClient = () -> {
+            boolean show = appState != null && "client".equals(appState.getHostMode());
+            clientBtn.setVisible(show);
+            clientBtn.setManaged(show);
+            boolean online = appState != null && appState.isClientOnline();
+            clientDot.getStyleClass().removeAll("host-dot-online", "host-dot-offline");
+            clientDot.getStyleClass().add(online ? "host-dot-online" : "host-dot-offline");
+            String status = appState == null ? "" : appState.getClientStatus();
+            clientTip.setText(status == null || status.isBlank() ? (online ? "Connected" : "Offline") : status);
+        };
+        syncClient.run();
+        appState.hostModeProperty().addListener((obs, o, n) -> syncClient.run());
+        appState.clientOnlineProperty().addListener((obs, o, n) -> syncClient.run());
+        appState.clientStatusProperty().addListener((obs, o, n) -> syncClient.run());
+
         Runnable syncAdmin = () -> {
             boolean show = appState != null && appState.isAdmin();
             hostBtn.setVisible(show);
@@ -120,7 +159,7 @@ public class TopBar extends HBox {
         userBox.setAlignment(Pos.CENTER_RIGHT);
         userBox.getStyleClass().add("topbar-userbox");
 
-        getChildren().addAll(title, picker, bell, spacer, hostBtn, userBox);
+        getChildren().addAll(title, picker, bell, helpBtn, clientBtn, spacer, hostBtn, userBox);
     }
 
     // Backward compatible constructor (optional)
@@ -164,6 +203,15 @@ public class TopBar extends HBox {
 
         CustomMenuItem info = new CustomMenuItem(box, false);
         menu.getItems().add(info);
+        menu.getItems().add(new SeparatorMenuItem());
+
+        MenuItem logs = new MenuItem("Diagnostics");
+        logs.getStyleClass().add("profile-menu-item");
+        logs.setOnAction(e -> {
+            menu.hide();
+            LogViewerDialog.show();
+        });
+        menu.getItems().add(logs);
 
         menu.show(anchor, Side.BOTTOM, 0, 6);
     }

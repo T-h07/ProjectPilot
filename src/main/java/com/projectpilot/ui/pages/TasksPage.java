@@ -2,6 +2,7 @@ package com.projectpilot.ui.pages;
 
 import com.projectpilot.core.AppState;
 import com.projectpilot.data.InMemoryStore;
+import com.projectpilot.model.ChecklistItem;
 import com.projectpilot.model.Member;
 import com.projectpilot.model.Phase;
 import com.projectpilot.model.Project;
@@ -9,8 +10,11 @@ import com.projectpilot.model.Task;
 import com.projectpilot.model.enums.Priority;
 import com.projectpilot.model.enums.TaskStatus;
 import com.projectpilot.security.AccessPolicy;
+import com.projectpilot.ui.components.ChecklistEditor;
 import com.projectpilot.ui.components.ProjectPicker;
 import com.projectpilot.ui.dialogs.CreateTaskDialog;
+import com.projectpilot.ui.dialogs.DialogTheme;
+import com.projectpilot.util.TaskViewStore;
 import javafx.animation.PauseTransition;
 import javafx.beans.binding.Bindings;
 import javafx.beans.binding.BooleanBinding;
@@ -28,8 +32,11 @@ import javafx.util.Duration;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 public class TasksPage extends VBox {
 
@@ -46,6 +53,16 @@ public class TasksPage extends VBox {
 
     private final TextField searchField = new TextField();
     private final CheckBox showDone = new CheckBox("Show Done");
+    private final TaskViewStore viewStore = new TaskViewStore();
+    private final ObservableList<TaskView> viewOptions = FXCollections.observableArrayList();
+    private final ComboBox<TaskView> viewBox = new ComboBox<>();
+    private final Button saveView = new Button("Save View");
+    private final Button deleteView = new Button("Delete View");
+
+    private final ComboBox<FilterOption<TaskStatus>> statusFilter = new ComboBox<>();
+    private final ComboBox<FilterOption<Priority>> priorityFilter = new ComboBox<>();
+    private final ComboBox<FilterOption<DueRange>> dueFilter = new ComboBox<>();
+    private final CheckBox assignedToMe = new CheckBox("Assigned to me");
 
     private Task bound;
 
@@ -59,6 +76,7 @@ public class TasksPage extends VBox {
 
     private final ComboBox<Phase> phaseBox = new ComboBox<>();
     private final ComboBox<Member> assigneeBox = new ComboBox<>();
+    private final ChecklistEditor checklistEditor = new ChecklistEditor();
 
     private Project boundProject;
 
@@ -134,12 +152,60 @@ public class TasksPage extends VBox {
         searchField.setPrefWidth(320);
         searchField.textProperty().addListener((obs, ov, nv) -> requestFilter());
 
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
-
+        viewBox.setItems(viewOptions);
+        viewBox.setPrefWidth(200);
+        viewBox.setPromptText("View");
+        viewBox.setCellFactory(cb -> new ListCell<>() {
+            @Override protected void updateItem(TaskView item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "" : item.name());
+            }
+        });
+        viewBox.setButtonCell(new ListCell<>() {
+            @Override protected void updateItem(TaskView item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(item == null ? "View" : item.name());
+            }
+        });
+        viewBox.valueProperty().addListener((obs, ov, nv) -> {
+            if (nv != null) applyView(nv);
+        });
 
         showDone.setSelected(false);
         showDone.selectedProperty().addListener((obs, ov, nv) -> requestFilter());
+
+        statusFilter.getItems().setAll(
+                opt("All status", null),
+                opt("TODO", TaskStatus.TODO),
+                opt("IN PROGRESS", TaskStatus.IN_PROGRESS),
+                opt("BLOCKED", TaskStatus.BLOCKED),
+                opt("DONE", TaskStatus.DONE)
+        );
+        statusFilter.setValue(statusFilter.getItems().get(0));
+        statusFilter.valueProperty().addListener((obs, ov, nv) -> requestFilter());
+
+        priorityFilter.getItems().setAll(
+                opt("All priority", null),
+                opt("LOW", Priority.LOW),
+                opt("MEDIUM", Priority.MEDIUM),
+                opt("HIGH", Priority.HIGH)
+        );
+        priorityFilter.setValue(priorityFilter.getItems().get(0));
+        priorityFilter.valueProperty().addListener((obs, ov, nv) -> requestFilter());
+
+        dueFilter.getItems().setAll(
+                opt("Any due date", DueRange.ANY),
+                opt("Overdue", DueRange.OVERDUE),
+                opt("Due today", DueRange.TODAY),
+                opt("Due this week", DueRange.WEEK),
+                opt("Due next 30 days", DueRange.MONTH)
+        );
+        dueFilter.setValue(dueFilter.getItems().get(0));
+        dueFilter.valueProperty().addListener((obs, ov, nv) -> requestFilter());
+
+        assignedToMe.selectedProperty().addListener((obs, ov, nv) -> requestFilter());
+        assignedToMe.visibleProperty().bind(canSeeAll);
+        assignedToMe.managedProperty().bind(assignedToMe.visibleProperty());
 
         Button newTask = new Button("New Task");
         newTask.getStyleClass().add("primary");
@@ -161,7 +227,7 @@ public class TasksPage extends VBox {
                 return;
             }
 
-            CreateTaskDialog d = new CreateTaskDialog(p);
+            CreateTaskDialog d = new CreateTaskDialog(p, appState);
             d.showAndWait().ifPresent(t -> {
                 if (isDuplicateTaskTitle(p, t.getTitle())) {
                     alertInfo("Duplicate task", "A task with that title already exists in this project.");
@@ -175,21 +241,67 @@ public class TasksPage extends VBox {
             });
         });
 
-        HBox toolbar = new HBox(
+        saveView.setOnAction(e -> saveCurrentView());
+        deleteView.setOnAction(e -> deleteCurrentView());
+        deleteView.disableProperty().bind(Bindings.createBooleanBinding(
+                () -> viewBox.getValue() == null || viewBox.getValue().builtIn(),
+                viewBox.valueProperty()
+        ));
+
+        saveView.getStyleClass().add("subtle");
+        deleteView.getStyleClass().add("ghost");
+
+        Label projectLabel = new Label("Project");
+        projectLabel.getStyleClass().add("filter-label");
+        VBox projectGroup = new VBox(4, projectLabel, taskProjectPicker);
+        projectGroup.getStyleClass().add("filter-group");
+
+        Label viewLabel = new Label("View");
+        viewLabel.getStyleClass().add("filter-label");
+        VBox viewGroup = new VBox(4, viewLabel, viewBox);
+        viewGroup.getStyleClass().add("filter-group");
+
+        Label searchLabel = new Label("Search");
+        searchLabel.getStyleClass().add("filter-label");
+        VBox searchGroup = new VBox(4, searchLabel, searchField);
+        searchGroup.getStyleClass().add("filter-group");
+
+        taskProjectPicker.setMaxWidth(Double.MAX_VALUE);
+        viewBox.setMaxWidth(Double.MAX_VALUE);
+        searchField.setMaxWidth(Double.MAX_VALUE);
+
+        HBox topRow = new HBox(12, projectGroup, viewGroup, searchGroup, newTask);
+        topRow.getStyleClass().add("filter-row");
+        HBox.setHgrow(searchGroup, javafx.scene.layout.Priority.ALWAYS);
+
+        HBox filterRow = new HBox(
                 10,
-                new Label("Project:"),
-                taskProjectPicker,
-                searchField,
-                spacer,
                 showDone,
-                newTask
+                statusFilter,
+                priorityFilter,
+                dueFilter,
+                assignedToMe,
+                saveView,
+                deleteView
         );
+        filterRow.getStyleClass().add("filter-row");
+
+        VBox toolbar = new VBox(8, topRow, filterRow);
 
         tasksList.setPrefWidth(420);
         tasksList.setItems(filteredTasks);
         tasksList.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> {
             selectedTask.set(newV);
+            if (appState.getSelectedTask() != newV) {
+                appState.setSelectedTask(newV);
+            }
             bindTask(newV);
+        });
+        appState.selectedTaskProperty().addListener((obs, oldV, newV) -> {
+            if (newV == null) return;
+            if (tasksList.getItems().contains(newV)) {
+                tasksList.getSelectionModel().select(newV);
+            }
         });
 
         statusBox.getItems().setAll(TaskStatus.values());
@@ -275,7 +387,11 @@ public class TasksPage extends VBox {
         Label editorTitle = new Label("Task Details");
         editorTitle.getStyleClass().add("muted");
 
-        VBox editor = new VBox(12, editorTitle, form);
+        Label checklistTitle = new Label("Checklist");
+        checklistTitle.getStyleClass().add("muted");
+        VBox checklistSection = new VBox(8, checklistTitle, checklistEditor);
+
+        VBox editor = new VBox(12, editorTitle, form, checklistSection);
         editor.getStyleClass().add("card");
 
         HBox body = new HBox(14, tasksList, editor);
@@ -290,6 +406,7 @@ public class TasksPage extends VBox {
 
         refresh(appState.getSelectedProject());
         appState.selectedProjectProperty().addListener((obs, oldV, newV) -> refresh(newV));
+        appState.sessionProperty().addListener((obs, o, n) -> reloadViews(null));
 
         // Editing rules:
         // - Meta (title/priority/phase/assignee): Admin/Leader only
@@ -303,6 +420,9 @@ public class TasksPage extends VBox {
         descField.disableProperty().bind(canEditOwnFields.not());
         statusBox.disableProperty().bind(canEditOwnFields.not());
         duePicker.disableProperty().bind(canEditMeta.not());
+        checklistEditor.editableProperty().bind(canEditOwnFields);
+
+        reloadViews("all");
     }
 
     private void refresh(Project p) {
@@ -347,6 +467,12 @@ public class TasksPage extends VBox {
         for (Task t : p.getTasks()) hookTaskOnce(t);
 
         applyFilter();
+
+        Task requested = appState.getSelectedTask();
+        if (requested != null && filteredTasks.contains(requested)) {
+            tasksList.getSelectionModel().select(requested);
+            return;
+        }
 
         if (selected != null && filteredTasks.contains(selected)) {
             tasksList.getSelectionModel().select(selected);
@@ -401,11 +527,42 @@ public class TasksPage extends VBox {
         boolean includeDone = showDone.isSelected();
         String q = searchField.getText();
         String query = (q == null) ? "" : q.trim().toLowerCase();
+        TaskStatus status = valueOf(statusFilter);
+        Priority priority = valueOf(priorityFilter);
+        DueRange dueRange = valueOf(dueFilter);
+        DueRange filterDueRange = dueRange == null ? DueRange.ANY : dueRange;
+        boolean onlyMine = assignedToMe.isSelected() && canSeeAll.get();
 
         filteredTasks.setPredicate(t -> {
             if (t == null) return false;
 
-            if (!includeDone && t.getStatus() == TaskStatus.DONE) return false;
+            if (!includeDone && t.getStatus() == TaskStatus.DONE && status != TaskStatus.DONE) return false;
+            if (status != null && t.getStatus() != status) return false;
+            if (priority != null && t.getPriority() != priority) return false;
+            if (onlyMine && !policy.isAssignedToMe(appState, t)) return false;
+
+            if (filterDueRange != DueRange.ANY) {
+                LocalDate due = t.getDueDate();
+                if (due == null) return false;
+                LocalDate today = LocalDate.now();
+                switch (filterDueRange) {
+                    case OVERDUE -> {
+                        if (!due.isBefore(today)) return false;
+                    }
+                    case TODAY -> {
+                        if (!due.equals(today)) return false;
+                    }
+                    case WEEK -> {
+                        LocalDate end = today.plusDays(7);
+                        if (due.isBefore(today) || due.isAfter(end)) return false;
+                    }
+                    case MONTH -> {
+                        LocalDate end = today.plusDays(30);
+                        if (due.isBefore(today) || due.isAfter(end)) return false;
+                    }
+                    default -> {}
+                }
+            }
 
             if (query.isEmpty()) return true;
 
@@ -457,6 +614,7 @@ public class TasksPage extends VBox {
             duePicker.setValue(null);
             phaseBox.setValue(null);
             assigneeBox.setValue(null);
+            checklistEditor.setItems(FXCollections.observableArrayList());
             return;
         }
 
@@ -474,6 +632,198 @@ public class TasksPage extends VBox {
         duePicker.setValue(t.getDueDate());
         try { phaseBox.setValue(t.getPhase()); } catch (Exception ignored) {}
         try { assigneeBox.setValue(t.getAssignee()); } catch (Exception ignored) {}
+        checklistEditor.setItems(t.getChecklist());
+    }
+
+    private void reloadViews(String selectId) {
+        String toSelect = selectId;
+        if (toSelect == null && viewBox.getValue() != null) {
+            toSelect = viewBox.getValue().id();
+        }
+
+        viewOptions.setAll(buildBuiltInViews());
+
+        String userId = currentUserId();
+        for (TaskViewStore.TaskViewData data : viewStore.load(userId)) {
+            viewOptions.add(new TaskView(data.id(), data.name(), data, false));
+        }
+
+        if (toSelect != null) {
+            for (TaskView view : viewOptions) {
+                if (toSelect.equals(view.id())) {
+                    viewBox.getSelectionModel().select(view);
+                    return;
+                }
+            }
+        }
+
+        if (!viewOptions.isEmpty()) {
+            viewBox.getSelectionModel().select(0);
+        }
+    }
+
+    private List<TaskView> buildBuiltInViews() {
+        List<TaskView> builtIn = new ArrayList<>();
+        builtIn.add(new TaskView(
+                "all",
+                "All tasks",
+                new TaskViewStore.TaskViewData(
+                        "all",
+                        "All tasks",
+                        "",
+                        false,
+                        null,
+                        null,
+                        DueRange.ANY.name(),
+                        false
+                ),
+                true
+        ));
+        builtIn.add(new TaskView(
+                "my-high",
+                "My High Priority",
+                new TaskViewStore.TaskViewData(
+                        "my-high",
+                        "My High Priority",
+                        "",
+                        false,
+                        null,
+                        Priority.HIGH.name(),
+                        DueRange.ANY.name(),
+                        true
+                ),
+                true
+        ));
+        builtIn.add(new TaskView(
+                "due-week",
+                "Due This Week",
+                new TaskViewStore.TaskViewData(
+                        "due-week",
+                        "Due This Week",
+                        "",
+                        false,
+                        null,
+                        null,
+                        DueRange.WEEK.name(),
+                        false
+                ),
+                true
+        ));
+        return builtIn;
+    }
+
+    private void applyView(TaskView view) {
+        if (view == null || view.data() == null) return;
+        TaskViewStore.TaskViewData data = view.data();
+
+        searchField.setText(data.query() == null ? "" : data.query());
+        showDone.setSelected(data.showDone());
+
+        TaskStatus status = safeEnum(TaskStatus.class, data.status(), null);
+        Priority priority = safeEnum(Priority.class, data.priority(), null);
+        DueRange due = safeEnum(DueRange.class, data.dueRange(), DueRange.ANY);
+
+        selectOption(statusFilter, status);
+        selectOption(priorityFilter, priority);
+        selectOption(dueFilter, due);
+        assignedToMe.setSelected(data.assignedToMe() && canSeeAll.get());
+
+        requestFilter();
+    }
+
+    private void saveCurrentView() {
+        TextInputDialog d = new TextInputDialog();
+        DialogTheme.apply(d);
+        d.setTitle("Save View");
+        d.setHeaderText("Save current filters as a view");
+        d.setContentText("View name:");
+
+        d.showAndWait().ifPresent(nameRaw -> {
+            String name = nameRaw == null ? "" : nameRaw.trim();
+            if (name.isEmpty()) return;
+
+            String userId = currentUserId();
+            List<TaskViewStore.TaskViewData> saved = new ArrayList<>(viewStore.load(userId));
+
+            TaskViewStore.TaskViewData existing = null;
+            for (TaskViewStore.TaskViewData v : saved) {
+                if (normalizeName(v.name()).equals(normalizeName(name))) {
+                    existing = v;
+                    break;
+                }
+            }
+
+            String id = existing == null ? UUID.randomUUID().toString() : existing.id();
+            TaskViewStore.TaskViewData next = snapshotViewData(id, name);
+            if (existing != null) saved.remove(existing);
+            saved.add(next);
+            viewStore.save(userId, saved);
+            reloadViews(id);
+        });
+    }
+
+    private void deleteCurrentView() {
+        TaskView view = viewBox.getValue();
+        if (view == null || view.builtIn()) return;
+
+        String userId = currentUserId();
+        List<TaskViewStore.TaskViewData> saved = new ArrayList<>(viewStore.load(userId));
+        saved.removeIf(v -> v != null && view.id().equals(v.id()));
+        viewStore.save(userId, saved);
+        reloadViews("all");
+    }
+
+    private TaskViewStore.TaskViewData snapshotViewData(String id, String name) {
+        TaskStatus status = valueOf(statusFilter);
+        Priority priority = valueOf(priorityFilter);
+        DueRange due = valueOf(dueFilter);
+        if (due == null) due = DueRange.ANY;
+
+        return new TaskViewStore.TaskViewData(
+                id,
+                name,
+                searchField.getText(),
+                showDone.isSelected(),
+                status == null ? null : status.name(),
+                priority == null ? null : priority.name(),
+                due.name(),
+                assignedToMe.isSelected() && canSeeAll.get()
+        );
+    }
+
+    private String currentUserId() {
+        if (appState.getSession() == null) return "local";
+        String id = appState.getSession().id();
+        return id == null || id.isBlank() ? "local" : id.trim();
+    }
+
+    private static <T> FilterOption<T> opt(String label, T value) {
+        return new FilterOption<>(label, value);
+    }
+
+    private static <T> T valueOf(ComboBox<FilterOption<T>> box) {
+        FilterOption<T> opt = box.getValue();
+        return opt == null ? null : opt.value();
+    }
+
+    private static <T> void selectOption(ComboBox<FilterOption<T>> box, T value) {
+        if (box == null) return;
+        for (FilterOption<T> opt : box.getItems()) {
+            if (opt == null) continue;
+            if (value == null && opt.value() == null) {
+                box.setValue(opt);
+                return;
+            }
+            if (value != null && value.equals(opt.value())) {
+                box.setValue(opt);
+                return;
+            }
+        }
+    }
+
+    private static <E extends Enum<E>> E safeEnum(Class<E> type, String name, E fallback) {
+        if (name == null || name.isBlank()) return fallback;
+        try { return Enum.valueOf(type, name); } catch (Exception ignored) { return fallback; }
     }
 
     private boolean isDuplicateTaskTitle(Project p, String title) {
@@ -495,4 +845,12 @@ public class TasksPage extends VBox {
         a.setContentText(text);
         a.showAndWait();
     }
+
+    private record FilterOption<T>(String label, T value) {
+        @Override public String toString() { return label; }
+    }
+
+    private enum DueRange { ANY, OVERDUE, TODAY, WEEK, MONTH }
+
+    private record TaskView(String id, String name, TaskViewStore.TaskViewData data, boolean builtIn) {}
 }

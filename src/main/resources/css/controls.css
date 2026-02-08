@@ -295,6 +295,23 @@
     -fx-font-size: 10px;
 }
 
+/* ---- Filter toolbar (Tasks) ---- */
+.pp-root .filter-row {
+    -fx-alignment: center-left;
+    -fx-padding: 0;
+}
+
+.pp-root .filter-group {
+    -fx-alignment: center-left;
+    -fx-spacing: 4;
+}
+
+.pp-root .filter-label {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+}
+
 /* Sidebar nav buttons */
 .pp-root .nav-button {
     -fx-background-color: -pp-control-ghost;
@@ -320,6 +337,35 @@
     -fx-max-width: 8;
     -fx-max-height: 8;
     -fx-effect: dropshadow(gaussian, -pp-danger-glow, 6, 0.3, 0, 0);
+}
+
+/* Checklist editor */
+.pp-root .checklist-list {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-padding: 4 0 4 0;
+}
+
+.pp-root .checklist-list .list-cell {
+    -fx-background-color: transparent;
+}
+
+.pp-root .checklist-row {
+    -fx-alignment: center-left;
+}
+
+.pp-root .checklist-text {
+    -fx-background-color: -pp-control;
+    -fx-text-fill: -pp-text;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-padding: 6 8;
+}
+
+.pp-root .checklist-remove {
+    -fx-padding: 6 8;
 }
 
 /* ---- Scrollbars ---- */
@@ -393,10 +439,17 @@
     -fx-background-radius: 12;
     -fx-border-color: -pp-border;
     -fx-border-radius: 12;
+    -fx-background-insets: 0;
 }
 
 .pp-root .tab-pane .headers-region {
     -fx-background-color: transparent;
+}
+
+.pp-root .tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
 }
 
 .pp-root .tab-pane .tab {
@@ -463,7 +516,681 @@
 /* ---- Metric tiles ---- */
 .pp-root .metric-tile {
     -fx-background-color: -pp-control-ghost;
-    -fx-background-radius: 12;
+    -fx-background-radius: 14;
     -fx-border-color: -pp-border-subtle;
+    -fx-border-radius: 14;
+}
+
+.pp-root .metric-hero {
+    -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
+    -fx-border-color: -pp-border;
+    -fx-padding: 16 18;
+    -fx-min-height: 120;
+    -pp-spark: -pp-accent;
+}
+
+.pp-root .metric-hero.metric-success { -pp-spark: -pp-success; }
+.pp-root .metric-hero.metric-danger { -pp-spark: -pp-danger; }
+.pp-root .metric-hero.metric-warning { -pp-spark: -pp-warning; }
+.pp-root .metric-hero.metric-accent { -pp-spark: -pp-accent; }
+
+.pp-root .metric-label {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+}
+
+.pp-root .metric-value-hero {
+    -fx-font-size: 26px;
+    -fx-font-weight: 800;
+}
+
+.pp-root .metric-chip {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-padding: 2 8;
+    -fx-font-size: 10px;
+    -fx-text-fill: -pp-muted;
+}
+
+.pp-root .metric-chip-up {
+    -fx-background-color: -pp-success-soft;
+    -fx-border-color: rgba(34,197,94,0.6);
+    -fx-text-fill: -pp-success;
+}
+
+.pp-root .metric-chip-down {
+    -fx-background-color: -pp-danger-soft;
+    -fx-border-color: -pp-danger-border;
+    -fx-text-fill: -pp-danger-text;
+}
+
+.pp-root .metric-chip-neutral {
+    -fx-background-color: -pp-control-ghost;
+    -fx-border-color: -pp-border-subtle;
+    -fx-text-fill: -pp-muted-2;
+}
+
+.pp-root .overview-kpi {
+    -fx-min-height: 110;
+}
+
+.pp-root .overview-kpi-row {
+    -fx-alignment: center-left;
+}
+
+.pp-root .overview-kpi-value {
+    -fx-text-fill: -pp-text;
+    -fx-font-size: 24px;
+    -fx-font-weight: 800;
+}
+
+.pp-root .overview-kpi-sub {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+}
+
+.pp-root .overview-pulse-metric {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-padding: 8 10;
+}
+
+.pp-root .overview-pulse-value {
+    -fx-text-fill: -pp-text;
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+}
+
+.pp-root .overview-phase-list {
+    -fx-spacing: 8;
+}
+
+.pp-root .overview-phase-bar {
+    -fx-accent: -pp-accent;
+    -fx-pref-height: 6;
+}
+
+.pp-root .overview-milestones {
+    -fx-background-color: transparent;
+}
+
+.pp-root .overview-list {
+    -fx-spacing: 6;
+}
+
+.pp-root .overview-row {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-padding: 6 8;
+}
+
+.pp-root .overview-title {
+    -fx-text-fill: -pp-text;
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+}
+
+.pp-root .overview-meta {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 11px;
+}
+
+.pp-root .overview-activity {
+    -fx-spacing: 6;
+}
+
+.pp-root .overview-sparkline {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-padding: 4 6;
+}
+
+.pp-root .overview-sparkline-line {
+    -fx-stroke: -pp-accent;
+    -fx-stroke-width: 2;
+    -fx-fill: transparent;
+}
+
+.pp-root .overview-status-split {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-padding: 3;
+    -fx-spacing: 2;
+}
+
+.pp-root .overview-status-seg {
+    -fx-min-height: 6;
+    -fx-pref-height: 6;
+    -fx-background-radius: 6;
+}
+
+.pp-root .status-todo {
+    -fx-background-color: -pp-muted-2;
+}
+
+.pp-root .status-progress {
+    -fx-background-color: -pp-accent;
+}
+
+.pp-root .status-blocked {
+    -fx-background-color: -pp-danger;
+}
+
+.pp-root .status-done {
+    -fx-background-color: -pp-success;
+}
+
+.pp-root .status-empty {
+    -fx-background-color: -pp-border-subtle;
+}
+
+.pp-root .overview-milestone-check {
+    -fx-padding: 0;
+}
+
+.pp-root .sparkline {
+    -fx-background-color: rgba(255,255,255,0.04);
+    -fx-background-radius: 8;
+    -fx-padding: 4 6;
+}
+
+.pp-root .sparkline-line {
+    -fx-stroke: -pp-spark;
+    -fx-stroke-width: 2;
+    -fx-stroke-line-cap: round;
+    -fx-fill: transparent;
+    -fx-opacity: 0.9;
+}
+
+.pp-root .today-row {
+    -fx-padding: 2 0 0 0;
+}
+
+.pp-root .today-card {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 12;
     -fx-border-radius: 12;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, -pp-shadow, 10, 0.1, 0, 4);
+}
+
+.pp-root .today-title {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+}
+
+.pp-root .today-value {
+    -fx-text-fill: -pp-text;
+    -fx-font-size: 22px;
+    -fx-font-weight: 800;
+}
+
+.pp-root .today-caption {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 11px;
+}
+
+.pp-root .today-hint {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 11px;
+}
+
+.pp-root .workload-section {
+    -fx-padding: 2 0 0 0;
+}
+
+.pp-root .section-hint {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 11px;
+}
+
+.pp-root .dashboard-banner {
+    -fx-alignment: center-left;
+    -fx-padding: 12 16;
+}
+
+.pp-root .banner-title {
+    -fx-text-fill: -pp-text;
+    -fx-font-size: 16px;
+    -fx-font-weight: 700;
+}
+
+.pp-root .banner-sub {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 12px;
+}
+
+.pp-root .banner-actions {
+    -fx-alignment: center-right;
+}
+
+.pp-root .banner-cta {
+    -fx-padding: 8 14;
+}
+
+.pp-root .workload-scroll {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.pp-root .workload-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.pp-root .workload-row {
+    -fx-alignment: center-left;
+    -fx-padding: 0 0 6 0;
+}
+
+.pp-root .workload-card {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+}
+
+.pp-root .workload-name {
+    -fx-text-fill: -pp-text;
+    -fx-font-weight: 700;
+}
+
+.pp-root .workload-meta {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 11px;
+}
+
+.pp-root .workload-bar {
+    -fx-accent: -pp-accent;
+}
+
+.pp-root .workload-bar .track {
+    -fx-background-color: -pp-scroll-track;
+    -fx-background-radius: 999;
+    -fx-padding: 0;
+}
+
+.pp-root .workload-bar .bar {
+    -fx-background-color: -pp-accent;
+    -fx-background-radius: 999;
+    -fx-padding: 0;
+}
+
+.pp-root .risk-badge {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 2 8;
+    -fx-font-size: 10px;
+    -fx-font-weight: 700;
+    -fx-border-width: 1;
+}
+
+.pp-root .risk-low {
+    -fx-background-color: -pp-success-soft;
+    -fx-border-color: rgba(34,197,94,0.6);
+    -fx-text-fill: -pp-success;
+}
+
+.pp-root .risk-medium {
+    -fx-background-color: -pp-warning-soft;
+    -fx-border-color: rgba(245,158,11,0.6);
+    -fx-text-fill: -pp-warning-text;
+}
+
+.pp-root .risk-high {
+    -fx-background-color: rgba(249,115,22,0.18);
+    -fx-border-color: rgba(249,115,22,0.7);
+    -fx-text-fill: #fb923c;
+}
+
+.pp-root .risk-critical {
+    -fx-background-color: -pp-danger-soft;
+    -fx-border-color: -pp-danger-border;
+    -fx-text-fill: -pp-danger-text;
+}
+
+.pp-root .risk-list {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-padding: 4 0 0 0;
+}
+
+.pp-root .risk-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 6 0;
+}
+
+.pp-root .risk-row {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+}
+
+.pp-root .risk-title {
+    -fx-text-fill: -pp-text;
+    -fx-font-weight: 700;
+}
+
+.pp-root .risk-meta {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 11px;
+}
+
+/* ---- Projects page ---- */
+.pp-root .projects-header {
+    -fx-alignment: center-left;
+}
+
+.pp-root .health-strip {
+    -fx-alignment: center-left;
+    -fx-padding: 2 0 6 0;
+}
+
+.pp-root .health-chip {
+    -fx-background-color: -pp-control-ghost;
+    -fx-text-fill: -pp-muted;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-padding: 6 12;
+}
+
+.pp-root .health-chip:selected {
+    -fx-background-color: -pp-accent-soft;
+    -fx-border-color: -pp-accent;
+    -fx-text-fill: -pp-text;
+}
+
+.pp-root .project-scroll {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.pp-root .project-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.pp-root .project-grid {
+    -fx-padding: 2 2 8 2;
+}
+
+.pp-root .project-card {
+    -fx-background-color: -pp-card;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, -pp-shadow, 14, 0.12, 0, 6);
+    -fx-cursor: hand;
+}
+
+.pp-root .project-card:hover {
+    -fx-background-color: -pp-surface-2;
+    -fx-border-color: -pp-border-strong;
+    -fx-effect: dropshadow(gaussian, -pp-shadow-strong, 18, 0.16, 0, 8);
+}
+
+.pp-root .project-card-selected {
+    -fx-border-color: -pp-accent;
+    -fx-background-color: -pp-card2;
+}
+
+.pp-root .project-card-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: 700;
+    -fx-text-fill: -pp-text;
+}
+
+.pp-root .project-card-meta {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+}
+
+.pp-root .project-card-sub {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 11px;
+}
+
+.pp-root .project-progress {
+    -fx-accent: -pp-accent;
+}
+
+.pp-root .project-progress .track {
+    -fx-background-color: -pp-scroll-track;
+}
+
+.pp-root .project-progress .percentage {
+    -fx-fill: transparent;
+    -fx-opacity: 0;
+}
+
+.pp-root .project-progress .text {
+    -fx-fill: transparent;
+    -fx-opacity: 0;
+}
+
+.pp-root .project-progress-wrap {
+    -fx-alignment: center;
+}
+
+.pp-root .project-progress-label {
+    -fx-text-fill: -pp-text;
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+    -fx-background-color: rgba(0, 0, 0, 0.35);
+    -fx-background-radius: 6;
+    -fx-padding: 1 4;
+}
+
+.pp-root .project-chip {
+    -fx-background-color: -pp-control-ghost;
+    -fx-text-fill: -pp-muted-2;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-padding: 2 8;
+    -fx-font-size: 10px;
+    -fx-font-weight: 700;
+}
+
+.pp-root .chip-danger {
+    -fx-background-color: -pp-danger-soft;
+    -fx-border-color: -pp-danger-border;
+    -fx-text-fill: -pp-danger-text;
+}
+
+.pp-root .chip-muted {
+    -fx-background-color: -pp-control-ghost;
+    -fx-border-color: -pp-border-subtle;
+    -fx-text-fill: -pp-muted-2;
+}
+
+.pp-root .priority-badge {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 2 8;
+    -fx-font-size: 10px;
+    -fx-font-weight: 700;
+    -fx-border-width: 1;
+}
+
+.pp-root .priority-low {
+    -fx-background-color: -pp-control-ghost;
+    -fx-border-color: -pp-border-subtle;
+    -fx-text-fill: -pp-muted;
+}
+
+.pp-root .priority-medium {
+    -fx-background-color: -pp-accent-soft;
+    -fx-border-color: -pp-accent;
+    -fx-text-fill: -pp-text;
+}
+
+.pp-root .priority-high {
+    -fx-background-color: -pp-warning-soft;
+    -fx-border-color: rgba(245,158,11,0.65);
+    -fx-text-fill: -pp-warning-text;
+}
+
+.pp-root .project-members {
+    -fx-alignment: center-left;
+    -fx-padding: 2 0 0 0;
+}
+
+.pp-root .member-avatar {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-min-width: 24;
+    -fx-min-height: 24;
+    -fx-max-width: 24;
+    -fx-max-height: 24;
+    -fx-alignment: center;
+    -fx-text-fill: #0a0f1c;
+    -fx-font-size: 10px;
+    -fx-font-weight: 700;
+}
+
+.pp-root .avatar-1 { -fx-background-color: #60a5fa; }
+.pp-root .avatar-2 { -fx-background-color: #34d399; }
+.pp-root .avatar-3 { -fx-background-color: #f59e0b; }
+.pp-root .avatar-4 { -fx-background-color: #a78bfa; }
+.pp-root .avatar-5 { -fx-background-color: #f472b6; }
+
+.pp-root .avatar-more {
+    -fx-background-color: -pp-control-ghost;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-text-fill: -pp-muted;
+}
+
+.pp-root .project-actions {
+    -fx-alignment: center-left;
+    -fx-spacing: 6;
+    -fx-opacity: 0;
+    -fx-padding: 2 0 0 0;
+    -fx-mouse-transparent: true;
+}
+
+.pp-root .project-card:hover .project-actions,
+.pp-root .project-card-selected .project-actions {
+    -fx-opacity: 1;
+    -fx-mouse-transparent: false;
+}
+
+.pp-root .project-details-card {
+    -fx-min-width: 320;
+}
+
+.pp-root .project-activity {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-padding: 8 10;
+}
+
+.pp-root .project-activity-title {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+}
+
+.pp-root .project-activity-row {
+    -fx-alignment: center-left;
+}
+
+.pp-root .activity-marker {
+    -fx-alignment: top-center;
+    -fx-padding: 2 0 0 0;
+}
+
+.pp-root .activity-dot {
+    -fx-background-color: -pp-accent;
+    -fx-background-radius: 999;
+    -fx-min-width: 6;
+    -fx-min-height: 6;
+    -fx-max-width: 6;
+    -fx-max-height: 6;
+}
+
+.pp-root .activity-line {
+    -fx-background-color: -pp-border-subtle;
+    -fx-min-width: 2;
+    -fx-max-width: 2;
+    -fx-min-height: 14;
+    -fx-max-height: 14;
+}
+
+.pp-root .activity-line-end {
+    -fx-opacity: 0.0;
+}
+
+.pp-root .activity-text {
+    -fx-text-fill: -pp-text;
+    -fx-font-size: 11px;
+}
+
+.pp-root .activity-time {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 10px;
+}
+
+.pp-root .skeleton-pane {
+    -fx-background-color: transparent;
+    -fx-padding: 4 4 8 4;
+}
+
+.pp-root .skeleton-grid {
+    -fx-background-color: transparent;
+}
+
+.pp-root .skeleton-card {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+}
+
+.pp-root .skeleton-line {
+    -fx-background-color: rgba(255,255,255,0.08);
+    -fx-background-radius: 8;
+}
+
+.pp-root .skeleton-circle {
+    -fx-background-color: rgba(255,255,255,0.08);
+    -fx-background-radius: 999;
+}
+
+.pp-root .skeleton-chip {
+    -fx-background-color: rgba(255,255,255,0.08);
+    -fx-background-radius: 999;
 }

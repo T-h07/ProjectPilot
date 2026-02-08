@@ -21,6 +21,8 @@ public final class LanStoreBroadcaster {
     private final Map<Member, ChangeListener<Object>> memberListeners = new IdentityHashMap<>();
     private final Map<Phase, ChangeListener<Object>> phaseListeners = new IdentityHashMap<>();
     private final Map<Milestone, ChangeListener<Object>> milestoneListeners = new IdentityHashMap<>();
+    private final Map<ResourceItem, ChangeListener<Object>> resourceListeners = new IdentityHashMap<>();
+    private final Map<PersonalNote, ChangeListener<Object>> noteListeners = new IdentityHashMap<>();
     private volatile boolean pending = false;
 
     public LanStoreBroadcaster(InMemoryStore store, LanWsServer wsServer) {
@@ -161,11 +163,43 @@ public final class LanStoreBroadcaster {
         detach.add(() -> p.getMilestones().removeListener(milestonesListener));
         for (Milestone ms : p.getMilestones()) attachMilestoneListeners(ms);
 
+        ListChangeListener<ResourceItem> resourcesListener = ch -> {
+            while (ch.next()) {
+                if (ch.wasAdded()) {
+                    for (ResourceItem r : ch.getAddedSubList()) attachResourceListeners(r);
+                }
+                if (ch.wasRemoved()) {
+                    for (ResourceItem r : ch.getRemoved()) detachResourceListeners(r);
+                }
+            }
+            signal();
+        };
+        p.getResources().addListener(resourcesListener);
+        detach.add(() -> p.getResources().removeListener(resourcesListener));
+        for (ResourceItem r : p.getResources()) attachResourceListeners(r);
+
+        ListChangeListener<PersonalNote> notesListener = ch -> {
+            while (ch.next()) {
+                if (ch.wasAdded()) {
+                    for (PersonalNote note : ch.getAddedSubList()) attachNoteListeners(note);
+                }
+                if (ch.wasRemoved()) {
+                    for (PersonalNote note : ch.getRemoved()) detachNoteListeners(note);
+                }
+            }
+            signal();
+        };
+        p.getNotes().addListener(notesListener);
+        detach.add(() -> p.getNotes().removeListener(notesListener));
+        for (PersonalNote note : p.getNotes()) attachNoteListeners(note);
+
         detach.add(() -> {
             for (Task t : p.getTasks()) detachTaskListeners(t);
             for (Member m : p.getMembers()) detachMemberListeners(m);
             for (Phase ph : p.getPhases()) detachPhaseListeners(ph);
             for (Milestone ms : p.getMilestones()) detachMilestoneListeners(ms);
+            for (ResourceItem r : p.getResources()) detachResourceListeners(r);
+            for (PersonalNote note : p.getNotes()) detachNoteListeners(note);
         });
 
         detachByProjectId.put(p.getId(), () -> detach.forEach(Runnable::run));
@@ -188,6 +222,7 @@ public final class LanStoreBroadcaster {
         t.dueDateProperty().addListener(dirty);
         t.assigneeProperty().addListener(dirty);
         t.phaseProperty().addListener(dirty);
+        t.checklistVersionProperty().addListener(dirty);
         taskListeners.put(t, dirty);
     }
 
@@ -202,6 +237,7 @@ public final class LanStoreBroadcaster {
         t.dueDateProperty().removeListener(l);
         t.assigneeProperty().removeListener(l);
         t.phaseProperty().removeListener(l);
+        t.checklistVersionProperty().removeListener(l);
     }
 
     private void attachMemberListeners(Member m) {
@@ -257,6 +293,56 @@ public final class LanStoreBroadcaster {
         ms.nameProperty().removeListener(l);
         ms.dueDateProperty().removeListener(l);
         ms.completedProperty().removeListener(l);
+    }
+
+    private void attachResourceListeners(ResourceItem r) {
+        if (r == null) return;
+        if (resourceListeners.containsKey(r)) return;
+        ChangeListener<Object> dirty = (obs, o, n) -> signal();
+        r.taskIdProperty().addListener(dirty);
+        r.typeProperty().addListener(dirty);
+        r.titleProperty().addListener(dirty);
+        r.targetProperty().addListener(dirty);
+        r.notesProperty().addListener(dirty);
+        r.addedByProperty().addListener(dirty);
+        r.updatedAtProperty().addListener(dirty);
+        resourceListeners.put(r, dirty);
+    }
+
+    private void detachResourceListeners(ResourceItem r) {
+        if (r == null) return;
+        ChangeListener<Object> l = resourceListeners.remove(r);
+        if (l == null) return;
+        r.taskIdProperty().removeListener(l);
+        r.typeProperty().removeListener(l);
+        r.titleProperty().removeListener(l);
+        r.targetProperty().removeListener(l);
+        r.notesProperty().removeListener(l);
+        r.addedByProperty().removeListener(l);
+        r.updatedAtProperty().removeListener(l);
+    }
+
+    private void attachNoteListeners(PersonalNote note) {
+        if (note == null) return;
+        if (noteListeners.containsKey(note)) return;
+        ChangeListener<Object> dirty = (obs, o, n) -> signal();
+        note.taskIdProperty().addListener(dirty);
+        note.ownerIdProperty().addListener(dirty);
+        note.titleProperty().addListener(dirty);
+        note.bodyProperty().addListener(dirty);
+        note.updatedAtProperty().addListener(dirty);
+        noteListeners.put(note, dirty);
+    }
+
+    private void detachNoteListeners(PersonalNote note) {
+        if (note == null) return;
+        ChangeListener<Object> l = noteListeners.remove(note);
+        if (l == null) return;
+        note.taskIdProperty().removeListener(l);
+        note.ownerIdProperty().removeListener(l);
+        note.titleProperty().removeListener(l);
+        note.bodyProperty().removeListener(l);
+        note.updatedAtProperty().removeListener(l);
     }
 
     private void signal() {

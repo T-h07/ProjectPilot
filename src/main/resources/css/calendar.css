@@ -1,0 +1,77 @@
+/* Calendar view */
+.pp-root .calendar-card {
+    -fx-background-color: -pp-card;
+    -fx-background-radius: 14;
+    -fx-border-color: -pp-border;
+    -fx-border-radius: 14;
+    -fx-padding: 12;
+}
+
+.pp-root .calendar-grid {
+    -fx-hgap: 8;
+    -fx-vgap: 8;
+}
+
+.pp-root .calendar-dow {
+    -fx-text-fill: -pp-muted;
+    -fx-font-weight: 700;
+    -fx-font-size: 11px;
+}
+
+.pp-root .calendar-day-cell {
+    -fx-background-color: -pp-surface;
+    -fx-background-radius: 12;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-radius: 12;
+    -fx-padding: 8;
+    -fx-min-height: 120;
+}
+
+.pp-root .calendar-day-outside {
+    -fx-opacity: 0.5;
+}
+
+.pp-root .calendar-day-today {
+    -fx-border-color: -pp-accent;
+    -fx-border-width: 1.2;
+}
+
+.pp-root .calendar-day-label {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 11px;
+}
+
+.pp-root .calendar-task-chip {
+    -fx-background-color: -pp-control;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: -pp-border;
+    -fx-text-fill: -pp-text;
+    -fx-padding: 4 8;
+    -fx-font-size: 11px;
+}
+
+.pp-root .calendar-task-chip:hover {
+    -fx-background-color: -pp-control-hover;
+}
+
+.pp-root .calendar-task-chip-done {
+    -fx-opacity: 0.65;
+}
+
+.pp-root .calendar-unscheduled {
+    -fx-background-color: -pp-card;
+    -fx-background-radius: 14;
+    -fx-border-color: -pp-border;
+    -fx-border-radius: 14;
+    -fx-padding: 12;
+}
+
+.pp-root .calendar-unscheduled-list {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+}
+
+.pp-root .calendar-unscheduled-list .list-cell {
+    -fx-background-color: transparent;
+}
