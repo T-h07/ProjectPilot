@@ -60,12 +60,6 @@ public record LanConfig(Mode mode, String host, int port, int wsPort, int pollMs
         return new LanConfig(Mode.CLIENT, normalizeHost(host, port), port, wsPort, pollMs);
     }
 
-    public static LanConfig forCloud(String host, int pollMs) {
-        HostInfo info = parseCloudHost(host);
-        if (info == null) return new LanConfig(Mode.CLIENT, null, 0, 0, pollMs);
-        return new LanConfig(Mode.CLIENT, info.url(), info.port(), info.wsPort(), pollMs);
-    }
-
     private static String sys(String key) {
         try {
             String v = System.getProperty(key);
@@ -126,60 +120,4 @@ public record LanConfig(Mode mode, String host, int port, int wsPort, int pollMs
         }
     }
 
-    private static HostInfo parseCloudHost(String raw) {
-        if (raw == null || raw.isBlank()) return null;
-        String v = raw.trim();
-        if (!v.startsWith("http://") && !v.startsWith("https://")) {
-            boolean looksLikeIp = v.matches("^\\d{1,3}(?:\\.\\d{1,3}){3}(:\\d+)?(?:/.*)?$");
-            boolean hasPort = v.matches(".*:\\d+(/.*)?$");
-            boolean localhost = v.startsWith("localhost");
-            String scheme = (looksLikeIp || hasPort || localhost) ? "http://" : "https://";
-            v = scheme + v;
-        }
-        try {
-            java.net.URI uri = java.net.URI.create(v);
-            String scheme = uri.getScheme();
-            String host = uri.getHost();
-            int port = uri.getPort();
-            if (scheme == null || scheme.isBlank()) scheme = "https";
-            if (host == null || host.isBlank()) return null;
-            if (port == -1) {
-                port = "https".equalsIgnoreCase(scheme) ? 443 : 80;
-            }
-            Integer wsPort = parseWsPort(uri.getQuery());
-            if (wsPort == null || wsPort <= 0) {
-                if ("https".equalsIgnoreCase(scheme)) {
-                    wsPort = port + 1;
-                } else {
-                    wsPort = port == 80 ? 80 : port + 1;
-                }
-            }
-            String normalized = ("https".equalsIgnoreCase(scheme) && port == 443)
-                    || ("http".equalsIgnoreCase(scheme) && port == 80)
-                    ? scheme + "://" + host
-                    : scheme + "://" + host + ":" + port;
-            return new HostInfo(normalized, port, wsPort);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private static Integer parseWsPort(String query) {
-        if (query == null || query.isBlank()) return null;
-        String[] parts = query.split("&");
-        for (String part : parts) {
-            String[] kv = part.split("=", 2);
-            if (kv.length != 2) continue;
-            String key = kv[0].trim().toLowerCase();
-            if (!key.equals("ws") && !key.equals("wsport")) continue;
-            try {
-                return Integer.parseInt(kv[1].trim());
-            } catch (Exception e) {
-                return null;
-            }
-        }
-        return null;
-    }
-
-    private record HostInfo(String url, int port, int wsPort) {}
 }

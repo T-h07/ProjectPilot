@@ -48,7 +48,6 @@ import com.projectpilot.lan.LanSyncService;
 import com.projectpilot.lan.LanWsClient;
 import com.projectpilot.lan.LanWsServer;
 import com.projectpilot.lan.RemoteStore;
-import com.projectpilot.lan.dto.ServerStatusDto;
 
 public class Main extends Application {
 
@@ -74,7 +73,6 @@ public class Main extends Application {
     private ChatService chatService;
     private ChatUnreadService chatUnread;
     private ScheduledExecutorService hostStatusExec;
-    private ScheduledExecutorService cloudStatusExec;
 
     @Override
     public void start(Stage stage) {
@@ -93,11 +91,8 @@ public class Main extends Application {
         stage.setOnCloseRequest(e -> shutdownServices());
         stage.show();
 
-        if (lanConfig.isClient() || lanConfig.isHost()) {
-            bootstrapMode(lanConfig);
-        } else {
-            showLanSetup();
-        }
+        if (lanConfig.isClient() || lanConfig.isHost()) bootstrapMode(lanConfig);
+        else showLanSetup();
     }
 
     private void showLogin() {
@@ -121,7 +116,6 @@ public class Main extends Application {
     private void bootstrapMode(LanConfig config) {
         lanConfig = config == null ? LanConfig.fromSystem() : config;
         stopDiscovery();
-        stopCloudStatusMonitor();
         if (lanSync != null) {
             lanSync.stop();
             lanSync = null;
@@ -177,8 +171,6 @@ public class Main extends Application {
             }
 
             updateHostStatusForMode();
-            startCloudStatusMonitor();
-
             if (chatUnread != null) {
                 chatUnread.stop();
                 chatUnread = null;
@@ -359,7 +351,6 @@ public class Main extends Application {
     private void shutdownServices() {
         stopDiscovery();
         safeStopLanHost();
-        stopCloudStatusMonitor();
         if (lanSync != null) {
             lanSync.stop();
             lanSync = null;
@@ -437,39 +428,6 @@ public class Main extends Application {
         }
     }
 
-    private void startCloudStatusMonitor() {
-        stopCloudStatusMonitor();
-        if (appState == null || lanClient == null || lanConfig == null || !lanConfig.isClient()) {
-            if (appState != null) appState.updateCloudStatus(false, "", 0L);
-            return;
-        }
-
-        appState.updateCloudStatus(false, lanClient.baseUrl(), 0L);
-        cloudStatusExec = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "pp-cloud-status");
-            t.setDaemon(true);
-            return t;
-        });
-        cloudStatusExec.scheduleAtFixedRate(() -> {
-            try {
-                ServerStatusDto status = lanClient.fetchStatus();
-                boolean ok = status != null && "ok".equalsIgnoreCase(status.status());
-                long startedAt = status == null ? 0L : status.startedAt();
-                String url = status == null ? lanClient.baseUrl() : status.publicUrl();
-                if (url == null || url.isBlank()) url = lanClient.baseUrl();
-                appState.updateCloudStatus(ok, url, startedAt);
-            } catch (Exception e) {
-                appState.updateCloudStatus(false, lanClient.baseUrl(), 0L);
-            }
-        }, 0, 5, TimeUnit.SECONDS);
-    }
-
-    private void stopCloudStatusMonitor() {
-        if (cloudStatusExec != null) {
-            cloudStatusExec.shutdownNow();
-            cloudStatusExec = null;
-        }
-    }
 
     private void showStartupNotice(String title, String message) {
         Runnable show = () -> {

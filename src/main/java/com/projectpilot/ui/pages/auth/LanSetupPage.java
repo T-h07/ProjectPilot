@@ -22,7 +22,6 @@ public final class LanSetupPage extends BorderPane {
 
     private final ListView<LanHost> hosts = new ListView<>();
     private final TextField manualHost = new TextField();
-    private final TextField cloudHost = new TextField();
     private final Label status = new Label("");
 
     public LanSetupPage(LanConfig defaults, Consumer<LanConfig> onChoose) {
@@ -53,22 +52,6 @@ public final class LanSetupPage extends BorderPane {
         HBox modeRow = new HBox(10, localBtn, hostBtn);
         modeRow.setAlignment(Pos.CENTER_LEFT);
 
-        Label cloudTitle = new Label("Cloud mode");
-        cloudTitle.getStyleClass().add("section-title");
-
-        Label cloudHint = new Label("Connect using a public URL (HTTPS or HTTP with port). Use ?ws=8091 if WS is separate.");
-        cloudHint.getStyleClass().add("muted");
-
-        cloudHost.setPromptText("https://pilot.yourdomain.com or http://host:8090");
-
-        Button cloudJoin = new Button("Connect to Cloud");
-        cloudJoin.getStyleClass().add("primary");
-        cloudJoin.setOnAction(e -> joinCloud());
-
-        VBox cloudCard = new VBox(10, cloudTitle, cloudHint, cloudHost, cloudJoin);
-        cloudCard.getStyleClass().add("card");
-        cloudCard.setPadding(new Insets(12));
-
         Label joinTitle = new Label("Join a host");
         joinTitle.getStyleClass().add("section-title");
 
@@ -92,7 +75,7 @@ public final class LanSetupPage extends BorderPane {
         joinCard.setPadding(new Insets(12));
         VBox.setVgrow(hosts, Priority.ALWAYS);
 
-        VBox body = new VBox(16, modeRow, cloudCard, joinCard);
+        VBox body = new VBox(16, modeRow, joinCard);
         setCenter(body);
 
         refreshHosts();
@@ -128,20 +111,6 @@ public final class LanSetupPage extends BorderPane {
         int poll = defaults.pollMs();
 
         onChoose.accept(LanConfig.forClient(host, port, wsPort, poll));
-    }
-
-    private void joinCloud() {
-        String raw = cloudHost.getText() == null ? "" : cloudHost.getText().trim();
-        if (raw.isBlank()) {
-            status.setText("Enter your cloud URL.");
-            return;
-        }
-        LanConfig cfg = LanConfig.forCloud(raw, defaults.pollMs());
-        if (cfg.baseUrl() == null || cfg.baseUrl().isBlank()) {
-            status.setText("Invalid cloud URL.");
-            return;
-        }
-        onChoose.accept(cfg);
     }
 
     private void chooseHost() {

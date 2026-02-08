@@ -54,10 +54,6 @@ public class AppState {
     private final LongProperty hostStartedAt = new SimpleLongProperty(0L);
     private final StringProperty hostMode = new SimpleStringProperty("local");
 
-    private final BooleanProperty cloudConnected = new SimpleBooleanProperty(false);
-    private final StringProperty cloudUrl = new SimpleStringProperty("");
-    private final LongProperty cloudStartedAt = new SimpleLongProperty(0L);
-
     private final ListChangeListener<Member> membersListener = c -> refreshCurrentProjectRole();
     private Project membersBoundProject;
 
@@ -67,7 +63,6 @@ public class AppState {
         session.addListener((obs, o, n) -> {
             refreshCurrentProjectRole();
             resetChatState();
-            clearCloudStatus();
         });
         selectedProject.addListener((obs, o, n) -> {
             rebindMembersListener(o, n);
@@ -135,15 +130,6 @@ public class AppState {
 
     public StringProperty hostModeProperty() { return hostMode; }
     public String getHostMode() { return hostMode.get(); }
-
-    public BooleanProperty cloudConnectedProperty() { return cloudConnected; }
-    public boolean isCloudConnected() { return cloudConnected.get(); }
-
-    public StringProperty cloudUrlProperty() { return cloudUrl; }
-    public String getCloudUrl() { return cloudUrl.get(); }
-
-    public LongProperty cloudStartedAtProperty() { return cloudStartedAt; }
-    public long getCloudStartedAt() { return cloudStartedAt.get(); }
 
     public boolean isAdmin() {
         UserSession s = getSession();
@@ -269,24 +255,10 @@ public class AppState {
         else Platform.runLater(() -> hostConnections.set(safe));
     }
 
-    public void updateCloudStatus(boolean connected, String url, long startedAt) {
-        Runnable update = () -> {
-            cloudConnected.set(connected);
-            cloudUrl.set(url == null ? "" : url);
-            cloudStartedAt.set(connected ? Math.max(0L, startedAt) : 0L);
-        };
-        if (Platform.isFxApplicationThread()) update.run();
-        else Platform.runLater(update);
-    }
-
     private void resetChatState() {
         chatLastSeen.clear();
         chatLastActivity.clear();
         setUnreadMessages(0);
-    }
-
-    private void clearCloudStatus() {
-        updateCloudStatus(false, "", 0L);
     }
 
     private static String safe(String s) {
