@@ -11,6 +11,7 @@ public enum PageId {
     RESOURCES,
     NOTES,
     TEAM,
+    MEETINGS,
     MESSAGES,
     HISTORY,
     EXPORT_REPORT,

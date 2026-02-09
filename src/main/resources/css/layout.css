@@ -165,6 +165,104 @@
     -fx-border-width: 0 1 0 0;
 }
 
+.pp-root .sidebar-header {
+    -fx-alignment: center-left;
+    -fx-padding: 0 0 8 0;
+}
+
+.pp-root .sidebar-header-label {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+}
+
+.pp-root .sidebar-toggle {
+    -fx-background-color: -pp-control-ghost;
+    -fx-border-color: -pp-border;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 4 8;
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 11px;
+}
+
+.pp-root .sidebar-toggle:hover {
+    -fx-background-color: -pp-control-ghost-hover;
+    -fx-text-fill: -pp-text;
+}
+
+.pp-root .sidebar-icon-wrap {
+    -fx-min-width: 64;
+    -fx-min-height: 64;
+    -fx-max-width: 64;
+    -fx-max-height: 64;
+    -fx-background-color: transparent;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-alignment: center;
+}
+
+.pp-root .sidebar-icon {
+    -fx-opacity: 1;
+}
+
+.pp-root .nav-button:hover .sidebar-icon-wrap {
+    -fx-background-color: rgba(255,255,255,0.2);
+    -fx-border-color: -pp-border-strong;
+}
+
+.pp-root .nav-button-active .sidebar-icon-wrap {
+    -fx-background-color: rgba(79,140,255,0.22);
+    -fx-border-color: -pp-accent;
+}
+
+.pp-root .nav-button-active .sidebar-icon {
+    -fx-opacity: 1;
+    -fx-effect: dropshadow(gaussian, -pp-accent-strong, 8, 0.35, 0, 0);
+}
+
+.pp-root .sidebar-icon-fallback {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 10px;
+    -fx-font-weight: 700;
+}
+
+.pp-root .sidebar.sidebar-collapsed {
+    -fx-padding: 12 8;
+    -fx-pref-width: 112;
+    -fx-min-width: 112;
+    -fx-max-width: 120;
+}
+
+.pp-root .sidebar.sidebar-collapsed .sidebar-header {
+    -fx-padding: 0 0 8 0;
+    -fx-alignment: center;
+}
+
+.pp-root .sidebar.sidebar-collapsed .nav-button {
+    -fx-padding: 6;
+    -fx-alignment: center;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.pp-root .sidebar-scroll {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.pp-root .sidebar-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.pp-root .sidebar-list {
+    -fx-spacing: 6;
+    -fx-padding: 2 0 2 0;
+}
+
 /* ---- Auth pages ---- */
 .pp-root.auth-root {
     -fx-background-color: linear-gradient(to bottom, -pp-bg, -pp-bg2);

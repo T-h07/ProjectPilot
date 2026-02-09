@@ -8,6 +8,8 @@ import com.projectpilot.data.db.auth.UserSession;
 import com.projectpilot.service.NotificationService;
 import com.projectpilot.ui.dialogs.HelpDrawerDialog;
 import com.projectpilot.ui.dialogs.LogViewerDialog;
+import com.projectpilot.ui.dialogs.SettingsDialog;
+import com.projectpilot.util.OwnerProfile;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
@@ -49,6 +51,13 @@ public class TopBar extends HBox {
 
         NotificationBellButton bell = new NotificationBellButton(notifications);
 
+        Region settingsIcon = new Region();
+        settingsIcon.getStyleClass().add("icon-gear");
+        Button settingsBtn = new Button();
+        settingsBtn.getStyleClass().addAll("subtle", "icon-btn");
+        settingsBtn.setGraphic(settingsIcon);
+        settingsBtn.setOnAction(e -> SettingsDialog.show(getScene() == null ? null : getScene().getWindow(), appState));
+
         Button helpBtn = new Button("Help");
         helpBtn.getStyleClass().addAll("subtle", "help-btn");
         helpBtn.setOnAction(e -> HelpDrawerDialog.show(getScene() == null ? null : getScene().getWindow()));
@@ -78,7 +87,13 @@ public class TopBar extends HBox {
         Label initials = new Label();
         initials.getStyleClass().add("profile-initials");
 
-        StackPane avatar = new StackPane(initials);
+        Region crown = new Region();
+        crown.getStyleClass().add("owner-crown");
+        crown.setVisible(false);
+        crown.setManaged(false);
+        StackPane avatar = new StackPane(initials, crown);
+        StackPane.setAlignment(crown, Pos.TOP_RIGHT);
+        StackPane.setMargin(crown, new Insets(-6, -4, 0, 0));
         avatar.getStyleClass().add("profile-avatar");
 
         Button profileBtn = new Button();
@@ -116,6 +131,17 @@ public class TopBar extends HBox {
             String display = displayName(s);
             userName.setText(display);
             initials.setText(initials(display));
+
+            boolean owner = OwnerProfile.isOwnerUser(s);
+            if (owner) {
+                if (!avatar.getStyleClass().contains("owner-avatar")) avatar.getStyleClass().add("owner-avatar");
+                crown.setVisible(true);
+                crown.setManaged(true);
+            } else {
+                avatar.getStyleClass().remove("owner-avatar");
+                crown.setVisible(false);
+                crown.setManaged(false);
+            }
         };
         syncUser.run();
         appState.sessionProperty().addListener((obs, o, n) -> syncUser.run());
@@ -159,7 +185,7 @@ public class TopBar extends HBox {
         userBox.setAlignment(Pos.CENTER_RIGHT);
         userBox.getStyleClass().add("topbar-userbox");
 
-        getChildren().addAll(title, picker, bell, helpBtn, clientBtn, spacer, hostBtn, userBox);
+        getChildren().addAll(title, picker, bell, settingsBtn, helpBtn, clientBtn, spacer, hostBtn, userBox);
     }
 
     // Backward compatible constructor (optional)

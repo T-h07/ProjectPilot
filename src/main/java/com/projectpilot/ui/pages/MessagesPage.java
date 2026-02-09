@@ -7,6 +7,7 @@ import com.projectpilot.chat.ChatType;
 import com.projectpilot.chat.ChatUser;
 import com.projectpilot.core.AppState;
 import com.projectpilot.ui.dialogs.DialogTheme;
+import com.projectpilot.util.OwnerProfile;
 import javafx.application.Platform;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -148,6 +149,7 @@ public final class MessagesPage extends BorderPane {
 
         appState.sessionProperty().addListener((obs, o, n) -> refreshThreadsAsync(true, null));
         appState.unreadMessagesProperty().addListener((obs, o, n) -> threadList.refresh());
+        appState.ownerMessageStyleProperty().addListener((obs, o, n) -> messageList.refresh());
 
         refreshThreadsAsync(true, null);
     }
@@ -429,10 +431,20 @@ public final class MessagesPage extends BorderPane {
             Label meta = new Label(sender + " - " + time);
             meta.getStyleClass().add("chat-meta");
 
-            Label bubble = new Label(item.body());
+            String body = item.body();
+            if (!self && appState != null && appState.isOwnerUser()) {
+                body = applyOwnerFilter(body);
+            }
+
+            Label bubble = new Label(body);
             bubble.setWrapText(true);
             bubble.setMaxWidth(420);
             bubble.getStyleClass().addAll("chat-bubble", self ? "chat-bubble-self" : "chat-bubble-other");
+
+            if (OwnerProfile.matchesName(item.senderName())) {
+                meta.getStyleClass().add("owner-meta");
+                bubble.getStyleClass().add("owner-message");
+            }
 
             VBox stack = new VBox(2, meta, bubble);
             HBox row = new HBox(stack);
@@ -449,5 +461,17 @@ public final class MessagesPage extends BorderPane {
                 .atZone(ZoneId.systemDefault())
                 .toLocalTime()
                 .format(TIME_FMT);
+    }
+
+    private String applyOwnerFilter(String body) {
+        String text = body == null ? "" : body;
+        String mode = appState == null ? "none" : appState.getOwnerMessageStyle();
+        if (mode == null) mode = "none";
+        return switch (mode.trim().toLowerCase()) {
+            case "prefix" -> "[VIP] " + text;
+            case "uppercase" -> text.toUpperCase();
+            case "highlight" -> ">>> " + text + " <<<";
+            default -> text;
+        };
     }
 }

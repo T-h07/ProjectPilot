@@ -45,8 +45,9 @@
     -fx-background-color: -pp-control;
 }
 
-/* ---- ComboBox / DatePicker ---- */
+/* ---- ComboBox / ChoiceBox / DatePicker ---- */
 .pp-root .combo-box-base,
+.pp-root .choice-box,
 .pp-root .date-picker {
     -fx-background-color: -pp-control;
     -fx-background-radius: 12;
@@ -57,11 +58,22 @@
 }
 
 .pp-root .combo-box-base:focused,
+.pp-root .choice-box:focused,
 .pp-root .date-picker:focused {
     -fx-border-color: -pp-focus;
 }
 
 .pp-root .combo-box .list-cell { -fx-text-fill: -pp-text; }
+.pp-root .choice-box .label { -fx-text-fill: -pp-text; }
+.pp-root .choice-box .arrow-button {
+    -fx-background-color: transparent;
+}
+.pp-root .choice-box .arrow {
+    -fx-background-color: -pp-text;
+}
+.pp-root .choice-box:disabled {
+    -fx-opacity: 0.8;
+}
 
 /* ComboBox popup (dropdown) */
 .pp-root .combo-box-popup .list-view,
@@ -320,6 +332,7 @@
     -fx-border-radius: 12;
     -fx-border-color: -pp-border-subtle;
     -fx-padding: 8 12;
+    -fx-graphic-text-gap: 10;
 }
 
 .pp-root .nav-button:hover { -fx-background-color: -pp-control-ghost-hover; }
@@ -1193,4 +1206,64 @@
 .pp-root .skeleton-chip {
     -fx-background-color: rgba(255,255,255,0.08);
     -fx-background-radius: 999;
+}
+
+/* ---- Settings icon + owner mode ---- */
+.pp-root .icon-btn {
+    -fx-padding: 6;
+    -fx-min-width: 32;
+    -fx-min-height: 32;
+    -fx-background-radius: 10;
+}
+
+.pp-root .icon-gear {
+    -fx-min-width: 14;
+    -fx-min-height: 14;
+    -fx-max-width: 14;
+    -fx-max-height: 14;
+    -fx-background-color: -pp-text;
+    -fx-shape: "M12.4 2.1l1.5 0.9 1.6-0.4 1.2 2.1-1.2 1.2 0.2 1.6 1.5 0.9-0.6 2.4-1.7-0.1-1.1 1.2 0.4 1.6-2.1 1.2-1.2-1.2-1.6 0.4-0.9 1.5-2.4-0.6 0.1-1.7-1.2-1.1-1.6 0.4-1.2-2.1 1.2-1.2-0.4-1.6-1.5-0.9 0.6-2.4 1.7 0.1 1.1-1.2-0.4-1.6 2.1-1.2 1.2 1.2 1.6-0.4z M10 6.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0 -7z";
+}
+
+.pp-root .owner-avatar {
+    -fx-border-color: -pp-gold;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, -pp-gold-glow, 14, 0.4, 0, 0);
+}
+
+.pp-root .list-cell.owner-row {
+    -fx-background-color: -pp-gold-soft;
+    -fx-border-color: -pp-gold;
+    -fx-border-width: 1;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-text-fill: -pp-text;
+}
+
+.pp-root .owner-crown {
+    -fx-min-width: 14;
+    -fx-min-height: 14;
+    -fx-max-width: 14;
+    -fx-max-height: 14;
+    -fx-background-color: -pp-gold;
+    -fx-shape: "M2 14h12v2H2z M2 6l3 3 3-5 3 5 3-3 1 6H1z";
+    -fx-effect: dropshadow(gaussian, -pp-gold-glow, 10, 0.45, 0, 0);
+}
+
+.pp-root .profile-avatar .owner-crown {
+    -fx-min-width: 12;
+    -fx-min-height: 12;
+    -fx-max-width: 12;
+    -fx-max-height: 12;
+}
+
+.pp-root.density-compact .text-field,
+.pp-root.density-compact .text-area,
+.pp-root.density-compact .combo-box-base,
+.pp-root.density-compact .date-picker,
+.pp-root.density-compact .button,
+.pp-root.density-compact .toggle-button {
+    -fx-padding: 6 10;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
 }

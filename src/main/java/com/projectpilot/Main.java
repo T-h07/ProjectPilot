@@ -26,6 +26,8 @@ import com.projectpilot.lan.LanDiscovery;
 import com.projectpilot.ui.pages.auth.LanSetupPage;
 import com.projectpilot.ui.pages.auth.LoginPage;
 import com.projectpilot.ui.pages.auth.SetupAdminPage;
+import com.projectpilot.util.OwnerProfile;
+import com.projectpilot.util.UserSettingsStore;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
@@ -76,6 +78,8 @@ public class Main extends Application {
     private ChatService chatService;
     private ChatUnreadService chatUnread;
     private ScheduledExecutorService hostStatusExec;
+    private final UserSettingsStore settingsStore = new UserSettingsStore();
+    private boolean uiBindingsReady;
 
     @Override
     public void start(Stage stage) {
@@ -152,7 +156,10 @@ public class Main extends Application {
                 store = remote;
 
                 appState = new AppState();
+                uiBindingsReady = false;
                 appState.setSession(session);
+                appState.setLanToken(lanClient.token());
+                appState.setLanBaseUrl(lanConfig.baseUrl());
 
                 LanWsClient wsClient = new LanWsClient(lanConfig.wsUrl(), () -> {
                     if (lanSync != null) lanSync.requestRefresh();
@@ -164,6 +171,7 @@ public class Main extends Application {
                 initHostStoreIfNeeded();
 
                 appState = new AppState();
+                uiBindingsReady = false;
                 appState.setSession(session);
 
                 seedSampleDataIfEmpty(session);
@@ -177,6 +185,8 @@ public class Main extends Application {
                 appState.setSelectedProject(initial);
             }
 
+            applyUserSettings(session);
+            bindUiPreferences();
             updateHostStatusForMode();
             if (chatUnread != null) {
                 chatUnread.stop();
@@ -198,6 +208,7 @@ public class Main extends Application {
             router.register(PageId.RESOURCES, () -> new ResourcesPage(store, appState));
             router.register(PageId.NOTES, () -> new NotesPage(store, appState));
             router.register(PageId.TEAM, () -> new TeamPage(store, appState));
+            router.register(PageId.MEETINGS, () -> new MeetingsPage(appState));
             router.register(PageId.MESSAGES, () -> new MessagesPage(chatService, appState));
             router.register(PageId.HISTORY, () -> new HistoryPage(store, appState));
             router.register(PageId.EXPORT_REPORT, () -> new ExportReportPage(store, appState));
@@ -269,6 +280,8 @@ public class Main extends Application {
             lanBroadcaster.start();
             startLanDiscovery();
             startHostStatusMonitor();
+            registerHostToken();
+            updateLanBaseUrl();
             if (appState != null) {
                 appState.updateHostingStatus(true, lanConfig.port(), lanConfig.wsPort(),
                         System.currentTimeMillis(), 0, "host");
@@ -350,6 +363,8 @@ public class Main extends Application {
         if (appState != null) {
             appState.setSession(null);
             appState.setSelectedProject(null);
+            appState.setLanToken("");
+            appState.setLanBaseUrl("");
         }
         showLogin();
     }
@@ -391,6 +406,7 @@ public class Main extends Application {
             safeStopLanHost();
             lanConfig = LanConfig.forLocal(lanConfig.port(), lanConfig.wsPort(), lanConfig.pollMs());
             appState.updateHostingStatus(false, lanConfig.port(), lanConfig.wsPort(), 0L, 0, "local");
+            updateLanBaseUrl();
             showStartupNotice("Hosting disabled",
                     "Only admins can host on LAN. You're running in local mode.");
             return;
@@ -403,6 +419,7 @@ public class Main extends Application {
         } else {
             appState.updateHostingStatus(false, lanConfig.port(), lanConfig.wsPort(), 0L, 0, "local");
         }
+        updateLanBaseUrl();
     }
 
     private void startLanDiscovery() {
@@ -437,6 +454,29 @@ public class Main extends Application {
             hostStatusExec.shutdownNow();
             hostStatusExec = null;
         }
+    }
+
+    private void registerHostToken() {
+        if (lanSessions == null || appState == null || appState.getSession() == null) return;
+        String current = appState.getLanToken();
+        if (current != null && !current.isBlank() && lanSessions.get(current) != null) return;
+        String token = java.util.UUID.randomUUID().toString();
+        lanSessions.put(token, appState.getSession());
+        appState.setLanToken(token);
+    }
+
+    private void updateLanBaseUrl() {
+        if (appState == null) return;
+        if (lanConfig.isClient()) {
+            appState.setLanBaseUrl(lanConfig.baseUrl());
+            return;
+        }
+        if (!lanConfig.isHost()) {
+            appState.setLanBaseUrl("");
+            return;
+        }
+        String host = localIpv4Addresses().stream().findFirst().orElse("127.0.0.1");
+        appState.setLanBaseUrl("http://" + host + ":" + lanConfig.port());
     }
 
 
@@ -479,5 +519,76 @@ public class Main extends Application {
 
     public static void main(String[] args) {
         launch(args);
+    }
+
+    private void applyUserSettings(UserSession session) {
+        if (appState == null) return;
+        String userId = session == null ? null : session.id();
+        appState.applySettings(settingsStore.load(userId));
+        applyThemeClass(appState.getTheme());
+        applyDensityClass(appState.getDensity());
+        applyOwnerClass();
+    }
+
+    private void bindUiPreferences() {
+        if (uiBindingsReady || appState == null) return;
+        uiBindingsReady = true;
+
+        appState.themeProperty().addListener((obs, o, n) -> applyThemeClass(n));
+        appState.densityProperty().addListener((obs, o, n) -> applyDensityClass(n));
+        appState.sessionProperty().addListener((obs, o, n) -> applyOwnerClass());
+
+        applyThemeClass(appState.getTheme());
+        applyDensityClass(appState.getDensity());
+        applyOwnerClass();
+    }
+
+    private void applyThemeClass(String value) {
+        if (chrome == null) return;
+        chrome.getStyleClass().removeAll("theme-default", "theme-graphite", "theme-light");
+        String v = value == null ? "default" : value.trim().toLowerCase();
+        if ("light".equals(v)) {
+            chrome.getStyleClass().add("theme-light");
+        } else if ("graphite".equals(v)) {
+            chrome.getStyleClass().add("theme-graphite");
+        } else {
+            chrome.getStyleClass().add("theme-default");
+        }
+    }
+
+    private void applyDensityClass(String value) {
+        if (chrome == null) return;
+        chrome.getStyleClass().removeAll("density-compact", "density-comfortable");
+        String v = value == null ? "comfortable" : value.trim().toLowerCase();
+        chrome.getStyleClass().add("compact".equals(v) ? "density-compact" : "density-comfortable");
+    }
+
+    private void applyOwnerClass() {
+        if (chrome == null || appState == null) return;
+        boolean owner = OwnerProfile.isOwnerUser(appState.getSession());
+        if (owner) {
+            if (!chrome.getStyleClass().contains("owner-mode")) chrome.getStyleClass().add("owner-mode");
+        } else {
+            chrome.getStyleClass().remove("owner-mode");
+        }
+    }
+
+    private static java.util.List<String> localIpv4Addresses() {
+        java.util.TreeSet<String> out = new java.util.TreeSet<>();
+        try {
+            java.util.Enumeration<java.net.NetworkInterface> ifaces = java.net.NetworkInterface.getNetworkInterfaces();
+            while (ifaces.hasMoreElements()) {
+                java.net.NetworkInterface ni = ifaces.nextElement();
+                if (!ni.isUp() || ni.isLoopback()) continue;
+                java.util.Enumeration<java.net.InetAddress> addrs = ni.getInetAddresses();
+                while (addrs.hasMoreElements()) {
+                    java.net.InetAddress addr = addrs.nextElement();
+                    if (addr instanceof java.net.Inet4Address && !addr.isLoopbackAddress()) {
+                        out.add(addr.getHostAddress());
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return new java.util.ArrayList<>(out);
     }
 }

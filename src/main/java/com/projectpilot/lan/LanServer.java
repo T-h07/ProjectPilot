@@ -137,6 +137,7 @@ public final class LanServer {
         target.createContext("/api/directory", this::handleDirectory);
         target.createContext("/api/admin", this::handleAdmin);
         target.createContext("/api/teams", this::handleTeams);
+        target.createContext("/meet", this::handleMeet);
         target.setExecutor(Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "pp-lan-http");
             t.setDaemon(true);
@@ -542,6 +543,17 @@ public final class LanServer {
         }
     }
 
+    private void handleMeet(HttpExchange ex) throws IOException {
+        if (!"GET".equalsIgnoreCase(ex.getRequestMethod())) {
+            sendText(ex, 405, "Method Not Allowed");
+            return;
+        }
+
+        if (!sendResource(ex, "/meetings/meeting.html", "text/html; charset=utf-8")) {
+            sendText(ex, 404, "Not Found");
+        }
+    }
+
     private void applyAction(SyncAction action) {
         if (action == null || action.type() == null) return;
 
@@ -909,6 +921,19 @@ public final class LanServer {
         ex.sendResponseHeaders(status, data.length);
         try (OutputStream out = ex.getResponseBody()) {
             out.write(data);
+        }
+    }
+
+    private boolean sendResource(HttpExchange ex, String path, String contentType) throws IOException {
+        try (InputStream in = LanServer.class.getResourceAsStream(path)) {
+            if (in == null) return false;
+            byte[] data = in.readAllBytes();
+            ex.getResponseHeaders().set("Content-Type", contentType);
+            ex.sendResponseHeaders(200, data.length);
+            try (OutputStream out = ex.getResponseBody()) {
+                out.write(data);
+            }
+            return true;
         }
     }
 

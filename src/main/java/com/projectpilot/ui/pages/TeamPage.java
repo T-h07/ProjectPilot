@@ -22,6 +22,7 @@ import javafx.scene.layout.*;
 import java.lang.reflect.Method;
 import java.util.*;
 import com.projectpilot.security.AccessPolicy;
+import com.projectpilot.util.OwnerProfile;
 
 public class TeamPage extends VBox {
 
@@ -157,11 +158,31 @@ public class TeamPage extends VBox {
         membersList.setCellFactory(lv -> new ListCell<>() {
             @Override protected void updateItem(Member item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null) { setText(null); return; }
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    getStyleClass().remove("owner-row");
+                    return;
+                }
 
                 Project p = appState.getSelectedProject();
                 long open = (p == null) ? 0 : openTasksFor(p, item);
-                setText(item.getName() + "  •  " + safeRole(item) + "  •  open: " + open);
+                String line = item.getName() + "  •  " + safeRole(item) + "  •  open: " + open;
+
+                if (OwnerProfile.matchesName(item.getName())) {
+                    Label label = new Label(line);
+                    Region crown = new Region();
+                    crown.getStyleClass().add("owner-crown");
+                    HBox row = new HBox(6, label, crown);
+                    row.setAlignment(Pos.CENTER_LEFT);
+                    setText(null);
+                    setGraphic(row);
+                    if (!getStyleClass().contains("owner-row")) getStyleClass().add("owner-row");
+                } else {
+                    getStyleClass().remove("owner-row");
+                    setText(line);
+                    setGraphic(null);
+                }
             }
         });
 

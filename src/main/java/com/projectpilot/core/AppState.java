@@ -8,6 +8,8 @@ import com.projectpilot.model.Member;
 import com.projectpilot.model.Project;
 import com.projectpilot.model.Task;
 import com.projectpilot.model.enums.ProjectRole;
+import com.projectpilot.util.OwnerProfile;
+import com.projectpilot.util.UserSettingsStore;
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.IntegerProperty;
@@ -55,6 +57,12 @@ public class AppState {
     private final StringProperty hostMode = new SimpleStringProperty("local");
     private final BooleanProperty clientOnline = new SimpleBooleanProperty(false);
     private final StringProperty clientStatus = new SimpleStringProperty("offline");
+    private final StringProperty lanToken = new SimpleStringProperty("");
+    private final StringProperty lanBaseUrl = new SimpleStringProperty("");
+
+    private final StringProperty theme = new SimpleStringProperty("default");
+    private final StringProperty density = new SimpleStringProperty("comfortable");
+    private final StringProperty ownerMessageStyle = new SimpleStringProperty("none");
 
     private final ListChangeListener<Member> membersListener = c -> refreshCurrentProjectRole();
     private Project membersBoundProject;
@@ -138,6 +146,37 @@ public class AppState {
 
     public StringProperty clientStatusProperty() { return clientStatus; }
     public String getClientStatus() { return clientStatus.get(); }
+
+    public StringProperty lanTokenProperty() { return lanToken; }
+    public String getLanToken() { return lanToken.get(); }
+    public void setLanToken(String token) { lanToken.set(token == null ? "" : token.trim()); }
+
+    public StringProperty lanBaseUrlProperty() { return lanBaseUrl; }
+    public String getLanBaseUrl() { return lanBaseUrl.get(); }
+    public void setLanBaseUrl(String url) { lanBaseUrl.set(url == null ? "" : url.trim()); }
+
+    public StringProperty themeProperty() { return theme; }
+    public String getTheme() { return theme.get(); }
+    public void setTheme(String value) { theme.set(value == null ? "default" : value.trim()); }
+
+    public StringProperty densityProperty() { return density; }
+    public String getDensity() { return density.get(); }
+    public void setDensity(String value) { density.set(value == null ? "comfortable" : value.trim()); }
+
+    public StringProperty ownerMessageStyleProperty() { return ownerMessageStyle; }
+    public String getOwnerMessageStyle() { return ownerMessageStyle.get(); }
+    public void setOwnerMessageStyle(String value) { ownerMessageStyle.set(value == null ? "none" : value.trim()); }
+
+    public void applySettings(UserSettingsStore.Settings settings) {
+        if (settings == null) return;
+        setTheme(settings.theme());
+        setDensity(settings.density());
+        setOwnerMessageStyle(settings.ownerMessageStyle());
+    }
+
+    public boolean isOwnerUser() {
+        return OwnerProfile.isOwnerUser(getSession());
+    }
 
     public boolean isAdmin() {
         UserSession s = getSession();

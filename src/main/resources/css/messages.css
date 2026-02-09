@@ -82,3 +82,14 @@
 .pp-root .chat-composer {
     -fx-background-color: transparent;
 }
+
+.pp-root .owner-message {
+    -fx-border-color: -pp-accent;
+    -fx-background-color: -pp-accent-soft;
+    -fx-text-fill: -pp-text;
+}
+
+.pp-root .owner-meta {
+    -fx-text-fill: -pp-accent;
+    -fx-font-weight: 700;
+}

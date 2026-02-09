@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProjectPilot Meeting</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b111f;
+      --panel: #121c33;
+      --panel-2: #0f1930;
+      --border: rgba(255,255,255,0.12);
+      --text: #e8eef9;
+      --muted: rgba(232,238,249,0.6);
+      --accent: #4f8cff;
+      --success: #31d0aa;
+      --danger: #ff5b5b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: linear-gradient(180deg, #0a0f1c, #0b1222);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 12px 18px;
+      background: rgba(9,14,26,0.92);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 {
+      font-size: 16px;
+      margin: 0;
+    }
+    header .status {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 12px;
+      padding: 12px;
+    }
+    .video-area {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+    }
+    .spotlight-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 220px;
+    }
+    #spotlight {
+      width: min(72vw, 860px);
+    }
+    #spotlight .video-tile {
+      min-height: 260px;
+    }
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      align-content: start;
+      min-height: 0;
+    }
+    .video-tile {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      min-height: 160px;
+    }
+    .video-tile video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      background: #0b1222;
+    }
+    .video-label {
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      font-size: 12px;
+      padding: 4px 8px;
+      background: rgba(0,0,0,0.45);
+      border-radius: 8px;
+    }
+    .video-badge {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 10px;
+      background: rgba(10,16,28,0.8);
+      border: 1px solid var(--border);
+    }
+    aside {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+    .panel-title {
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .panel-muted {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .participants {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 140px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+    .participant {
+      font-size: 12px;
+      padding: 6px 8px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+    }
+    .participant span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .chat {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+      flex: 1;
+    }
+    .chat-log {
+      background: rgba(8,12,24,0.5);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px;
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 140px;
+    }
+    .chat-msg {
+      font-size: 12px;
+      line-height: 1.3;
+      padding: 6px 8px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+    }
+    .chat-msg strong {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .chat-msg.system {
+      background: rgba(79,140,255,0.12);
+      border-color: rgba(79,140,255,0.35);
+    }
+    .chat-input {
+      display: flex;
+      gap: 6px;
+    }
+    .chat-input input {
+      flex: 1;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(10,16,28,0.7);
+      color: var(--text);
+      padding: 8px 10px;
+    }
+    footer {
+      padding: 10px 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      background: rgba(9,14,26,0.92);
+    }
+    button {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    button.primary {
+      background: var(--accent);
+      border-color: rgba(255,255,255,0.2);
+      color: #fff;
+    }
+    button.danger {
+      background: rgba(255,91,91,0.18);
+      border-color: rgba(255,91,91,0.5);
+      color: #fff;
+    }
+    button:hover { filter: brightness(1.08); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ProjectPilot Meeting</h1>
+    <div class="status" id="status">Connecting...</div>
+  </header>
+  <main>
+    <section class="video-area">
+      <div class="spotlight-row">
+        <div id="spotlight"></div>
+      </div>
+      <div id="grid"></div>
+    </section>
+    <aside>
+      <div class="panel-title">Room</div>
+      <div class="panel-muted" id="roomLabel">-</div>
+      <div class="panel-title">Participants</div>
+      <div class="panel-muted" id="countLabel">0</div>
+      <div id="participantsList" class="participants"></div>
+      <div class="panel-title">Chat</div>
+      <div class="chat">
+        <div id="chatLog" class="chat-log"></div>
+        <div class="chat-input">
+          <input id="chatInput" type="text" placeholder="Type a message">
+          <button id="sendChat">Send</button>
+        </div>
+      </div>
+    </aside>
+  </main>
+  <footer>
+    <button id="toggleMic">Mute mic</button>
+    <button id="toggleCam">Disable cam</button>
+    <button id="shareScreen">Share screen</button>
+    <button class="primary" id="leaveBtn">Leave</button>
+    <button class="danger" id="endBtn" style="display:none;">End call</button>
+  </footer>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const room = (params.get("room") || "ROOM").toUpperCase();
+    const name = params.get("name") || "Guest";
+    const token = params.get("token") || "";
+    const wsPort = params.get("wsPort") || "8091";
+    const isHost = params.get("host") === "1";
+    const wsUrl = `ws://${location.hostname}:${wsPort}/meet?token=${encodeURIComponent(token)}`;
+
+    const statusEl = document.getElementById("status");
+    const spotlightEl = document.getElementById("spotlight");
+    const gridEl = document.getElementById("grid");
+    const countEl = document.getElementById("countLabel");
+    const roomLabel = document.getElementById("roomLabel");
+    const participantsEl = document.getElementById("participantsList");
+    const chatLog = document.getElementById("chatLog");
+    const chatInput = document.getElementById("chatInput");
+    const chatSend = document.getElementById("sendChat");
+    const endBtn = document.getElementById("endBtn");
+
+    roomLabel.textContent = room;
+
+    let localStream;
+    let screenStream;
+    let ws;
+    const peers = new Map();
+    const remotes = new Map();
+    const peerNames = new Map();
+    const participants = new Map();
+    let hostPeerId = isHost ? "local" : null;
+    let localVideoTrack;
+    let localAudioTrack;
+    let sharing = false;
+
+    if (isHost) {
+      endBtn.style.display = "inline-flex";
+      endBtn.textContent = "End call";
+    }
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function updateCount() {
+      countEl.textContent = String(participants.size || remotes.size);
+    }
+
+    function refreshLayout() {
+      spotlightEl.textContent = "";
+      gridEl.textContent = "";
+      for (const [id, tile] of remotes.entries()) {
+        if (id === hostPeerId) {
+          spotlightEl.appendChild(tile);
+        } else {
+          gridEl.appendChild(tile);
+        }
+      }
+    }
+
+    function addVideo(id, stream, label) {
+      if (remotes.has(id)) return;
+      const tile = document.createElement("div");
+      tile.className = "video-tile";
+      tile.dataset.peer = id;
+      const video = document.createElement("video");
+      video.autoplay = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+      const lbl = document.createElement("div");
+      lbl.className = "video-label";
+      lbl.textContent = label;
+      const badge = document.createElement("div");
+      badge.className = "video-badge";
+      badge.textContent = id === hostPeerId ? "Host" : "";
+      if (id !== hostPeerId) badge.style.display = "none";
+      tile.appendChild(video);
+      tile.appendChild(lbl);
+      tile.appendChild(badge);
+      remotes.set(id, tile);
+      refreshLayout();
+      updateCount();
+    }
+
+    function removeVideo(id) {
+      const tile = remotes.get(id);
+      if (tile) tile.remove();
+      remotes.delete(id);
+      refreshLayout();
+      updateCount();
+    }
+
+    function addLocalVideo(stream) {
+      addVideo("local", stream, name + " (You)");
+      const tile = remotes.get("local");
+      if (tile) tile.querySelector("video").muted = true;
+    }
+
+    function createPeer(peerId, createOffer) {
+      if (peers.has(peerId)) return peers.get(peerId);
+      const pc = new RTCPeerConnection();
+      peers.set(peerId, pc);
+
+      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+      pc.onicecandidate = e => {
+        if (e.candidate) {
+          sendSignal("meet-candidate", peerId, JSON.stringify(e.candidate));
+        }
+      };
+
+      pc.ontrack = e => {
+        const stream = e.streams[0];
+        if (stream) {
+          const label = peerNames.get(peerId) || peerId;
+          addVideo(peerId, stream, label);
+        }
+      };
+
+      if (createOffer) {
+        pc.createOffer().then(offer => {
+          return pc.setLocalDescription(offer).then(() => {
+            sendSignal("meet-offer", peerId, JSON.stringify(offer));
+          });
+        }).catch(() => {});
+      }
+      return pc;
+    }
+
+    function closePeer(peerId) {
+      const pc = peers.get(peerId);
+      if (pc) pc.close();
+      peers.delete(peerId);
+      removeVideo(peerId);
+    }
+
+    function sendSignal(type, to, payload) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({
+        type,
+        room,
+        to,
+        name,
+        payload
+      }));
+    }
+
+    function handleSignal(msg) {
+      if (!msg || !msg.type) return;
+      if (msg.type === "meet-join" && msg.from) {
+        if (msg.name) peerNames.set(msg.from, msg.name);
+        if (msg.payload === "host") {
+          hostPeerId = msg.from;
+        }
+        participants.set(msg.from, { name: msg.name || msg.from, host: msg.payload === "host" });
+        refreshParticipants();
+        createPeer(msg.from, true);
+        return;
+      }
+      if (msg.type === "meet-leave" && msg.from) {
+        closePeer(msg.from);
+        participants.delete(msg.from);
+        refreshParticipants();
+        return;
+      }
+      if (msg.type === "meet-host" && msg.from) {
+        hostPeerId = msg.from;
+        if (msg.name) peerNames.set(msg.from, msg.name);
+        const entry = participants.get(msg.from) || { name: msg.name || msg.from, host: true };
+        entry.host = true;
+        participants.set(msg.from, entry);
+        refreshParticipants();
+        refreshLayout();
+        return;
+      }
+      if (msg.type === "meet-chat" && msg.from) {
+        addChatMessage(msg.name || msg.from, msg.payload || "", false);
+        return;
+      }
+      if (msg.type === "meet-end") {
+        addChatMessage("System", "Host ended the meeting.", true);
+        forceLeave();
+        return;
+      }
+      if (msg.type === "meet-offer" && msg.from) {
+        if (msg.name) peerNames.set(msg.from, msg.name);
+        const pc = createPeer(msg.from, false);
+        const offer = JSON.parse(msg.payload || "{}");
+        pc.setRemoteDescription(offer).then(() => {
+          return pc.createAnswer();
+        }).then(answer => {
+          return pc.setLocalDescription(answer).then(() => {
+            sendSignal("meet-answer", msg.from, JSON.stringify(answer));
+          });
+        }).catch(() => {});
+        return;
+      }
+      if (msg.type === "meet-answer" && msg.from) {
+        const pc = peers.get(msg.from);
+        if (!pc) return;
+        const answer = JSON.parse(msg.payload || "{}");
+        pc.setRemoteDescription(answer).catch(() => {});
+        return;
+      }
+      if (msg.type === "meet-candidate" && msg.from) {
+        const pc = peers.get(msg.from);
+        if (!pc) return;
+        const candidate = JSON.parse(msg.payload || "{}");
+        pc.addIceCandidate(candidate).catch(() => {});
+      }
+    }
+
+    function refreshParticipants() {
+      participantsEl.textContent = "";
+      for (const [id, meta] of participants.entries()) {
+        const row = document.createElement("div");
+        row.className = "participant";
+        const label = document.createElement("div");
+        label.textContent = meta.name || id;
+        const badge = document.createElement("span");
+        badge.textContent = (id === hostPeerId || meta.host) ? "Host" : "";
+        row.appendChild(label);
+        row.appendChild(badge);
+        participantsEl.appendChild(row);
+      }
+      updateCount();
+      for (const [id, tile] of remotes.entries()) {
+        const badge = tile.querySelector(".video-badge");
+        if (badge) {
+          badge.textContent = id === hostPeerId ? "Host" : "";
+          badge.style.display = id === hostPeerId ? "block" : "none";
+        }
+      }
+      refreshLayout();
+    }
+
+    function addChatMessage(sender, text, system) {
+      if (!text) return;
+      const msg = document.createElement("div");
+      msg.className = "chat-msg" + (system ? " system" : "");
+      const nameEl = document.createElement("strong");
+      nameEl.textContent = sender;
+      const bodyEl = document.createElement("div");
+      bodyEl.textContent = text;
+      msg.appendChild(nameEl);
+      msg.appendChild(bodyEl);
+      chatLog.appendChild(msg);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    async function start() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        addLocalVideo(localStream);
+        localVideoTrack = localStream.getVideoTracks()[0];
+        localAudioTrack = localStream.getAudioTracks()[0];
+        participants.set("local", { name: name + " (You)", host: isHost });
+        refreshParticipants();
+      } catch (e) {
+        setStatus("Camera/mic access denied.");
+        return;
+      }
+
+      ws = new WebSocket(wsUrl);
+      ws.onopen = () => {
+        setStatus("Connected");
+        ws.send(JSON.stringify({ type: "meet-join", room, name, payload: isHost ? "host" : "" }));
+      };
+      ws.onmessage = e => {
+        try {
+          const msg = JSON.parse(e.data);
+          handleSignal(msg);
+        } catch (err) {}
+      };
+      ws.onclose = () => setStatus("Disconnected");
+    }
+
+    document.getElementById("toggleMic").addEventListener("click", () => {
+      if (!localStream) return;
+      const track = localStream.getAudioTracks()[0];
+      if (!track) return;
+      track.enabled = !track.enabled;
+      document.getElementById("toggleMic").textContent = track.enabled ? "Mute mic" : "Unmute mic";
+    });
+
+    document.getElementById("toggleCam").addEventListener("click", () => {
+      if (!localStream) return;
+      const track = localStream.getVideoTracks()[0];
+      if (!track) return;
+      track.enabled = !track.enabled;
+      document.getElementById("toggleCam").textContent = track.enabled ? "Disable cam" : "Enable cam";
+    });
+
+    document.getElementById("shareScreen").addEventListener("click", async () => {
+      if (!localStream) return;
+      const shareBtn = document.getElementById("shareScreen");
+      if (sharing) {
+        stopScreenShare();
+        shareBtn.textContent = "Share screen";
+        return;
+      }
+      try {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const shareTrack = screenStream.getVideoTracks()[0];
+        if (!shareTrack) return;
+        shareTrack.onended = () => stopScreenShare();
+        await replaceVideoTrack(shareTrack);
+        sharing = true;
+        shareBtn.textContent = "Stop share";
+      } catch (e) {}
+    });
+
+    document.getElementById("leaveBtn").addEventListener("click", () => {
+      forceLeave();
+    });
+
+    endBtn.addEventListener("click", () => {
+      if (!isHost) return;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "meet-end", room, name }));
+        ws.close();
+      }
+      forceLeave();
+    });
+
+    function stopScreenShare() {
+      if (!screenStream) return;
+      screenStream.getTracks().forEach(t => t.stop());
+      screenStream = null;
+      sharing = false;
+      replaceVideoTrack(localVideoTrack);
+      document.getElementById("shareScreen").textContent = "Share screen";
+    }
+
+    async function replaceVideoTrack(track) {
+      if (!track) return;
+      for (const pc of peers.values()) {
+        const sender = pc.getSenders().find(s => s.track && s.track.kind === "video");
+        if (sender) sender.replaceTrack(track);
+      }
+      const tile = remotes.get("local");
+      if (tile) {
+        const video = tile.querySelector("video");
+        if (video) {
+          video.srcObject = new MediaStream([track, localAudioTrack].filter(Boolean));
+        }
+      }
+    }
+
+    function forceLeave() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "meet-leave", room, name }));
+        ws.close();
+      }
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+      }
+      if (screenStream) {
+        screenStream.getTracks().forEach(t => t.stop());
+      }
+      setStatus("Left meeting");
+    }
+
+    window.addEventListener("beforeunload", () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "meet-leave", room, name }));
+      }
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+      }
+    });
+
+    chatSend.addEventListener("click", () => {
+      const text = chatInput.value.trim();
+      if (!text) return;
+      addChatMessage(name + " (You)", text, false);
+      chatInput.value = "";
+      sendSignal("meet-chat", "", text);
+    });
+
+    chatInput.addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        chatSend.click();
+      }
+    });
+
+    start();
+  </script>
+</body>
+</html>
