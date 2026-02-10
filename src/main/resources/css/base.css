@@ -182,3 +182,93 @@
     -fx-text-fill: -pp-text;
 }
 
+/* =========================
+   Admin Dashboard Widgets
+   ========================= */
+
+.pp-root .pp-scrim {
+    -fx-background-color: rgba(0,0,0,0.45);
+}
+
+.pp-root .pp-drawer-shell {
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-padding: 0;
+}
+
+.pp-root .pp-drawer-backboard {
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-background-color: linear-gradient(to bottom right,
+        rgba(40,18,70,0.985), rgba(12,16,30,0.985));
+    -fx-border-color: rgba(255,255,255,0.10);
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.55), 28, 0.22, 0, 10);
+}
+
+.pp-root .pp-drawer-accent {
+    -fx-min-height: 3;
+    -fx-pref-height: 3;
+    -fx-max-height: 3;
+    -fx-background-radius: 18 18 0 0;
+    -fx-background-color: rgba(170,110,255,0.75);
+}
+
+/* Metric tile */
+.pp-root .metric-tile {
+    -fx-background-color: -pp-card;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-border-radius: 16;
+    -fx-background-radius: 16;
+}
+
+.pp-root .metric-title {
+    -fx-text-fill: -pp-muted;
+    -fx-font-weight: 700;
+    -fx-font-size: 12px;
+}
+
+.pp-root .metric-value {
+    -fx-text-fill: -pp-text;
+    -fx-font-weight: 800;
+    -fx-font-size: 22px;
+}
+
+.pp-root .metric-subtitle {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 12px;
+}
+
+.pp-root .metric-sparkline-wrap {
+    -fx-background-color: transparent;
+}
+
+.pp-root .metric-sparkline {
+    -fx-stroke: -pp-accent;
+    -fx-stroke-width: 2;
+    -fx-fill: null;
+    -fx-opacity: 0.9;
+}
+
+/* Cards that contain canvas charts */
+.pp-root .donut-card,
+.pp-root .mini-bar-card {
+    -fx-background-color: -pp-card;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-border-radius: 16;
+    -fx-background-radius: 16;
+    -fx-padding: 10;
+}
+
+.pp-root .donut-center-title {
+    -fx-font-weight: 800;
+    -fx-font-size: 14px;
+    -fx-text-fill: -pp-text;
+}
+
+.pp-root .donut-center-sub {
+    -fx-font-size: 12px;
+    -fx-text-fill: -pp-muted;
+}

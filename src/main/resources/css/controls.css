@@ -1208,6 +1208,117 @@
     -fx-background-radius: 999;
 }
 
+/* ---- Admin page ---- */
+.pp-root .admin-overview-grid {
+    -fx-padding: 2 0 0 0;
+}
+
+.pp-root .admin-metric {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-padding: 8 10;
+    -fx-min-width: 160;
+}
+
+.pp-root .admin-metric-label {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+}
+
+.pp-root .admin-metric-value {
+    -fx-text-fill: -pp-text;
+    -fx-font-size: 20px;
+    -fx-font-weight: 800;
+}
+
+.pp-root .admin-metric-sub {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 10px;
+}
+
+.pp-root .admin-user-name {
+    -fx-text-fill: -pp-text;
+    -fx-font-weight: 700;
+}
+
+.pp-root .admin-user-meta {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 10px;
+}
+
+.pp-root .status-chip {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 2 8;
+    -fx-font-size: 10px;
+    -fx-font-weight: 700;
+    -fx-border-width: 1;
+}
+
+.pp-root .status-online {
+    -fx-background-color: -pp-success-soft;
+    -fx-border-color: rgba(34,197,94,0.6);
+    -fx-text-fill: -pp-success;
+}
+
+.pp-root .status-idle {
+    -fx-background-color: -pp-warning-soft;
+    -fx-border-color: rgba(245,158,11,0.6);
+    -fx-text-fill: -pp-warning-text;
+}
+
+.pp-root .status-offline {
+    -fx-background-color: -pp-control-ghost;
+    -fx-border-color: -pp-border-subtle;
+    -fx-text-fill: -pp-muted-2;
+}
+
+.pp-root .status-disabled {
+    -fx-background-color: -pp-danger-soft;
+    -fx-border-color: -pp-danger-border;
+    -fx-text-fill: -pp-danger-text;
+}
+
+.pp-root .audit-list {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-padding: 0;
+}
+
+.pp-root .audit-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 6 0;
+}
+
+.pp-root .audit-row {
+    -fx-background-color: -pp-control-ghost;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: -pp-border-subtle;
+    -fx-border-width: 1;
+    -fx-padding: 8 10;
+}
+
+.pp-root .audit-title {
+    -fx-text-fill: -pp-text;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+}
+
+.pp-root .audit-detail {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 11px;
+}
+
+.pp-root .audit-time {
+    -fx-text-fill: -pp-muted;
+    -fx-font-size: 10px;
+}
+
 /* ---- Settings icon + owner mode ---- */
 .pp-root .icon-btn {
     -fx-padding: 6;

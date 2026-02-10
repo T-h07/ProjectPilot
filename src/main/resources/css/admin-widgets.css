@@ -1,0 +1,72 @@
+/* =========================
+   Admin: Mini Trend Widgets
+   ========================= */
+
+/* Card shell */
+.pp-root .pp-hover-card {
+    -fx-background-color: linear-gradient(to bottom, -pp-card, -pp-card2);
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: -pp-border;
+    -fx-border-width: 1;
+    -fx-padding: 12 12 10 12;
+    -fx-effect: dropshadow(gaussian, -pp-shadow, 16, 0.16, 0, 6);
+}
+
+/* Title/value */
+.pp-root .mini-trend-title {
+    -fx-text-fill: -pp-muted;
+    -fx-font-weight: 700;
+    -fx-font-size: 11px;
+}
+
+.pp-root .mini-trend-value {
+    -fx-text-fill: -pp-text;
+    -fx-font-weight: 800;
+    -fx-font-size: 18px;
+}
+
+.pp-root .mini-trend-sub {
+    -fx-text-fill: -pp-muted-2;
+    -fx-font-size: 10px;
+}
+
+/* Sparkline container */
+.pp-root .pp-sparkline {
+    -fx-background-color: rgba(255,255,255,0.03);
+    -fx-background-radius: 10;
+    -fx-padding: 6;
+}
+
+/* Sparkline line + area */
+.pp-root .pp-sparkline-line {
+    -fx-stroke: -pp-accent;
+    -fx-stroke-width: 2.0;
+    -fx-stroke-line-cap: round;
+    -fx-fill: transparent;
+    -fx-opacity: 0.95;
+}
+
+.pp-root .pp-sparkline-area {
+    -fx-fill: -pp-accent-soft;
+    -fx-opacity: 0.9;
+}
+
+/* Detail overlay (hidden until hover; fade is handled in code) */
+.pp-root .pp-detail {
+    -fx-background-color: rgba(0,0,0,0.35);
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: rgba(255,255,255,0.10);
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+}
+
+.pp-root .pp-detail .label {
+    -fx-text-fill: -pp-text;
+    -fx-font-size: 11px;
+}
+
+.pp-root .pp-detail .muted {
+    -fx-text-fill: -pp-muted;
+}
