@@ -26,6 +26,7 @@ public final class ChecklistCodec {
         try {
             return MAPPER.writeValueAsString(out);
         } catch (Exception e) {
+            AppLog.warn("checklist", "Failed to encode checklist: " + e.getMessage());
             return "[]";
         }
     }
@@ -41,6 +42,7 @@ public final class ChecklistCodec {
             }
             return out;
         } catch (Exception e) {
+            AppLog.warn("checklist", "Failed to decode checklist: " + e.getMessage());
             return List.of();
         }
     }

@@ -29,7 +29,7 @@ public final class WhatsNewDialog {
         d.setTitle("What’s new");
         d.initOwner(owner);
 
-        try { DialogTheme.apply(d); } catch (Exception ignored) {}
+        try { DialogTheme.apply(d); } catch (Exception e) { com.projectpilot.util.AppLog.warn("whatsnew", "Dialog theme apply failed: " + (e == null ? "" : e.getMessage())); }
 
         DialogPane pane = d.getDialogPane();
         pane.getButtonTypes().add(new ButtonType("Close", ButtonBar.ButtonData.OK_DONE));
@@ -39,7 +39,7 @@ public final class WhatsNewDialog {
                 pane.getStylesheets().setAll(owner.getScene().getStylesheets());
                 pane.getStyleClass().addAll(owner.getScene().getRoot().getStyleClass());
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("whatsnew", "Failed to copy owner styles: " + (e == null ? "" : e.getMessage())); }
         pane.getStyleClass().add("pp-root");
 
         VBox box = new VBox(10);

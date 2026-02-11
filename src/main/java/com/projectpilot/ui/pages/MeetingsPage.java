@@ -241,7 +241,7 @@ public final class MeetingsPage extends VBox {
                     }
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("meetings", "Failed to enumerate local addresses: " + (e == null ? "" : e.getMessage())); }
         return new ArrayList<>(out);
     }
 

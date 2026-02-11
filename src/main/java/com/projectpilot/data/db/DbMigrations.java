@@ -255,8 +255,7 @@ final class DbMigrations {
         String schema = null;
         try {
             schema = conn.getSchema();
-        } catch (Exception ignored) {
-        }
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("db-migrations", "Unable to read DB schema: " + (e == null ? "" : e.getMessage())); }
 
         java.sql.DatabaseMetaData meta = conn.getMetaData();
         String tableName = table == null ? null : table.toLowerCase();

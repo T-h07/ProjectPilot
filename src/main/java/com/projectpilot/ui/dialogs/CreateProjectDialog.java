@@ -111,13 +111,13 @@ Example:
 
         try {
             return Phase.class.getConstructor(String.class).newInstance(name);
-        } catch (Exception ignored) {}
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("create-project", "Failed to construct Phase(String): " + (e == null ? "" : e.getMessage())); }
 
         try {
             Phase ph = Phase.class.getConstructor().newInstance();
             trySetNameProperty(ph, name);
             return ph;
-        } catch (Exception ignored) {}
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("create-project", "Failed to construct Phase() fallback: " + (e == null ? "" : e.getMessage())); }
 
         return null;
     }
@@ -128,6 +128,6 @@ Example:
             Object prop = m.invoke(obj);
             Method set = prop.getClass().getMethod("set", String.class);
             set.invoke(prop, name);
-        } catch (Exception ignored) {}
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("create-project", "Failed to set name property on phase: " + (e == null ? "" : e.getMessage())); }
     }
 }

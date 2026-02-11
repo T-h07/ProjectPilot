@@ -19,6 +19,7 @@ public final class ProjectViewStore {
         try {
             return mapper.readValue(json, new TypeReference<List<ProjectViewData>>() {});
         } catch (Exception e) {
+            AppLog.warn("projectview", "Failed to load project views: " + e.getMessage());
             return List.of();
         }
     }
@@ -28,7 +29,8 @@ public final class ProjectViewStore {
         List<ProjectViewData> out = views == null ? List.of() : views;
         try {
             prefs.put(key, mapper.writeValueAsString(out));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            AppLog.warn("projectview", "Failed to save project views: " + (e == null ? "" : e.getMessage()));
         }
     }
 

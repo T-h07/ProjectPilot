@@ -462,7 +462,8 @@ public final class DbChatService implements ChatService {
         if (v == null || v.isBlank()) return ChatType.GROUP;
         try {
             return ChatType.valueOf(v);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            com.projectpilot.util.AppLog.warn("db-chat", "parseType failed for '" + v + "': " + (e == null ? "" : e.getMessage()));
             return ChatType.GROUP;
         }
     }

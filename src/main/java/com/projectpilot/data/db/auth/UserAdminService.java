@@ -48,7 +48,7 @@ public final class UserAdminService {
 
                     GlobalRole role;
                     try { role = GlobalRole.valueOf(gr == null ? "USER" : gr); }
-                    catch (Exception ignored) { role = GlobalRole.USER; }
+                    catch (Exception e) { com.projectpilot.util.AppLog.warn("db-auth", "parse global role failed: " + (e == null ? "" : e.getMessage())); role = GlobalRole.USER; }
 
                     Long lastOnline = rs.getObject("last_online_at") == null ? null : rs.getLong("last_online_at");
                     out.add(new UserRow(id, username, name, email, role, active, lastOnline));
@@ -462,7 +462,7 @@ public final class UserAdminService {
 
                 GlobalRole r;
                 try { r = GlobalRole.valueOf(gr == null ? "USER" : gr); }
-                catch (Exception ignored) { r = GlobalRole.USER; }
+                catch (Exception e) { com.projectpilot.util.AppLog.warn("db-auth", "parse global role failed in loadCurrent: " + (e == null ? "" : e.getMessage())); r = GlobalRole.USER; }
 
                 return new Current(u, r, a);
             }
@@ -474,7 +474,7 @@ public final class UserAdminService {
     private static ProjectRole parseProjectRole(String v) {
         if (v == null || v.isBlank()) return ProjectRole.MEMBER;
         try { return ProjectRole.valueOf(v); }
-        catch (Exception ignored) { return ProjectRole.MEMBER; }
+        catch (Exception e) { com.projectpilot.util.AppLog.warn("db-auth", "parseProjectRole failed for '" + v + "': " + (e == null ? "" : e.getMessage())); return ProjectRole.MEMBER; }
     }
 
     private static void insertMember(Connection conn, String id, String name, String email, long now) throws SQLException {

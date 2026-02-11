@@ -13,6 +13,7 @@ import com.projectpilot.lan.dto.*;
 import com.projectpilot.util.SslUtil;
 
 import java.net.URI;
+import com.projectpilot.util.AppLog;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -215,11 +216,11 @@ public final class LanClient {
 
             http.sendAsync(request, HttpResponse.BodyHandlers.discarding())
                     .exceptionally(ex -> {
-                        System.err.println("[LAN] Failed to sync action: " + ex.getMessage());
+                        AppLog.warn("lan-client", "Failed to sync action: " + (ex == null ? "unknown" : ex.getMessage()));
                         return null;
                     });
         } catch (Exception e) {
-            System.err.println("[LAN] Failed to sync action: " + e.getMessage());
+            AppLog.warn("lan-client", "Failed to sync action: " + (e == null ? "unknown" : e.getMessage()));
         }
     }
 

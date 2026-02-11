@@ -22,6 +22,7 @@ public final class TaskTemplateStore {
         try {
             return mapper.readValue(json, new TypeReference<List<TaskTemplateData>>() {});
         } catch (Exception e) {
+            AppLog.warn("tasktemplate", "Failed to load templates: " + e.getMessage());
             return List.of();
         }
     }
@@ -31,7 +32,8 @@ public final class TaskTemplateStore {
         List<TaskTemplateData> out = templates == null ? List.of() : templates;
         try {
             prefs.put(key, mapper.writeValueAsString(out));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            AppLog.warn("tasktemplate", "Failed to save templates: " + (e == null ? "" : e.getMessage()));
         }
     }
 

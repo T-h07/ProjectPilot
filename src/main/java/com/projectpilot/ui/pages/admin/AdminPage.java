@@ -111,7 +111,6 @@ public final class AdminPage extends BorderPane {
 
     private double avgReloadMs = 0.0;
     private int reloadErrors = 0;
-    private Instant lastLanEventAt;
 
     // --- NEW dashboard widgets ---
     private MetricTile kpiTotalUsers;
@@ -230,11 +229,11 @@ public final class AdminPage extends BorderPane {
         });
 
         // Update LAN metrics on state changes
-        appState.hostingProperty().addListener((obs, o, n) -> { lastLanEventAt = Instant.now(); refreshAdminDashboard(); });
-        appState.hostConnectionsProperty().addListener((obs, o, n) -> { lastLanEventAt = Instant.now(); refreshAdminDashboard(); });
-        appState.hostPortProperty().addListener((obs, o, n) -> { lastLanEventAt = Instant.now(); refreshAdminDashboard(); });
-        appState.clientOnlineProperty().addListener((obs, o, n) -> { lastLanEventAt = Instant.now(); refreshAdminDashboard(); });
-        appState.clientStatusProperty().addListener((obs, o, n) -> { lastLanEventAt = Instant.now(); refreshAdminDashboard(); });
+        appState.hostingProperty().addListener((obs, o, n) -> refreshAdminDashboard());
+        appState.hostConnectionsProperty().addListener((obs, o, n) -> refreshAdminDashboard());
+        appState.hostPortProperty().addListener((obs, o, n) -> refreshAdminDashboard());
+        appState.clientOnlineProperty().addListener((obs, o, n) -> refreshAdminDashboard());
+        appState.clientStatusProperty().addListener((obs, o, n) -> refreshAdminDashboard());
 
         // Presence ticker (keeps Online/Idle/Offline + mini charts feeling live)
         startPresenceTicker();
@@ -1357,7 +1356,7 @@ public final class AdminPage extends BorderPane {
             }
         });
 
-        table.getColumns().setAll(colUser, colRole, colLast, colProjects, colTasks, colStatus);
+        table.getColumns().setAll(new TableColumn[]{colUser, colRole, colLast, colProjects, colTasks, colStatus});
 
         HBox header = new HBox(10, title, refresh);
         header.setAlignment(Pos.CENTER_LEFT);
@@ -1549,7 +1548,7 @@ public final class AdminPage extends BorderPane {
             }
         });
 
-        table.getColumns().setAll(colId, colUser, colName, colEmail, colLastOnline, colRole, colActive, colActions);
+        table.getColumns().setAll(new TableColumn[]{colId, colUser, colName, colEmail, colLastOnline, colRole, colActive, colActions});
 
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> reload());
@@ -2086,6 +2085,36 @@ public final class AdminPage extends BorderPane {
 
         int issues = dupUsers + orphanTasks + unassigned + overdue + invalidMembers + blankTaskTitles;
         integritySummary.setText(issues == 0 ? "No major issues detected" : ("Issues detected: " + issues));
+
+        // Run server/db validator asynchronously and display results as a card
+        Thread validatorThread = new Thread(() -> {
+            try {
+                java.util.List<String> issuesList = admin.runDataValidator();
+                Platform.runLater(() -> {
+                    String style = (issuesList == null || issuesList.isEmpty()) ? "card-muted" : "card-danger";
+                    int c = issuesList == null ? 0 : issuesList.size();
+                    addIntegrityCard("Server validation", c, style);
+                    Node card = integrityFlow.getChildren().get(integrityFlow.getChildren().size() - 1);
+                    card.setOnMouseClicked(ev -> {
+                        Alert dlg = new Alert(Alert.AlertType.INFORMATION);
+                        dlg.initOwner(getScene() == null ? null : getScene().getWindow());
+                        dlg.setTitle("Validation results");
+                        dlg.setHeaderText(c == 0 ? "No issues found" : ("Validation issues (" + c + ")"));
+                        String body = c == 0 ? "No issues detected." : String.join("\n", issuesList);
+                        TextArea ta = new TextArea(body);
+                        ta.setEditable(false);
+                        ta.setWrapText(true);
+                        ta.setPrefRowCount(Math.min(20, c + 2));
+                        dlg.getDialogPane().setContent(ta);
+                        dlg.showAndWait();
+                    });
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> addIntegrityCard("Server validation", 0, "card-warn"));
+            }
+        });
+        validatorThread.setDaemon(true);
+        validatorThread.start();
     }
 
     private void addIntegrityCard(String title, int count, String styleClass) {
@@ -2272,7 +2301,7 @@ public final class AdminPage extends BorderPane {
             Map<String, ProjectRole> roles = admin.rolesForUser(userId);
             ProjectRole r = roles.get(p.getId());
             return r == null ? ProjectRole.MEMBER : r;
-        } catch (Exception ignored) {
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("admin", "Failed to resolve user roles: " + (e == null ? "" : e.getMessage()));
             return ProjectRole.MEMBER;
         }
     }
@@ -2288,7 +2317,7 @@ public final class AdminPage extends BorderPane {
                     String s = v.toString().trim();
                     if (!s.isBlank()) return s;
                 }
-            } catch (Exception ignored) { }
+            } catch (Exception e) { com.projectpilot.util.AppLog.warn("admin", "Failed reading task property via reflection: " + (e == null ? "" : e.getMessage())); }
         }
         try {
             var meth = t.getClass().getMethod("titleProperty");
@@ -2300,7 +2329,7 @@ public final class AdminPage extends BorderPane {
                     if (!s.isBlank()) return s;
                 }
             }
-        } catch (Exception ignored) { }
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("admin", "Failed reading task title via property reflection: " + (e == null ? "" : e.getMessage())); }
         return "Task";
     }
 
@@ -2358,7 +2387,7 @@ public final class AdminPage extends BorderPane {
             try {
                 long size = Files.exists(dbFile) ? Files.size(dbFile) : 0L;
                 return new StorageInfo(formatBytes(size), "local db");
-            } catch (Exception ignored) {
+            } catch (Exception e) { com.projectpilot.util.AppLog.warn("admin", "Failed to read DB file size: " + (e == null ? "" : e.getMessage()));
                 return new StorageInfo("Unknown", "local db");
             }
         }

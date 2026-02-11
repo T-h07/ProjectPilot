@@ -318,7 +318,7 @@ public class TasksPage extends VBox {
                 if (s == null) return null;
                 String v = s.trim();
                 if (v.isEmpty()) return null;
-                try { return LocalDate.parse(v, fmt); } catch (Exception ignored) { return null; }
+                try { return LocalDate.parse(v, fmt); } catch (Exception e) { com.projectpilot.util.AppLog.warn("tasks", "Failed to parse due date: " + (e == null ? "" : e.getMessage())); return null; }
             }
         });
 
@@ -427,7 +427,7 @@ public class TasksPage extends VBox {
 
     private void refresh(Project p) {
         if (boundProject != null) {
-            try { boundProject.getTasks().removeListener(projectTasksListener); } catch (Exception ignored) {}
+            try { boundProject.getTasks().removeListener(projectTasksListener); } catch (Exception e) { com.projectpilot.util.AppLog.warn("tasks", "Failed to remove project tasks listener: " + (e == null ? "" : e.getMessage())); }
         }
 
         boundProject = p;
@@ -496,14 +496,14 @@ public class TasksPage extends VBox {
                 // if USER is in “my tasks only”, also re-check visibility
                 if (!canSeeAll.get()) requestRebuild();
             });
-        } catch (Exception ignored) {}
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("tasks", "Failed to attach status listener: " + (e == null ? "" : e.getMessage())); }
 
         // assignee changes affect “my tasks only”
         try {
             t.assigneeProperty().addListener((obs, ov, nv) -> {
                 if (!canSeeAll.get()) requestRebuild();
             });
-        } catch (Exception ignored) {}
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("tasks", "Failed to attach assignee listener: " + (e == null ? "" : e.getMessage())); }
     }
 
     private void applyFilterPreserveSelection() {
@@ -571,11 +571,11 @@ public class TasksPage extends VBox {
 
             String phase = "";
             try { phase = (t.getPhase() == null || t.getPhase().getName() == null) ? "" : t.getPhase().getName().toLowerCase(); }
-            catch (Exception ignored) {}
+            catch (Exception e) { com.projectpilot.util.AppLog.warn("tasks", "Failed reading task phase: " + (e == null ? "" : e.getMessage())); }
 
             String assignee = "";
             try { assignee = (t.getAssignee() == null || t.getAssignee().getName() == null) ? "" : t.getAssignee().getName().toLowerCase(); }
-            catch (Exception ignored) {}
+            catch (Exception e) { com.projectpilot.util.AppLog.warn("tasks", "Failed reading task assignee: " + (e == null ? "" : e.getMessage())); }
 
             return title.contains(query)
                     || desc.contains(query)
@@ -600,8 +600,8 @@ public class TasksPage extends VBox {
             priorityBox.valueProperty().unbindBidirectional(bound.priorityProperty());
             duePicker.valueProperty().unbindBidirectional(bound.dueDateProperty());
 
-            try { phaseBox.valueProperty().unbindBidirectional(bound.phaseProperty()); } catch (Exception ignored) {}
-            try { assigneeBox.valueProperty().unbindBidirectional(bound.assigneeProperty()); } catch (Exception ignored) {}
+            try { phaseBox.valueProperty().unbindBidirectional(bound.phaseProperty()); } catch (Exception e) { com.projectpilot.util.AppLog.warn("tasks", "Failed to unbind phase binding: " + (e == null ? "" : e.getMessage())); }
+            try { assigneeBox.valueProperty().unbindBidirectional(bound.assigneeProperty()); } catch (Exception e) { com.projectpilot.util.AppLog.warn("tasks", "Failed to unbind assignee binding: " + (e == null ? "" : e.getMessage())); }
         }
 
         bound = t;
@@ -624,14 +624,14 @@ public class TasksPage extends VBox {
         priorityBox.valueProperty().bindBidirectional(t.priorityProperty());
         duePicker.valueProperty().bindBidirectional(t.dueDateProperty());
 
-        try { phaseBox.valueProperty().bindBidirectional(t.phaseProperty()); } catch (Exception ignored) {}
-        try { assigneeBox.valueProperty().bindBidirectional(t.assigneeProperty()); } catch (Exception ignored) {}
+        try { phaseBox.valueProperty().bindBidirectional(t.phaseProperty()); } catch (Exception e) { com.projectpilot.util.AppLog.warn("tasks", "Failed to bind phase: " + (e == null ? "" : e.getMessage())); }
+        try { assigneeBox.valueProperty().bindBidirectional(t.assigneeProperty()); } catch (Exception e) { com.projectpilot.util.AppLog.warn("tasks", "Failed to bind assignee: " + (e == null ? "" : e.getMessage())); }
 
         statusBox.setValue(t.getStatus());
         priorityBox.setValue(t.getPriority());
         duePicker.setValue(t.getDueDate());
-        try { phaseBox.setValue(t.getPhase()); } catch (Exception ignored) {}
-        try { assigneeBox.setValue(t.getAssignee()); } catch (Exception ignored) {}
+        try { phaseBox.setValue(t.getPhase()); } catch (Exception e) { com.projectpilot.util.AppLog.warn("tasks", "Failed to set phase value: " + (e == null ? "" : e.getMessage())); }
+        try { assigneeBox.setValue(t.getAssignee()); } catch (Exception e) { com.projectpilot.util.AppLog.warn("tasks", "Failed to set assignee value: " + (e == null ? "" : e.getMessage())); }
         checklistEditor.setItems(t.getChecklist());
     }
 
@@ -823,7 +823,7 @@ public class TasksPage extends VBox {
 
     private static <E extends Enum<E>> E safeEnum(Class<E> type, String name, E fallback) {
         if (name == null || name.isBlank()) return fallback;
-        try { return Enum.valueOf(type, name); } catch (Exception ignored) { return fallback; }
+        try { return Enum.valueOf(type, name); } catch (Exception e) { com.projectpilot.util.AppLog.warn("tasks", "safeEnum parse failed for " + name + ": " + (e == null ? "" : e.getMessage())); return fallback; }
     }
 
     private boolean isDuplicateTaskTitle(Project p, String title) {

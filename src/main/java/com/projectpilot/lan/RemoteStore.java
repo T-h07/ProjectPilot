@@ -15,11 +15,16 @@ import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
 
 import java.util.*;
+import com.projectpilot.util.AppLog;
 
 public final class RemoteStore extends InMemoryStore {
 
     private final LanClient client;
     private boolean syncing = false;
+
+    // tombstones for recently locally-deleted entities to avoid immediate resurrection
+    private final Map<String, Long> tombstoneAt = new HashMap<>();
+    private static final long TOMBSTONE_TTL_MS = 60_000L; // 1 minute
 
     private final Map<String, Runnable> detachByProjectId = new HashMap<>();
     private final Map<String, Map<String, Runnable>> taskDetachers = new HashMap<>();
@@ -67,6 +72,7 @@ public final class RemoteStore extends InMemoryStore {
             }
             return out;
         } catch (Exception e) {
+            AppLog.warn("remote-store", "Failed to fetch directory users: " + (e == null ? "unknown" : e.getMessage()));
             return List.of();
         }
     }
@@ -75,6 +81,7 @@ public final class RemoteStore extends InMemoryStore {
         try {
             return client.fetchTeams();
         } catch (Exception e) {
+            AppLog.warn("remote-store", "Failed to fetch teams: " + (e == null ? "unknown" : e.getMessage()));
             return List.of();
         }
     }
@@ -83,6 +90,7 @@ public final class RemoteStore extends InMemoryStore {
         try {
             return client.fetchTeamMembers(teamId);
         } catch (Exception e) {
+            AppLog.warn("remote-store", "Failed to fetch team members: " + (e == null ? "unknown" : e.getMessage()));
             return List.of();
         }
     }
@@ -95,6 +103,7 @@ public final class RemoteStore extends InMemoryStore {
         try {
             return client.fetchTeamNamesForMemberInProject(memberId, projectId);
         } catch (Exception e) {
+            AppLog.warn("remote-store", "Failed to fetch team names: " + (e == null ? "unknown" : e.getMessage()));
             return List.of();
         }
     }
@@ -123,6 +132,8 @@ public final class RemoteStore extends InMemoryStore {
 
     private void scheduleProjectDeleteCheck(Project p) {
         if (p == null) return;
+        long now = System.currentTimeMillis();
+        tombstoneAt.put(projectKey(p.getId()), now);
         Platform.runLater(() -> {
             if (syncing) return;
             boolean stillThere = getProjects().contains(p) || getHistoryProjects().contains(p);
@@ -179,6 +190,9 @@ public final class RemoteStore extends InMemoryStore {
                 if (ch.wasRemoved()) {
                     for (Task t : ch.getRemoved()) {
                         detachTaskListeners(p, t);
+                        if (t != null && t.getId() != null) {
+                            tombstoneAt.put(taskKey(p.getId(), t.getId()), System.currentTimeMillis());
+                        }
                         if (!syncing) sendTaskDelete(p, t);
                     }
                 }
@@ -198,10 +212,13 @@ public final class RemoteStore extends InMemoryStore {
                     }
                 }
                 if (ch.wasRemoved()) {
-                    for (Member m : ch.getRemoved()) {
-                        detachMemberListeners(p, m);
-                        if (!syncing) sendMemberDelete(p, m);
-                    }
+                        for (Member m : ch.getRemoved()) {
+                            detachMemberListeners(p, m);
+                            if (m != null && m.getId() != null) {
+                                tombstoneAt.put(memberKey(p.getId(), m.getId()), System.currentTimeMillis());
+                            }
+                            if (!syncing) sendMemberDelete(p, m);
+                        }
                 }
             }
         };
@@ -219,10 +236,13 @@ public final class RemoteStore extends InMemoryStore {
                     }
                 }
                 if (ch.wasRemoved()) {
-                    for (Phase ph : ch.getRemoved()) {
-                        detachPhaseListeners(p, ph);
-                        if (!syncing) sendPhaseDelete(p, ph);
-                    }
+                        for (Phase ph : ch.getRemoved()) {
+                            detachPhaseListeners(p, ph);
+                            if (ph != null && ph.getId() != null) {
+                                tombstoneAt.put(phaseKey(p.getId(), ph.getId()), System.currentTimeMillis());
+                            }
+                            if (!syncing) sendPhaseDelete(p, ph);
+                        }
                 }
             }
         };
@@ -240,10 +260,13 @@ public final class RemoteStore extends InMemoryStore {
                     }
                 }
                 if (ch.wasRemoved()) {
-                    for (Milestone ms : ch.getRemoved()) {
-                        detachMilestoneListeners(p, ms);
-                        if (!syncing) sendMilestoneDelete(p, ms);
-                    }
+                        for (Milestone ms : ch.getRemoved()) {
+                            detachMilestoneListeners(p, ms);
+                            if (ms != null && ms.getId() != null) {
+                                tombstoneAt.put(milestoneKey(p.getId(), ms.getId()), System.currentTimeMillis());
+                            }
+                            if (!syncing) sendMilestoneDelete(p, ms);
+                        }
                 }
             }
         };
@@ -261,10 +284,13 @@ public final class RemoteStore extends InMemoryStore {
                     }
                 }
                 if (ch.wasRemoved()) {
-                    for (ResourceItem r : ch.getRemoved()) {
-                        detachResourceListeners(p, r);
-                        if (!syncing) sendResourceDelete(p, r);
-                    }
+                        for (ResourceItem r : ch.getRemoved()) {
+                            detachResourceListeners(p, r);
+                            if (r != null && r.getId() != null) {
+                                tombstoneAt.put(resourceKey(p.getId(), r.getId()), System.currentTimeMillis());
+                            }
+                            if (!syncing) sendResourceDelete(p, r);
+                        }
                 }
             }
         };
@@ -282,10 +308,13 @@ public final class RemoteStore extends InMemoryStore {
                     }
                 }
                 if (ch.wasRemoved()) {
-                    for (PersonalNote note : ch.getRemoved()) {
-                        detachNoteListeners(p, note);
-                        if (!syncing) sendNoteDelete(p, note);
-                    }
+                        for (PersonalNote note : ch.getRemoved()) {
+                            detachNoteListeners(p, note);
+                            if (note != null && note.getId() != null) {
+                                tombstoneAt.put(noteKey(p.getId(), note.getId()), System.currentTimeMillis());
+                            }
+                            if (!syncing) sendNoteDelete(p, note);
+                        }
                 }
             }
         };
@@ -692,6 +721,22 @@ public final class RemoteStore extends InMemoryStore {
         ));
     }
 
+    // --- tombstone helpers ---
+    private static String projectKey(String projectId) { return "project:" + (projectId == null ? "" : projectId); }
+    private static String taskKey(String projectId, String taskId) { return "project:" + (projectId == null ? "" : projectId) + ":task:" + (taskId == null ? "" : taskId); }
+    private static String memberKey(String projectId, String memberId) { return "project:" + (projectId == null ? "" : projectId) + ":member:" + (memberId == null ? "" : memberId); }
+    private static String phaseKey(String projectId, String phaseId) { return "project:" + (projectId == null ? "" : projectId) + ":phase:" + (phaseId == null ? "" : phaseId); }
+    private static String milestoneKey(String projectId, String msId) { return "project:" + (projectId == null ? "" : projectId) + ":milestone:" + (msId == null ? "" : msId); }
+    private static String resourceKey(String projectId, String rId) { return "project:" + (projectId == null ? "" : projectId) + ":resource:" + (rId == null ? "" : rId); }
+    private static String noteKey(String projectId, String nId) { return "project:" + (projectId == null ? "" : projectId) + ":note:" + (nId == null ? "" : nId); }
+
+    private boolean isTombstoned(String key, long now) {
+        if (key == null) return false;
+        Long at = tombstoneAt.get(key);
+        if (at == null) return false;
+        return now - at < TOMBSTONE_TTL_MS;
+    }
+
     private void applyProjects(ObservableList<Project> target, List<ProjectDto> incoming, boolean history) {
         List<ProjectDto> list = incoming == null ? List.of() : incoming;
         Map<String, Project> existing = new HashMap<>();
@@ -703,8 +748,11 @@ public final class RemoteStore extends InMemoryStore {
         List<Project> next = new ArrayList<>();
         Set<String> seen = new HashSet<>();
 
+        long now = System.currentTimeMillis();
         for (ProjectDto dto : list) {
             if (dto == null || dto.id() == null) continue;
+            // skip incoming projects that were just deleted locally (tombstone TTL)
+            if (isTombstoned(projectKey(dto.id()), now)) continue;
             Project p = existing.get(dto.id());
             if (p == null) {
                 p = new Project(dto.id(), safe(dto.name()));
@@ -756,8 +804,10 @@ public final class RemoteStore extends InMemoryStore {
         Map<String, Member> map = new HashMap<>();
         List<Member> next = new ArrayList<>();
         if (list != null) {
+            long now = System.currentTimeMillis();
             for (MemberDto dto : list) {
                 if (dto == null || dto.id() == null) continue;
+                if (isTombstoned(memberKey(p.getId(), dto.id()), now)) continue;
                 ProjectRole role = dto.role() == null ? ProjectRole.MEMBER : dto.role();
                 Member m = existing.get(dto.id());
                 if (m == null) {
@@ -786,8 +836,10 @@ public final class RemoteStore extends InMemoryStore {
         Map<String, Phase> map = new HashMap<>();
         List<Phase> next = new ArrayList<>();
         if (list != null) {
+            long now = System.currentTimeMillis();
             for (PhaseDto dto : list) {
                 if (dto == null || dto.id() == null) continue;
+                if (isTombstoned(phaseKey(p.getId(), dto.id()), now)) continue;
                 Phase ph = existing.get(dto.id());
                 if (ph == null) {
                     ph = new Phase(dto.id(), safe(dto.name()));
@@ -815,8 +867,11 @@ public final class RemoteStore extends InMemoryStore {
 
         List<Task> next = new ArrayList<>();
         if (list != null) {
+            long now = System.currentTimeMillis();
             for (TaskDto dto : list) {
                 if (dto == null || dto.id() == null) continue;
+                // skip incoming tasks that were just deleted locally
+                if (isTombstoned(taskKey(p.getId(), dto.id()), now)) continue;
                 Task t = existing.get(dto.id());
                 if (t == null) {
                     t = new Task(dto.id(), safe(dto.title()));
@@ -852,8 +907,10 @@ public final class RemoteStore extends InMemoryStore {
 
         List<Milestone> next = new ArrayList<>();
         if (list != null) {
+            long now = System.currentTimeMillis();
             for (MilestoneDto dto : list) {
                 if (dto == null || dto.id() == null) continue;
+                if (isTombstoned(milestoneKey(p.getId(), dto.id()), now)) continue;
                 Milestone ms = existing.get(dto.id());
                 if (ms == null) {
                     ms = new Milestone(dto.id(), safe(dto.title()));
@@ -878,8 +935,10 @@ public final class RemoteStore extends InMemoryStore {
 
         List<ResourceItem> next = new ArrayList<>();
         if (list != null) {
+            long now = System.currentTimeMillis();
             for (ResourceDto dto : list) {
                 if (dto == null || dto.id() == null) continue;
+                if (isTombstoned(resourceKey(p.getId(), dto.id()), now)) continue;
                 ResourceItem r = existing.get(dto.id());
                 if (r == null) {
                     r = new ResourceItem(dto.id(), p.getId());
@@ -909,8 +968,10 @@ public final class RemoteStore extends InMemoryStore {
 
         List<PersonalNote> next = new ArrayList<>();
         if (list != null) {
+            long now = System.currentTimeMillis();
             for (NoteDto dto : list) {
                 if (dto == null || dto.id() == null) continue;
+                if (isTombstoned(noteKey(p.getId(), dto.id()), now)) continue;
                 PersonalNote note = existing.get(dto.id());
                 if (note == null) {
                     note = new PersonalNote(dto.id(), p.getId(), safe(dto.ownerId()));

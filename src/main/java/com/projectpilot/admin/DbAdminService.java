@@ -11,6 +11,9 @@ import com.projectpilot.model.enums.ProjectRole;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 
 public final class DbAdminService implements AdminService {
 
@@ -65,5 +68,72 @@ public final class DbAdminService implements AdminService {
     @Override
     public void createTeam(String name, String leaderId, List<TeamService.TeamMemberSpec> members) {
         store.createTeam(name, leaderId, members);
+    }
+
+    @Override
+    public java.util.List<String> runDataValidator() {
+        try {
+            return store.manager().tx(conn -> {
+                java.util.List<String> issues = new java.util.ArrayList<>();
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT id, project_id FROM tasks WHERE project_id NOT IN (SELECT id FROM projects)")) {
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            issues.add("Task " + rs.getString("id") + " references missing project " + rs.getString("project_id"));
+                        }
+                    }
+                } catch (Exception e) {
+                    issues.add("Validator error (tasks->projects): " + e.getMessage());
+                }
+
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT id, phase_id FROM tasks WHERE phase_id IS NOT NULL AND phase_id NOT IN (SELECT id FROM phases)")) {
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            issues.add("Task " + rs.getString("id") + " references missing phase " + rs.getString("phase_id"));
+                        }
+                    }
+                } catch (Exception e) {
+                    issues.add("Validator error (tasks->phases): " + e.getMessage());
+                }
+
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT id, assignee_member_id FROM tasks WHERE assignee_member_id IS NOT NULL AND assignee_member_id NOT IN (SELECT id FROM members)")) {
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            issues.add("Task " + rs.getString("id") + " has invalid assignee " + rs.getString("assignee_member_id"));
+                        }
+                    }
+                } catch (Exception e) {
+                    issues.add("Validator error (tasks->assignee): " + e.getMessage());
+                }
+
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT project_id, member_id FROM project_members WHERE member_id NOT IN (SELECT id FROM members)")) {
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            issues.add("Project membership references missing member: project=" + rs.getString("project_id") + " member=" + rs.getString("member_id"));
+                        }
+                    }
+                } catch (Exception e) {
+                    issues.add("Validator error (project_members->members): " + e.getMessage());
+                }
+
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT id, project_id FROM phases WHERE project_id NOT IN (SELECT id FROM projects)")) {
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            issues.add("Phase " + rs.getString("id") + " references missing project " + rs.getString("project_id"));
+                        }
+                    }
+                } catch (Exception e) {
+                    issues.add("Validator error (phases->projects): " + e.getMessage());
+                }
+
+                return issues;
+            });
+        } catch (Exception e) {
+            throw new IllegalStateException("Validation failed", e);
+        }
     }
 }

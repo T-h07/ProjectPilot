@@ -119,6 +119,17 @@ public final class LanAdminClient implements AdminService {
         postJson("/api/admin/teams", new AdminCreateTeamRequest(name, leaderId, members));
     }
 
+    @Override
+    public java.util.List<String> runDataValidator() {
+        HttpRequest req = request("/api/admin/validate").GET().build();
+        String body = send(req);
+        try {
+            return mapper.readValue(body, new com.fasterxml.jackson.core.type.TypeReference<java.util.List<String>>() {});
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to run validator");
+        }
+    }
+
     private HttpRequest.Builder request(String path) {
         String token = client.token();
         if (token == null || token.isBlank()) {

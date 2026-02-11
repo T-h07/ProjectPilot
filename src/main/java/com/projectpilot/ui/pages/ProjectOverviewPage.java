@@ -818,8 +818,8 @@ public class ProjectOverviewPage extends VBox {
 
     private void bindProject(Project p) {
         if (boundProject != null) {
-            try { boundProject.getTasks().removeListener(taskListListener); } catch (Exception ignored) {}
-            try { boundProject.getMilestones().removeListener(milestoneListListener); } catch (Exception ignored) {}
+            try { boundProject.getTasks().removeListener(taskListListener); } catch (Exception e) { com.projectpilot.util.AppLog.warn("project-overview", "Failed to remove task list listener: " + (e == null ? "" : e.getMessage())); }
+            try { boundProject.getMilestones().removeListener(milestoneListListener); } catch (Exception e) { com.projectpilot.util.AppLog.warn("project-overview", "Failed to remove milestone listener: " + (e == null ? "" : e.getMessage())); }
         }
 
         for (Task t : new HashSet<>(taskHooks.keySet())) unhookTask(t);
@@ -850,11 +850,11 @@ public class ProjectOverviewPage extends VBox {
         if (t == null) return;
         InvalidationListener l = taskHooks.remove(t);
         if (l == null) return;
-        try { t.statusProperty().removeListener(l); } catch (Exception ignored) {}
-        try { t.dueDateProperty().removeListener(l); } catch (Exception ignored) {}
-        try { t.assigneeProperty().removeListener(l); } catch (Exception ignored) {}
-        try { t.priorityProperty().removeListener(l); } catch (Exception ignored) {}
-        try { t.phaseProperty().removeListener(l); } catch (Exception ignored) {}
+        try { t.statusProperty().removeListener(l); } catch (Exception e) { com.projectpilot.util.AppLog.warn("project-overview", "Failed to remove task status listener: " + (e == null ? "" : e.getMessage())); }
+        try { t.dueDateProperty().removeListener(l); } catch (Exception e) { com.projectpilot.util.AppLog.warn("project-overview", "Failed to remove task dueDate listener: " + (e == null ? "" : e.getMessage())); }
+        try { t.assigneeProperty().removeListener(l); } catch (Exception e) { com.projectpilot.util.AppLog.warn("project-overview", "Failed to remove task assignee listener: " + (e == null ? "" : e.getMessage())); }
+        try { t.priorityProperty().removeListener(l); } catch (Exception e) { com.projectpilot.util.AppLog.warn("project-overview", "Failed to remove task priority listener: " + (e == null ? "" : e.getMessage())); }
+        try { t.phaseProperty().removeListener(l); } catch (Exception e) { com.projectpilot.util.AppLog.warn("project-overview", "Failed to remove task phase listener: " + (e == null ? "" : e.getMessage())); }
     }
 
     private void hookMilestone(Milestone m) {
@@ -872,8 +872,8 @@ public class ProjectOverviewPage extends VBox {
         if (m == null) return;
         InvalidationListener l = milestoneHooks.remove(m);
         if (l == null) return;
-        try { m.completedProperty().removeListener(l); } catch (Exception ignored) {}
-        try { m.dueDateProperty().removeListener(l); } catch (Exception ignored) {}
+        try { m.completedProperty().removeListener(l); } catch (Exception e) { com.projectpilot.util.AppLog.warn("project-overview", "Failed to remove milestone completed listener: " + (e == null ? "" : e.getMessage())); }
+        try { m.dueDateProperty().removeListener(l); } catch (Exception e) { com.projectpilot.util.AppLog.warn("project-overview", "Failed to remove milestone dueDate listener: " + (e == null ? "" : e.getMessage())); }
     }
 
     private HBox buildTaskRow(Task t) {

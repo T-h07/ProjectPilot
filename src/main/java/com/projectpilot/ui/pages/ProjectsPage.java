@@ -810,7 +810,7 @@ public class ProjectsPage extends BorderPane {
             try {
                 p.getMembers().addListener((ListChangeListener) l);
                 memberHooks.put(p, l);
-            } catch (Exception ignored) {}
+            } catch (Exception e) { com.projectpilot.util.AppLog.warn("projects", "Failed to attach member listener: " + (e == null ? "" : e.getMessage())); }
         }
 
         if (!taskListHooks.containsKey(p)) {
@@ -824,7 +824,7 @@ public class ProjectsPage extends BorderPane {
             try {
                 p.getTasks().addListener(l);
                 taskListHooks.put(p, l);
-            } catch (Exception ignored) {}
+            } catch (Exception e) { com.projectpilot.util.AppLog.warn("projects", "Failed to attach task list listener: " + (e == null ? "" : e.getMessage())); }
 
             for (Task t : p.getTasks()) hookTask(t);
         }
@@ -837,12 +837,12 @@ public class ProjectsPage extends BorderPane {
 
         ListChangeListener<?> l = memberHooks.remove(p);
         if (l != null) {
-            try { p.getMembers().removeListener((ListChangeListener) l); } catch (Exception ignored) {}
+            try { p.getMembers().removeListener((ListChangeListener) l); } catch (Exception e) { com.projectpilot.util.AppLog.warn("projects", "Failed to remove member listener: " + (e == null ? "" : e.getMessage())); }
         }
 
         ListChangeListener<?> tl = taskListHooks.remove(p);
         if (tl != null) {
-            try { p.getTasks().removeListener((ListChangeListener) tl); } catch (Exception ignored) {}
+            try { p.getTasks().removeListener((ListChangeListener) tl); } catch (Exception e) { com.projectpilot.util.AppLog.warn("projects", "Failed to remove task list listener: " + (e == null ? "" : e.getMessage())); }
         }
 
         for (Task t : p.getTasks()) unhookTask(t);
@@ -861,9 +861,9 @@ public class ProjectsPage extends BorderPane {
         if (t == null) return;
         InvalidationListener l = taskHooks.remove(t);
         if (l == null) return;
-        try { t.statusProperty().removeListener(l); } catch (Exception ignored) {}
-        try { t.dueDateProperty().removeListener(l); } catch (Exception ignored) {}
-        try { t.priorityProperty().removeListener(l); } catch (Exception ignored) {}
+        try { t.statusProperty().removeListener(l); } catch (Exception e) { com.projectpilot.util.AppLog.warn("projects", "Failed to remove task status listener: " + (e == null ? "" : e.getMessage())); }
+        try { t.dueDateProperty().removeListener(l); } catch (Exception e) { com.projectpilot.util.AppLog.warn("projects", "Failed to remove task dueDate listener: " + (e == null ? "" : e.getMessage())); }
+        try { t.priorityProperty().removeListener(l); } catch (Exception e) { com.projectpilot.util.AppLog.warn("projects", "Failed to remove task priority listener: " + (e == null ? "" : e.getMessage())); }
     }
 
     private void reloadViews(String selectId) {
@@ -1305,7 +1305,7 @@ public class ProjectsPage extends BorderPane {
 
     private static <E extends Enum<E>> E safeEnum(Class<E> type, String name, E fallback) {
         if (name == null || name.isBlank()) return fallback;
-        try { return Enum.valueOf(type, name); } catch (Exception ignored) { return fallback; }
+        try { return Enum.valueOf(type, name); } catch (Exception e) { com.projectpilot.util.AppLog.warn("projects", "safeEnum parse failed for " + name + ": " + (e == null ? "" : e.getMessage())); return fallback; }
     }
 
     private enum HealthFilter { ALL, ON_TRACK, AT_RISK, OVERDUE }

@@ -87,8 +87,7 @@ public final class LanWsServer extends WebSocketServer {
             for (WebSocket conn : authed.keySet()) {
                 if (conn != null && conn.isOpen()) conn.send(payload);
             }
-        } catch (Exception ignored) {
-        }
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("lan-ws", "broadcast refresh failed: " + (e == null ? "" : e.getMessage())); }
     }
 
     public int connectedCount() {
@@ -103,7 +102,7 @@ public final class LanWsServer extends WebSocketServer {
         if (message == null || message.isBlank()) return null;
         try {
             return mapper.readValue(message, MeetingSignal.class);
-        } catch (Exception ignored) {
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("lan-ws", "Failed to parse meeting signal: " + (e == null ? "" : e.getMessage()));
             return null;
         }
     }
@@ -202,8 +201,7 @@ public final class LanWsServer extends WebSocketServer {
         if (conn == null || signal == null || !conn.isOpen()) return;
         try {
             conn.send(mapper.writeValueAsString(signal));
-        } catch (Exception ignored) {
-        }
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("lan-ws", "Failed to send meeting signal: " + (e == null ? "" : e.getMessage())); }
     }
 
     private static String displayName(UserSession session) {
@@ -232,8 +230,7 @@ public final class LanWsServer extends WebSocketServer {
                 String[] kv = part.split("=", 2);
                 if (kv.length == 2 && "token".equals(kv[0])) return kv[1];
             }
-        } catch (Exception ignored) {
-        }
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("lan-ws", "Failed to extract token: " + (e == null ? "" : e.getMessage())); }
         return null;
     }
 }

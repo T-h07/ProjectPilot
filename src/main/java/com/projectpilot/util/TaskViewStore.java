@@ -19,6 +19,7 @@ public final class TaskViewStore {
         try {
             return mapper.readValue(json, new TypeReference<List<TaskViewData>>() {});
         } catch (Exception e) {
+            AppLog.warn("taskview", "Failed to load task views: " + e.getMessage());
             return List.of();
         }
     }
@@ -28,7 +29,8 @@ public final class TaskViewStore {
         List<TaskViewData> out = views == null ? List.of() : views;
         try {
             prefs.put(key, mapper.writeValueAsString(out));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            AppLog.warn("taskview", "Failed to save task views: " + (e == null ? "" : e.getMessage()));
         }
     }
 

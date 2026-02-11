@@ -319,7 +319,7 @@ public class TopBar extends HBox {
                     return email == null ? "" : email.trim();
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("topbar", "Failed to lookup user email: " + (e == null ? "" : e.getMessage())); }
 
         return "";
     }
@@ -350,8 +350,7 @@ public class TopBar extends HBox {
                     }
                 }
             }
-        } catch (Exception ignored) {
-        }
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("topbar", "Failed to enumerate local addresses: " + (e == null ? "" : e.getMessage())); }
         return new ArrayList<>(out);
     }
 

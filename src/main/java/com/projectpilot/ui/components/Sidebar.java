@@ -233,7 +233,7 @@ public class Sidebar extends VBox {
                         wrap.getStyleClass().add("sidebar-icon-wrap");
                         return wrap;
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception e) { com.projectpilot.util.AppLog.warn("sidebar", "Failed to load icon " + path + ": " + (e == null ? "" : e.getMessage())); }
             }
         }
 

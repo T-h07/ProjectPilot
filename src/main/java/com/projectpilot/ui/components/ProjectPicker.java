@@ -100,7 +100,7 @@ public class ProjectPicker extends ComboBox<Project> {
         try {
             p.getMembers().addListener((ListChangeListener) l);
             memberHooks.put(p, l);
-        } catch (Exception ignored) {}
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("project-picker", "Failed to attach member listener: " + (e == null ? "" : e.getMessage())); }
     }
 
     private void unhookOne(Project p) {
@@ -109,7 +109,7 @@ public class ProjectPicker extends ComboBox<Project> {
         if (l == null) return;
         try {
             p.getMembers().removeListener((ListChangeListener) l);
-        } catch (Exception ignored) {}
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("project-picker", "Failed to remove member listener: " + (e == null ? "" : e.getMessage())); }
     }
 
     private void refreshPredicate(AppState appState) {

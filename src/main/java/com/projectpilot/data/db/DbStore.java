@@ -239,7 +239,7 @@ public final class DbStore extends InMemoryStore {
                     .filter(UserAdminService.UserRow::active)
                     .toList();
         } catch (Exception e) {
-            System.err.println("[DbStore] listUsers() failed: " + e.getMessage());
+            AppLog.warn("db", "listUsers() failed: " + (e == null ? "" : e.getMessage()));
             return java.util.List.of();
         }
     }
@@ -252,7 +252,7 @@ public final class DbStore extends InMemoryStore {
         try {
             return new TeamService(db).listTeams();
         } catch (Exception e) {
-            System.err.println("[DbStore] listTeams() failed: " + e.getMessage());
+            AppLog.warn("db", "listTeams() failed: " + (e == null ? "" : e.getMessage()));
             return java.util.List.of();
         }
     }
@@ -261,7 +261,7 @@ public final class DbStore extends InMemoryStore {
         try {
             return new TeamService(db).listTeamMembers(teamId);
         } catch (Exception e) {
-            System.err.println("[DbStore] listTeamMembers() failed: " + e.getMessage());
+            AppLog.warn("db", "listTeamMembers() failed: " + (e == null ? "" : e.getMessage()));
             return java.util.List.of();
         }
     }
@@ -278,7 +278,7 @@ public final class DbStore extends InMemoryStore {
         try {
             return new TeamService(db).listTeamNamesForMemberInProject(memberId, projectId);
         } catch (Exception e) {
-            System.err.println("[DbStore] listTeamNamesForMemberInProject() failed: " + e.getMessage());
+            AppLog.warn("db", "listTeamNamesForMemberInProject() failed: " + (e == null ? "" : e.getMessage()));
             return java.util.List.of();
         }
     }
@@ -837,9 +837,9 @@ public final class DbStore extends InMemoryStore {
         } catch (RejectedExecutionException ignored) {
             // already shutting down
         } catch (TimeoutException e) {
-            System.err.println("[DB] flush timeout: " + e.getMessage());
+            AppLog.warn("db", "flush timeout: " + (e == null ? "" : e.getMessage()));
         } catch (Exception e) {
-            System.err.println("[DB] flush failed: " + e.getMessage());
+            AppLog.warn("db", "flush failed: " + (e == null ? "" : e.getMessage()));
         }
     }
 
@@ -1570,7 +1570,7 @@ public final class DbStore extends InMemoryStore {
 
     private static <E extends Enum<E>> E safeEnum(Class<E> type, String name, E fallback) {
         if (name == null || name.isBlank()) return fallback;
-        try { return Enum.valueOf(type, name); } catch (Exception ignored) { return fallback; }
+        try { return Enum.valueOf(type, name); } catch (Exception e) { com.projectpilot.util.AppLog.warn("db", "safeEnum parse failed for " + name + ": " + (e == null ? "" : e.getMessage())); return fallback; }
     }
 
     private static String nullToEmpty(String s) { return s == null ? "" : s; }

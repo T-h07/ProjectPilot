@@ -54,13 +54,13 @@ public final class DbManager {
                 conn.commit();
                 return out;
             } catch (RuntimeException ex) {
-                try { conn.rollback(); } catch (SQLException ignored) {}
+                    try { conn.rollback(); } catch (SQLException rbEx) { com.projectpilot.util.AppLog.warn("db", "Rollback failed: " + (rbEx == null ? "" : rbEx.getMessage())); }
                 throw ex;
             } catch (Exception ex) {
-                try { conn.rollback(); } catch (SQLException ignored) {}
+                try { conn.rollback(); } catch (SQLException rbEx) { com.projectpilot.util.AppLog.warn("db", "Rollback failed: " + (rbEx == null ? "" : rbEx.getMessage())); }
                 throw new DbException("DB transaction failed", ex);
             } finally {
-                try { conn.setAutoCommit(prevAutoCommit); } catch (SQLException ignored) {}
+                try { conn.setAutoCommit(prevAutoCommit); } catch (SQLException rbEx) { com.projectpilot.util.AppLog.warn("db", "Failed to restore autoCommit: " + (rbEx == null ? "" : rbEx.getMessage())); }
             }
         } catch (SQLException e) {
             throw new DbException("Failed to open DB connection for transaction", e);

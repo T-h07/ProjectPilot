@@ -3,6 +3,7 @@ package com.projectpilot.chat;
 import com.projectpilot.core.AppState;
 import com.projectpilot.core.PageId;
 import javafx.application.Platform;
+import com.projectpilot.util.AppLog;
 
 import java.util.List;
 import java.util.Objects;
@@ -49,7 +50,7 @@ public final class ChatUnreadService {
             List<ChatThread> threads = chat.listThreads(me);
             Platform.runLater(() -> appState.updateChatThreads(threads));
         } catch (Exception e) {
-            System.err.println("[Chat] Unread poll failed: " + e.getMessage());
+            AppLog.warn("chat", "Unread poll failed: " + (e == null ? "" : e.getMessage()));
         } finally {
             polling.set(false);
         }

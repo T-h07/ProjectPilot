@@ -295,7 +295,7 @@ public final class TeamService {
 
     private static ProjectRole parseRole(String v, ProjectRole fallback) {
         if (v == null || v.isBlank()) return fallback;
-        try { return ProjectRole.valueOf(v); } catch (Exception ignored) { return fallback; }
+        try { return ProjectRole.valueOf(v); } catch (Exception e) { com.projectpilot.util.AppLog.warn("db-team", "parseRole failed for '" + v + "': " + (e == null ? "" : e.getMessage())); return fallback; }
     }
 
     private static boolean teamNameExists(Connection conn, String name) {

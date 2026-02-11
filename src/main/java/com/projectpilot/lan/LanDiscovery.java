@@ -73,8 +73,7 @@ public final class LanDiscovery {
                         packet.setAddress(bcast);
                         packet.setPort(discoveryPort);
                         socket.send(packet);
-                    } catch (Exception ignored) {
-                    }
+                    } catch (Exception e) { com.projectpilot.util.AppLog.warn("lan-discovery", "Failed to send discovery packet to " + bcast + ": " + (e == null ? "" : e.getMessage())); }
                 }
             }
 
@@ -92,7 +91,7 @@ public final class LanDiscovery {
                 } catch (SocketTimeoutException ignored) {
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("lan-discovery", "Discovery failed: " + (e == null ? "" : e.getMessage()));
         } finally {
             if (socket != null) socket.close();
         }
@@ -114,7 +113,8 @@ public final class LanDiscovery {
                 socket.send(reply);
             } catch (SocketException se) {
                 break;
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                com.projectpilot.util.AppLog.warn("lan-discovery", "Responder loop error: " + (e == null ? "" : e.getMessage()));
             }
         }
     }
@@ -139,7 +139,7 @@ public final class LanDiscovery {
         try {
             String host = InetAddress.getLocalHost().getHostName();
             if (host != null && !host.isBlank()) return host.trim();
-        } catch (Exception ignored) {
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("lan-discovery", "defaultName lookup failed: " + (e == null ? "" : e.getMessage()));
         }
         return "ProjectPilot Host";
     }

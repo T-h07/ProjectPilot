@@ -39,7 +39,9 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 
 import java.io.InputStream;
+import com.projectpilot.util.AppLog;
 import java.util.concurrent.Executors;
+import javafx.collections.ListChangeListener;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import com.projectpilot.lan.LanAuthClient;
@@ -52,6 +54,9 @@ import com.projectpilot.lan.LanSyncService;
 import com.projectpilot.lan.LanWsClient;
 import com.projectpilot.lan.LanWsServer;
 import com.projectpilot.lan.RemoteStore;
+import com.projectpilot.model.Project;
+
+
 
 public class Main extends Application {
 
@@ -140,7 +145,7 @@ public class Main extends Application {
             lanClient = null;
             db = DbManager.defaultManager();
             db.init();
-            System.out.println("DB = " + db.describe());
+            AppLog.warn("db", "DB = " + db.describe());
             localAuth = new AuthService(db);
             auth = localAuth;
         }
@@ -160,6 +165,25 @@ public class Main extends Application {
                 appState.setSession(session);
                 appState.setLanToken(lanClient.token());
                 appState.setLanBaseUrl(lanConfig.baseUrl());
+
+                    // Clear selected project if it is removed from the store (active list)
+                    ListChangeListener<Project> clearSelectedProjectOnRemove = ch -> {
+                        while (ch.next()) {
+                            if (ch.wasRemoved()) {
+                                for (Project removed : ch.getRemoved()) {
+                                    try {
+                                        if (removed != null && removed == appState.getSelectedProject()) appState.setSelectedProject(null);
+                                    } catch (Exception e) {
+                                        AppLog.warn("main", "Failed clearing selectedProject after removal: " + (e == null ? "" : e.getMessage()));
+                                    }
+                                }
+                            }
+                        }
+                    };
+
+                    // Attach same listener to both active and history project lists
+                    store.getProjects().addListener(clearSelectedProjectOnRemove);
+                    store.getHistoryProjects().addListener(clearSelectedProjectOnRemove);
 
                 LanWsClient wsClient = new LanWsClient(lanConfig.wsUrl(), () -> {
                     if (lanSync != null) lanSync.requestRefresh();
@@ -231,8 +255,7 @@ public class Main extends Application {
                 startLanHostServices();
             }
         } catch (Exception e) {
-            System.err.println("[UI] Login init failed: " + e.getMessage());
-            e.printStackTrace();
+            AppLog.warn("ui", "Login init failed: " + (e == null ? "" : e.getMessage()));
             showStartupError("Login failed", "Could not open the dashboard.", e);
             showLogin();
         }
@@ -263,11 +286,11 @@ public class Main extends Application {
         try {
             if (lanServer != null || lanWsServer != null) return;
             if (store == null) {
-                System.err.println("[LAN] Host start skipped: store not ready");
+                AppLog.warn("lan", "Host start skipped: store not ready");
                 return;
             }
             if (localAuth == null) {
-                System.err.println("[LAN] Host start skipped: auth not ready");
+                AppLog.warn("lan", "Host start skipped: auth not ready");
                 return;
             }
             lanSessions = new LanSessionRegistry();
@@ -286,10 +309,9 @@ public class Main extends Application {
                 appState.updateHostingStatus(true, lanConfig.port(), lanConfig.wsPort(),
                         System.currentTimeMillis(), 0, "host");
             }
-            System.out.println("LAN HOST listening on port " + lanConfig.port() + " (ws " + lanConfig.wsPort() + ")");
+            AppLog.warn("lan", "LAN HOST listening on port " + lanConfig.port() + " (ws " + lanConfig.wsPort() + ")");
         } catch (Throwable e) {
-            System.err.println("[LAN] Host startup failed: " + e.getMessage());
-            e.printStackTrace();
+            AppLog.warn("lan", "Host startup failed: " + (e == null ? "" : e.getMessage()));
             safeStopLanHost();
             showStartupError("LAN host failed",
                     "Dashboard opened, but LAN hosting couldn't start. Check ports 8090/8091 or firewall.",
@@ -316,16 +338,13 @@ public class Main extends Application {
     private void safeStopLanHost() {
         try {
             if (lanServer != null) lanServer.stop();
-        } catch (Exception ignored) {
-        }
+        } catch (Exception e) { AppLog.warn("lan", "Failed to stop lanServer: " + (e == null ? "" : e.getMessage())); }
         try {
             if (lanBroadcaster != null) lanBroadcaster.stop();
-        } catch (Exception ignored) {
-        }
+        } catch (Exception e) { AppLog.warn("lan", "Failed to stop lanBroadcaster: " + (e == null ? "" : e.getMessage())); }
         try {
             if (lanWsServer != null) lanWsServer.stop();
-        } catch (Exception ignored) {
-        }
+        } catch (Exception e) { AppLog.warn("lan", "Failed to stop lanWsServer: " + (e == null ? "" : e.getMessage())); }
         lanServer = null;
         lanWsServer = null;
         lanBroadcaster = null;
@@ -394,7 +413,8 @@ public class Main extends Application {
         if (lanDiscovery != null) {
             try {
                 lanDiscovery.stop();
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                AppLog.warn("lan", "Discovery stop failed: " + (e == null ? "" : e.getMessage()));
             }
             lanDiscovery = null;
         }
@@ -428,7 +448,7 @@ public class Main extends Application {
                 lanDiscovery = LanDiscovery.startResponder(lanConfig.port(), lanConfig.wsPort());
             }
         } catch (Exception e) {
-            System.err.println("[LAN] Discovery responder failed: " + e.getMessage());
+            AppLog.warn("lan", "Discovery responder failed: " + (e == null ? "" : e.getMessage()));
         }
     }
 
@@ -495,12 +515,12 @@ public class Main extends Application {
     private void loadFont(String path, double size) {
         try (InputStream in = getClass().getResourceAsStream(path)) {
             if (in == null) {
-                System.err.println("[UI] Missing font resource: " + path);
+                AppLog.warn("ui", "Missing font resource: " + path);
                 return;
             }
             Font.loadFont(in, size);
         } catch (Exception e) {
-            System.err.println("[UI] Failed to load font: " + path + " (" + e.getMessage() + ")");
+            AppLog.warn("ui", "Failed to load font: " + path + " (" + (e == null ? "" : e.getMessage()) + ")");
         }
     }
 
@@ -508,12 +528,12 @@ public class Main extends Application {
         if (stage == null || path == null) return;
         try (InputStream in = getClass().getResourceAsStream(path)) {
             if (in == null) {
-                System.err.println("[UI] Missing icon resource: " + path);
+                AppLog.warn("ui", "Missing icon resource: " + path);
                 return;
             }
             stage.getIcons().add(new Image(in));
         } catch (Exception e) {
-            System.err.println("[UI] Failed to load icon: " + path + " (" + e.getMessage() + ")");
+            AppLog.warn("ui", "Failed to load icon: " + path + " (" + (e == null ? "" : e.getMessage()) + ")");
         }
     }
 
@@ -588,7 +608,7 @@ public class Main extends Application {
                     }
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) { AppLog.warn("main", "localIpv4Addresses failed: " + (e == null ? "" : e.getMessage())); }
         return new java.util.ArrayList<>(out);
     }
 }

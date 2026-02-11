@@ -86,7 +86,7 @@ public final class AccessPolicy {
                 var m = obj.getClass().getMethod(name);
                 Object out = m.invoke(obj);
                 if (out instanceof String str && !str.isBlank()) return str;
-            } catch (Exception ignored) {}
+            } catch (Exception e) { com.projectpilot.util.AppLog.warn("access", "Reflection read failed for " + name + ": " + (e == null ? "" : e.getMessage())); }
         }
         return null;
     }

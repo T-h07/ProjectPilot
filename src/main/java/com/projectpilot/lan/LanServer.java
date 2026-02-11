@@ -37,6 +37,9 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -450,6 +453,54 @@ public final class LanServer {
                 List<TeamService.TeamMemberSpec> members = req.members() == null ? List.of() : req.members();
                 dbStore.createTeam(req.name(), req.leaderId(), members);
                 sendText(ex, 200, "ok");
+                return;
+            }
+
+            if ("/validate".equals(sub) && "GET".equalsIgnoreCase(method)) {
+                try {
+                    java.util.List<String> issues = dbStore.manager().tx(conn -> {
+                        java.util.List<String> out = new java.util.ArrayList<>();
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "SELECT id, project_id FROM tasks WHERE project_id NOT IN (SELECT id FROM projects)")) {
+                            try (ResultSet rs = ps.executeQuery()) {
+                                while (rs.next()) out.add("Task " + rs.getString("id") + " references missing project " + rs.getString("project_id"));
+                            }
+                        } catch (SQLException ignored) {}
+
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "SELECT id, phase_id FROM tasks WHERE phase_id IS NOT NULL AND phase_id NOT IN (SELECT id FROM phases)")) {
+                            try (ResultSet rs = ps.executeQuery()) {
+                                while (rs.next()) out.add("Task " + rs.getString("id") + " references missing phase " + rs.getString("phase_id"));
+                            }
+                        } catch (SQLException ignored) {}
+
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "SELECT id, assignee_member_id FROM tasks WHERE assignee_member_id IS NOT NULL AND assignee_member_id NOT IN (SELECT id FROM members)")) {
+                            try (ResultSet rs = ps.executeQuery()) {
+                                while (rs.next()) out.add("Task " + rs.getString("id") + " has invalid assignee " + rs.getString("assignee_member_id"));
+                            }
+                        } catch (SQLException ignored) {}
+
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "SELECT project_id, member_id FROM project_members WHERE member_id NOT IN (SELECT id FROM members)")) {
+                            try (ResultSet rs = ps.executeQuery()) {
+                                while (rs.next()) out.add("Project membership references missing member: project=" + rs.getString("project_id") + " member=" + rs.getString("member_id"));
+                            }
+                        } catch (SQLException ignored) {}
+
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "SELECT id, project_id FROM phases WHERE project_id NOT IN (SELECT id FROM projects)")) {
+                            try (ResultSet rs = ps.executeQuery()) {
+                                while (rs.next()) out.add("Phase " + rs.getString("id") + " references missing project " + rs.getString("project_id"));
+                            }
+                        } catch (SQLException ignored) {}
+
+                        return out;
+                    });
+                    sendJson(ex, 200, issues);
+                } catch (Exception e) {
+                    sendText(ex, 500, "Validation failed");
+                }
                 return;
             }
 

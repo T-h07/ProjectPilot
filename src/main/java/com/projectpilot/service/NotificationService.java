@@ -54,7 +54,7 @@ public final class NotificationService {
         // If store is observable, rebuild when projects list changes
         try {
             store.getProjects().addListener((javafx.collections.ListChangeListener<Project>) c -> requestRebuild());
-        } catch (Exception ignored) {}
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("notifications", "Failed to add projects listener: " + (e == null ? "" : e.getMessage())); }
 
         rebuildNow();
     }
@@ -262,7 +262,7 @@ public final class NotificationService {
                 }
             });
         } catch (Exception e) {
-            System.err.println("[Notifications] Persisted read state failed: " + e.getMessage());
+            com.projectpilot.util.AppLog.warn("notifications", "Persisted read state failed: " + (e == null ? "unknown" : e.getMessage()));
             return Map.of();
         }
     }
@@ -289,7 +289,7 @@ public final class NotificationService {
                 }
             });
         } catch (Exception e) {
-            System.err.println("[Notifications] markRead failed: " + e.getMessage());
+            com.projectpilot.util.AppLog.warn("notifications", "markRead failed: " + (e == null ? "unknown" : e.getMessage()));
         }
     }
 
@@ -311,7 +311,7 @@ public final class NotificationService {
                 }
             });
         } catch (Exception e) {
-            System.err.println("[Notifications] markAllRead failed: " + e.getMessage());
+            com.projectpilot.util.AppLog.warn("notifications", "markAllRead failed: " + (e == null ? "unknown" : e.getMessage()));
         }
     }
 
@@ -404,7 +404,9 @@ public final class NotificationService {
             try {
                 long ts = Long.parseLong(v);
                 out.put(id, ts);
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException nfe) {
+                com.projectpilot.util.AppLog.warn("notifications", "Invalid persisted timestamp for " + id + ": " + (nfe == null ? "" : nfe.getMessage()));
+            }
         }
         return out;
     }

@@ -38,10 +38,7 @@ public final class NotificationsDialog {
         dialog.initOwner(owner);
         dialog.initModality(Modality.NONE);
         dialog.setTitle(title);
-        DialogTheme.apply(dialog);
-
-        // ✅ apply your dialog theme (same as CreateTaskDialog)
-        try { DialogTheme.apply(dialog); } catch (Exception ignored) {}
+        try { DialogTheme.apply(dialog); } catch (Exception e) { com.projectpilot.util.AppLog.warn("notifications-dialog", "Dialog theme apply failed: " + (e == null ? "" : e.getMessage())); }
 
         DialogPane pane = dialog.getDialogPane();
         pane.getButtonTypes().add(ButtonType.CLOSE);
@@ -52,7 +49,7 @@ public final class NotificationsDialog {
                 pane.getStylesheets().setAll(owner.getScene().getStylesheets());
                 pane.getStyleClass().addAll(owner.getScene().getRoot().getStyleClass());
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("notifications-dialog", "Failed to copy owner styles: " + (e == null ? "" : e.getMessage())); }
         pane.getStyleClass().add("pp-root");
 
         VBox root = new VBox(10);

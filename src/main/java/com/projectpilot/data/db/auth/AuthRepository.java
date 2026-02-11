@@ -31,8 +31,7 @@ public final class AuthRepository {
         String schema = null;
         try {
             schema = conn.getSchema();
-        } catch (Exception ignored) {
-        }
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("db-auth", "Unable to read DB schema: " + (e == null ? "" : e.getMessage())); }
         String name = table.toLowerCase();
         try (ResultSet rs = meta.getTables(null, schema, name, new String[] { "TABLE" })) {
             if (rs.next()) return true;
@@ -75,9 +74,7 @@ public final class AuthRepository {
                 GlobalRole role;
                 try {
                     role = GlobalRole.valueOf(gr == null ? "USER" : gr);
-                } catch (Exception ignored) {
-                    role = GlobalRole.USER;
-                }
+                } catch (Exception e) { com.projectpilot.util.AppLog.warn("db-auth", "parse global role failed in findByUsername: " + (e == null ? "" : e.getMessage())); role = GlobalRole.USER; }
 
                 return new LoginRow(memberId, uname, ph, role, active, dn);
             }

@@ -35,4 +35,6 @@ public interface AdminService {
     List<Member> listDirectoryUsers();
 
     void createTeam(String name, String leaderId, List<TeamService.TeamMemberSpec> members);
+
+    java.util.List<String> runDataValidator();
 }

@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import com.projectpilot.util.AppLog;
 
 public class AppState {
 
@@ -66,6 +67,21 @@ public class AppState {
 
     private final ListChangeListener<Member> membersListener = c -> refreshCurrentProjectRole();
     private Project membersBoundProject;
+    private final ListChangeListener<Task> tasksListener = c -> {
+        while (c.next()) {
+            if (c.wasRemoved()) {
+                for (Task t : c.getRemoved()) {
+                    try {
+                        if (t != null && t == getSelectedTask()) {
+                            setSelectedTask(null);
+                            break;
+                        }
+                    } catch (Exception e) { AppLog.warn("appstate", "Failed clearing selected task: " + e.getMessage()); }
+                }
+            }
+        }
+    };
+    private Project tasksBoundProject;
 
     private boolean refreshingRole = false;
 
@@ -229,16 +245,19 @@ public class AppState {
         try {
             if (membersBoundProject != null) {
                 membersBoundProject.getMembers().removeListener(membersListener);
+                try { membersBoundProject.getTasks().removeListener(tasksListener); } catch (Exception e) { AppLog.warn("appstate", "Failed removing tasks listener: " + e.getMessage()); }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) { AppLog.warn("appstate", "Failed unbinding members listener: " + e.getMessage()); }
 
         membersBoundProject = newP;
+        tasksBoundProject = newP;
 
         try {
             if (newP != null) {
                 newP.getMembers().addListener(membersListener);
+                try { newP.getTasks().addListener(tasksListener); } catch (Exception e) { AppLog.warn("appstate", "Failed adding tasks listener: " + e.getMessage()); }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) { AppLog.warn("appstate", "Failed binding members listener: " + e.getMessage()); }
     }
 
     public void updateChatThreads(List<ChatThread> threads) {

@@ -260,11 +260,11 @@ public class TeamPage extends VBox {
                 Object res = m.invoke(store);
                 loaded = addMembersFromUnknownIterable(res);
                 if (loaded > 0) break;
-            } catch (Exception ignored) {}
+            } catch (Exception e) { com.projectpilot.util.AppLog.warn("team", "Failed to invoke directory method " + mName + ": " + (e == null ? "" : e.getMessage())); }
         }
 
         updateDirectoryPredicate();
-        System.out.println("[TeamPage] directory loaded = " + loaded);
+        com.projectpilot.util.AppLog.warn("team", "directory loaded = " + loaded);
     }
 
     private void loadTeams() {
@@ -279,10 +279,11 @@ public class TeamPage extends VBox {
                     Object res = m.invoke(store);
                     loaded = addTeamsFromUnknownIterable(res);
                     if (loaded > 0) break;
-                } catch (Exception ignored) {}
+                } catch (Exception e) { com.projectpilot.util.AppLog.warn("team", "Failed to invoke team method " + name + ": " + (e == null ? "" : e.getMessage())); }
             }
         } catch (Exception e) {
-            teamStatus.setText("Failed to load teams: " + e.getMessage());
+            com.projectpilot.util.AppLog.warn("team", "Failed to load teams: " + (e == null ? "" : e.getMessage()));
+            teamStatus.setText("Failed to load teams: " + (e == null ? "" : e.getMessage()));
         }
     }
 
@@ -362,7 +363,7 @@ public class TeamPage extends VBox {
         try {
             var s = appState.getSession();
             myId = (s == null) ? null : s.id();
-        } catch (Exception ignored) {}
+        } catch (Exception e) { com.projectpilot.util.AppLog.warn("team", "Failed to read session id: " + (e == null ? "" : e.getMessage())); }
 
         if (myId == null || myId.isBlank()) return;
 
@@ -503,7 +504,7 @@ public class TeamPage extends VBox {
                 Method m = store.getClass().getMethod(name, String.class, String.class);
                 m.invoke(store, teamId, projectId);
                 return true;
-            } catch (Exception ignored) {}
+            } catch (Exception e) { com.projectpilot.util.AppLog.warn("team", "invokeAssignTeam failed for " + name + ": " + (e == null ? "" : e.getMessage())); }
         }
         return false;
     }
@@ -514,7 +515,7 @@ public class TeamPage extends VBox {
                 Method m = store.getClass().getMethod(name, String.class);
                 Object res = m.invoke(store, teamId);
                 return toTeamMemberRows(res);
-            } catch (Exception ignored) {}
+            } catch (Exception e) { com.projectpilot.util.AppLog.warn("team", "invokeListTeamMembers failed for " + name + ": " + (e == null ? "" : e.getMessage())); }
         }
         return List.of();
     }
@@ -531,7 +532,7 @@ public class TeamPage extends VBox {
                     }
                     return out;
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) { com.projectpilot.util.AppLog.warn("team", "invokeListTeamNames failed for " + name + ": " + (e == null ? "" : e.getMessage())); }
         }
         return List.of();
     }
