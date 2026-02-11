@@ -11,7 +11,7 @@ import com.projectpilot.core.AppState;
 import com.projectpilot.core.PageId;
 import com.projectpilot.core.Router;
 import com.projectpilot.data.InMemoryStore;
-import com.projectpilot.data.SampleData;
+
 import com.projectpilot.data.db.DbManager;
 import com.projectpilot.data.db.DbStore;
 import com.projectpilot.data.db.auth.AuthProvider;
@@ -198,8 +198,6 @@ public class Main extends Application {
                 uiBindingsReady = false;
                 appState.setSession(session);
 
-                seedSampleDataIfEmpty(session);
-
                 // Pick first project the user is allowed to see
                 var initial = store.getProjects().stream()
                         .filter(p -> policy.canViewProject(appState, p))
@@ -261,26 +259,7 @@ public class Main extends Application {
         }
     }
 
-    private void seedSampleDataIfEmpty(UserSession session) {
-        if (store == null) return;
-        if (!store.getProjects().isEmpty() || !store.getHistoryProjects().isEmpty()) return;
 
-        String id = session == null ? null : session.id();
-        String name = session == null ? null : session.displayName();
-        if (name == null || name.isBlank()) name = session == null ? null : session.username();
-
-        java.util.List<SampleData.UserSeed> users = java.util.List.of();
-        if (store instanceof DbStore ds) {
-            users = ds.listUsers().stream()
-                    .map(u -> {
-                        String display = (u.name() == null || u.name().isBlank()) ? u.username() : u.name();
-                        return new SampleData.UserSeed(u.id(), display);
-                    })
-                    .toList();
-        }
-
-        SampleData.seed(store, id, name, users);
-    }
 
     private void startLanHostServices() {
         try {
