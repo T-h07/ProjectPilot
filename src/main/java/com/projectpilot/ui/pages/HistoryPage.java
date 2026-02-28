@@ -120,7 +120,7 @@ public class HistoryPage extends BorderPane {
         deleteBtn.setOnAction(e -> {
             Project p = historyList.getSelectionModel().getSelectedItem();
             if (p == null) return;
-            if (confirm("Delete project?", "This permanently removes the project from History.")) {
+            if (confirm("Delete project?", "Hard delete: permanently removes this project from the DB.")) {
                 store.deleteProject(p);
                 showProject(null);
             }

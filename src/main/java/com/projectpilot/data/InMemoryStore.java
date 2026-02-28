@@ -102,6 +102,51 @@ public class InMemoryStore {
         autosave();
     }
 
+    /**
+     * Removes all in-memory project data tied to a member id.
+     * Useful after admin-side hard-delete so the running app stays in sync.
+     */
+    public void purgeMemberData(String memberId) {
+        String id = memberId == null ? "" : memberId.trim();
+        if (id.isBlank()) return;
+
+        java.util.List<Project> allProjects = new java.util.ArrayList<>();
+        allProjects.addAll(projects);
+        allProjects.addAll(historyProjects);
+
+        for (Project project : allProjects) {
+            if (project == null) continue;
+
+            java.util.List<Member> membersToRemove = new java.util.ArrayList<>();
+            for (Member member : new java.util.ArrayList<>(project.getMembers())) {
+                if (member != null && id.equals(member.getId())) {
+                    membersToRemove.add(member);
+                }
+            }
+            for (Member member : membersToRemove) {
+                removeMember(project, member);
+            }
+
+            for (Task task : project.getTasks()) {
+                if (task == null) continue;
+                Member assignee = task.getAssignee();
+                if (assignee != null && id.equals(assignee.getId())) {
+                    task.setAssignee(null);
+                }
+            }
+
+            java.util.List<PersonalNote> notesToRemove = new java.util.ArrayList<>();
+            for (PersonalNote note : new java.util.ArrayList<>(project.getNotes())) {
+                if (note != null && id.equals(note.getOwnerId())) {
+                    notesToRemove.add(note);
+                }
+            }
+            for (PersonalNote note : notesToRemove) {
+                removeNote(project, note);
+            }
+        }
+    }
+
     public Phase addPhase(Project project, Phase phase) {
         if (project == null || phase == null) return phase;
 

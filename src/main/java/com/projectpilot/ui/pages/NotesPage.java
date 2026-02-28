@@ -245,6 +245,11 @@ public class NotesPage extends BorderPane {
 
     private void deleteSelected() {
         if (currentProject == null || selectedNote == null) return;
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Delete note");
+        confirm.setHeaderText("Delete selected note?");
+        confirm.setContentText("Hard delete: permanently removes this note from the DB.");
+        if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) return;
         store.removeNote(currentProject, selectedNote);
         notesList.getSelectionModel().clearSelection();
     }

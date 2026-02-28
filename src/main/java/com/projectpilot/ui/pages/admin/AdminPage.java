@@ -29,15 +29,18 @@ import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.util.Duration;
 import javafx.util.StringConverter;
-import java.util.function.Supplier;
 import javafx.stage.Modality;
+import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import javafx.stage.Window;
 import javafx.scene.paint.Color;
 import java.util.function.Function;
 import javafx.collections.transformation.FilteredList;
@@ -154,20 +157,20 @@ public final class AdminPage extends BorderPane {
 
 
         installWidgetDetails(kpiTotalUsers, "Total users", this::buildTotalUsersDetail);
-        installWidgetDetails(kpiActiveUsers, "Active users", this::buildActiveUsersDetail);
-        installWidgetDetails(kpiProjects,   "Projects",     this::buildProjectsDetail);
-        installWidgetDetails(kpiTasks,      "Tasks",        this::buildTasksDetail);
+        installWidgetDetails(kpiActiveUsers, "Active users", dlg -> buildActiveUsersDetail());
+        installWidgetDetails(kpiProjects,   "Projects",     dlg -> buildProjectsDetail());
+        installWidgetDetails(kpiTasks,      "Tasks",        dlg -> buildTasksDetail());
 
-        installWidgetDetails(kpiStorage, "Storage", this::buildStorageDetail);
-        installWidgetDetails(kpiBackup,  "Backup",  this::buildBackupDetail);
-        installWidgetDetails(kpiLan,     "LAN",     this::buildLanDetail);
-        installWidgetDetails(kpiReload,  "Reload performance", this::buildReloadPerfDetail);
-        installWidgetDetails(kpiErrors,  "Reload errors",      this::buildReloadErrorsDetail);
+        installWidgetDetails(kpiStorage, "Storage", dlg -> buildStorageDetail());
+        installWidgetDetails(kpiBackup,  "Backup",  dlg -> buildBackupDetail());
+        installWidgetDetails(kpiLan,     "LAN",     dlg -> buildLanDetail());
+        installWidgetDetails(kpiReload,  "Reload performance", dlg -> buildReloadPerfDetail());
+        installWidgetDetails(kpiErrors,  "Reload errors",      dlg -> buildReloadErrorsDetail());
 
-        installWidgetDetails(roleDonut,      "Roles", this::buildRolesDetail);
-        installWidgetDetails(presenceBars,   "Presence", this::buildPresenceDetail);
-        installWidgetDetails(taskStatusBars, "Task status", this::buildTaskStatusDetail);
-        installWidgetDetails(activity14d,    "Online activity", this::buildActivityDetail);
+        installWidgetDetails(roleDonut,      "Roles", dlg -> buildRolesDetail());
+        installWidgetDetails(presenceBars,   "Presence", dlg -> buildPresenceDetail());
+        installWidgetDetails(taskStatusBars, "Task status", dlg -> buildTaskStatusDetail());
+        installWidgetDetails(activity14d,    "Online activity", dlg -> buildActivityDetail());
 
         var top = new VBox(10, title, status);
         setTop(top);
@@ -246,7 +249,7 @@ public final class AdminPage extends BorderPane {
 
         reload();
     }
-    private Node buildTotalUsersDetail(Dialog<Void> dlg) {
+    private Node buildTotalUsersDetail(Runnable closeModal) {
         VBox root = new VBox(12);
         root.setPadding(new Insets(2)); // modal body already has padding
 
@@ -254,7 +257,7 @@ public final class AdminPage extends BorderPane {
         sub.getStyleClass().add("muted");
 
         TextField search = new TextField();
-        search.setPromptText("Search by name, username, email…");
+        search.setPromptText("Search by name, username, email...");
         search.getStyleClass().add("pp-search");
 
         ToggleGroup tg = new ToggleGroup();
@@ -351,7 +354,7 @@ public final class AdminPage extends BorderPane {
                 name.setText(display);
 
                 String metaText = "@" + safe(u.username());
-                if (!safe(u.email()).isBlank()) metaText += " • " + safe(u.email());
+                if (!safe(u.email()).isBlank()) metaText += " - " + safe(u.email());
                 meta.setText(metaText);
 
                 role.setText(u.globalRole() == null ? "-" : u.globalRole().name());
@@ -376,7 +379,7 @@ public final class AdminPage extends BorderPane {
             var u = list.getSelectionModel().getSelectedItem();
             if (u == null) return;
             openDrawer(u);
-            dlg.close();
+            closeModal.run();
             ev.consume();
         });
 
@@ -384,7 +387,7 @@ public final class AdminPage extends BorderPane {
             var u = list.getSelectionModel().getSelectedItem();
             if (u == null) return;
             openDrawer(u);
-            dlg.close();
+            closeModal.run();
         });
 
         HBox topRow = new HBox(10, sub, spacer, count, openSelected);
@@ -393,69 +396,74 @@ public final class AdminPage extends BorderPane {
         root.getChildren().addAll(topRow, search, filters, list);
         return root;
     }
-    private void themeDialog(Dialog<?> dlg) {
-        DialogPane pane = dlg.getDialogPane();
-
-        // inherit app stylesheets
-        if (getScene() != null) {
-            pane.getStylesheets().setAll(getScene().getStylesheets());
-        }
-
-        // ensure theme variables apply + scope modal styling
-        if (!pane.getStyleClass().contains("pp-root")) pane.getStyleClass().add("pp-root");
-        if (!pane.getStyleClass().contains("pp-modal")) pane.getStyleClass().add("pp-modal");
-    }
-
-
-
     private static String safe(String s) { return s == null ? "" : s.trim(); }
 
 
-    private void installWidgetDetails(Node node, String title, Function<Dialog<Void>, Node> contentFactory) {
+    private void installWidgetDetails(Node node, String title, Function<Runnable, Node> contentFactory) {
         if (node == null) return;
 
         node.setOnMouseClicked(e -> {
             if (e.getButton() != MouseButton.PRIMARY) return;
             if (e.getClickCount() != 1) return;
 
-            Dialog<Void> dlg = new Dialog<>();
-            dlg.setTitle(title);
+            Window owner = (getScene() == null) ? null : getScene().getWindow();
 
-            // attach to window (so it behaves like part of the app)
-            if (getScene() != null && getScene().getWindow() != null) {
-                dlg.initOwner(getScene().getWindow());
-                dlg.initModality(Modality.WINDOW_MODAL);
+            Stage modal = new Stage(StageStyle.TRANSPARENT);
+            modal.setTitle(title);
+            if (owner != null) {
+                modal.initOwner(owner);
+                modal.initModality(Modality.WINDOW_MODAL);
             }
 
-            dlg.initStyle(StageStyle.TRANSPARENT);
+            Runnable closeModal = modal::close;
 
-            DialogPane pane = dlg.getDialogPane();
-            pane.getButtonTypes().clear(); // we use our own close button
-            themeDialog(dlg);
+            Node inner = contentFactory.apply(closeModal);
+            Node shell = wrapDialogContent(closeModal, title, inner);
 
-            Node inner = contentFactory.apply(dlg);
-            Node shell = wrapDialogContent(dlg, title, inner);
-            pane.setContent(shell);
+            StackPane root = new StackPane(shell);
+            root.getStyleClass().add("pp-root");
+            root.setStyle("-fx-background-color: transparent; -fx-padding: 12;");
 
-            // required for rounded transparent dialogs
-            pane.sceneProperty().addListener((obs, old, sc) -> {
-                if (sc != null) sc.setFill(Color.TRANSPARENT);
+            if (getScene() != null) {
+                root.getStylesheets().setAll(getScene().getStylesheets());
+            }
+
+            Scene scene = new Scene(root);
+            scene.setFill(Color.TRANSPARENT);
+            scene.setOnKeyPressed(ke -> {
+                if (ke.getCode() == KeyCode.ESCAPE) {
+                    modal.close();
+                    ke.consume();
+                }
             });
 
-            dlg.showAndWait();
+            modal.setScene(scene);
+            modal.sizeToScene();
+            modal.setOnShown(ev -> {
+                if (owner == null) return;
+                modal.setX(owner.getX() + (owner.getWidth() - modal.getWidth()) / 2.0);
+                modal.setY(owner.getY() + (owner.getHeight() - modal.getHeight()) / 2.0);
+            });
+
+            modal.showAndWait();
             e.consume();
         });
     }
 
 
 
-    private Node wrapDialogContent(Dialog<?> dlg, String title, Node inner) {
+    private Node wrapDialogContent(Runnable closeModal, String title, Node inner) {
         Label h = new Label(title);
         h.getStyleClass().add("pp-h2");
 
-        Button close = new Button("✕");
+        Button close = new Button("x");
         close.getStyleClass().add("pp-icon-btn");
-        close.setOnAction(ev -> dlg.close());
+        close.setCancelButton(true);
+        close.setOnAction(ev -> closeModal.run());
+        close.setOnMouseClicked(ev -> {
+            closeModal.run();
+            ev.consume();
+        });
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -495,7 +503,7 @@ public final class AdminPage extends BorderPane {
                 super.updateItem(u, empty);
                 if (empty || u == null) { setText(null); return; }
                 StatusInfo si = statusFor(u);
-                setText("@" + u.username() + " • " + si.label() + " • " + formatLastOnline(u.lastOnlineAt()));
+                setText("@" + u.username() + " - " + si.label() + " - " + formatLastOnline(u.lastOnlineAt()));
             }
         });
 
@@ -522,7 +530,7 @@ public final class AdminPage extends BorderPane {
                 if (empty || p == null) { setText(null); return; }
                 int tasks = p.getTasks() == null ? 0 : p.getTasks().size();
                 int members = p.getMembers() == null ? 0 : p.getMembers().size();
-                setText(p.getName() + " • tasks " + tasks + " • members " + members);
+                setText(p.getName() + " - tasks " + tasks + " - members " + members);
             }
         });
 
@@ -820,7 +828,7 @@ public final class AdminPage extends BorderPane {
         kpiProjects.clearSeries();
 
         kpiTasks.setValueText(Integer.toString(s.totalTasks()));
-        kpiTasks.setSubText(s.overdueTasks() + " overdue • " + s.unassignedTasks() + " unassigned");
+        kpiTasks.setSubText(s.overdueTasks() + " overdue - " + s.unassignedTasks() + " unassigned");
         kpiTasks.clearSeries();
 
         StorageInfo storageInfo = storageInfo();
@@ -897,7 +905,7 @@ public final class AdminPage extends BorderPane {
         presenceTicker = new Timeline(new KeyFrame(Duration.seconds(20), e -> {
             // Recompute presence status from lastOnlineAt without reloading DB
             refreshAdminDashboard();
-            // If you want the UserHealth statuses to “age” live, rebuild health rows:
+            // If you want the UserHealth statuses to "age" live, rebuild health rows:
             refreshHealthRows();
         }));
         presenceTicker.setCycleCount(Timeline.INDEFINITE);
@@ -961,7 +969,7 @@ public final class AdminPage extends BorderPane {
         scan.setOnAction(e -> {
             runIntegrityScan();
             addAudit("Scan DB", "Integrity scan executed");
-            status.setText("✅ Integrity scan completed.");
+            status.setText("\u2705 Integrity scan completed.");
         });
 
         HBox header = new HBox(10, title, scan, new Region(), integritySummary);
@@ -1025,7 +1033,7 @@ public final class AdminPage extends BorderPane {
             runIntegrityScan();
             updateAlerts();
             addAudit("Scan DB", "Triggered from quick actions");
-            status.setText("✅ Integrity scan completed.");
+            status.setText("\u2705 Integrity scan completed.");
         });
 
         HBox actions = new HBox(10, createUser, resetPassword, exportUsers, deactivate, backup, scan);
@@ -1075,7 +1083,7 @@ public final class AdminPage extends BorderPane {
         hint.textProperty().bind(Bindings.createStringBinding(() -> {
             Project p = appState.getSelectedProject();
             if (globalRole.getValue() != GlobalRole.USER) return "";
-            if (p == null) return "No project selected — user will be created, but not added to a project.";
+            if (p == null) return "No project selected - user will be created, but not added to a project.";
             return "User will be added to current project: " + p.getName();
         }, globalRole.valueProperty(), appState.selectedProjectProperty()));
         hint.visibleProperty().bind(showProjectRole);
@@ -1124,10 +1132,10 @@ public final class AdminPage extends BorderPane {
                 globalRole.setValue(GlobalRole.USER);
                 projectRole.setValue(ProjectRole.MEMBER);
 
-                status.setText("✅ User created.");
+                status.setText("\u2705 User created.");
                 addAudit("Create user", "Username: " + uname);
             } catch (Exception ex) {
-                status.setText("❌ " + ex.getMessage());
+                status.setText("\u274C " + ex.getMessage());
             }
         });
 
@@ -1161,36 +1169,6 @@ public final class AdminPage extends BorderPane {
         return box;
     }
 
-    private void installWidgetDetails(Node node, String title, Supplier<Node> contentFactory) {
-        if (node == null) return;
-
-        node.setOnMouseClicked(e -> {
-            if (e.getButton() != javafx.scene.input.MouseButton.PRIMARY) return;
-            if (e.getClickCount() != 1) return;
-
-            Dialog<Void> dlg = new Dialog<>();
-            dlg.setTitle(title);
-
-            DialogPane pane = dlg.getDialogPane();
-            pane.getButtonTypes().add(ButtonType.CLOSE);
-            pane.getStyleClass().add("pp-dialog"); // optional CSS hook
-
-            Node content = contentFactory.get();
-            if (content instanceof Region r) {
-                r.setMaxWidth(Double.MAX_VALUE);
-            }
-
-            pane.setContent(content);
-
-            // make it feel like a card
-            pane.setPrefWidth(620);
-
-            dlg.showAndWait();
-            e.consume();
-        });
-    }
-
-
     private Node buildCreateTeamBox() {
         Label title = new Label("Create team");
         title.getStyleClass().add("section-title");
@@ -1215,10 +1193,10 @@ public final class AdminPage extends BorderPane {
 
                 var data = res.get();
                 admin.createTeam(data.name(), data.leaderId(), data.members());
-                status.setText("✅ Team created: " + data.name());
+                status.setText("\u2705 Team created: " + data.name());
                 addAudit("Create team", "Team: " + data.name());
             } catch (Exception ex) {
-                status.setText("❌ " + ex.getMessage());
+                status.setText("\u274C " + ex.getMessage());
             }
         });
 
@@ -1424,11 +1402,11 @@ public final class AdminPage extends BorderPane {
 
                     try {
                         admin.setUserActive(row.id(), val);
-                        status.setText("✅ Updated active for " + row.username());
+                        status.setText("\u2705 Updated active for " + row.username());
                         addAudit("Set active", "User " + row.username() + " -> " + (val ? "active" : "inactive"));
                         reload();
                     } catch (Exception ex) {
-                        status.setText("❌ " + ex.getMessage());
+                        status.setText("\u274C " + ex.getMessage());
                         reload();
                     }
                 });
@@ -1510,11 +1488,11 @@ public final class AdminPage extends BorderPane {
                             }
                         }
 
-                        status.setText("✅ Updated " + data.username());
+                        status.setText("\u2705 Updated " + data.username());
                         addAudit("Update user", "Updated " + data.username());
                         reload();
                     } catch (Exception ex) {
-                        status.setText("❌ " + ex.getMessage());
+                        status.setText("\u274C " + ex.getMessage());
                         reload();
                     }
                 });
@@ -1525,18 +1503,18 @@ public final class AdminPage extends BorderPane {
 
                     Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
                     confirm.setTitle("Delete account");
-                    confirm.setHeaderText("Delete login account: " + row.username() + "?");
-                    confirm.setContentText("This removes the login account. Member + project data is kept.");
+                    confirm.setHeaderText("Permanently delete user: " + row.username() + "?");
+                    confirm.setContentText("Hard delete: removes login, project memberships, and user-owned data.");
                     if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) return;
 
                     try {
                         admin.deleteUser(row.id());
-                        status.setText("✅ Deleted account for " + row.username());
-                        addAudit("Delete user", "Deleted " + row.username());
+                        status.setText("\u2705 Hard-deleted user " + row.username());
+                        addAudit("Delete user", "Hard deleted " + row.username());
                         closeDrawerIf(row.id());
                         reload();
                     } catch (Exception ex) {
-                        status.setText("❌ " + ex.getMessage());
+                        status.setText("\u274C " + ex.getMessage());
                     }
                 });
             }
@@ -1715,10 +1693,10 @@ public final class AdminPage extends BorderPane {
             try {
                 admin.setUserActive(u.id(), false);
                 addAudit("Deactivate user", "User: " + u.username());
-                status.setText("✅ Deactivated " + u.username());
+                status.setText("\u2705 Deactivated " + u.username());
                 reload();
             } catch (Exception ex) {
-                status.setText("❌ " + ex.getMessage());
+                status.setText("\u274C " + ex.getMessage());
             }
         });
 
@@ -1787,7 +1765,7 @@ public final class AdminPage extends BorderPane {
 
     private void populateDrawer(UserAdminService.UserRow u) {
         drawerTitle.setText(u.username() == null ? "User" : ("@" + u.username()));
-        drawerMeta.setText("ID: " + shortId(u.id()) + "  •  " + (u.email() == null ? "" : u.email()));
+        drawerMeta.setText("ID: " + shortId(u.id()) + " - " + (u.email() == null ? "" : u.email()));
 
         StatusInfo si = statusFor(u);
         drawerStatusChip.setText(si.label());
@@ -1863,7 +1841,7 @@ public final class AdminPage extends BorderPane {
                 }
             }
 
-            status.setText("✅ Saved user changes.");
+            status.setText("\u2705 Saved user changes.");
             addAudit("Update user", "Updated " + newUsername);
             reload();
 
@@ -1874,7 +1852,7 @@ public final class AdminPage extends BorderPane {
             selectedUser.set(refreshed);
 
         } catch (Exception ex) {
-            status.setText("❌ " + ex.getMessage());
+            status.setText("\u274C " + ex.getMessage());
         }
     }
 
@@ -1939,11 +1917,11 @@ public final class AdminPage extends BorderPane {
                     row.globalRole(),
                     row.active()
             );
-            status.setText("✅ Password reset for " + row.username());
+            status.setText("\u2705 Password reset for " + row.username());
             addAudit("Reset password", "User: " + row.username());
             reload();
         } catch (Exception ex) {
-            status.setText("❌ " + ex.getMessage());
+            status.setText("\u274C " + ex.getMessage());
         }
     }
 
@@ -1976,10 +1954,10 @@ public final class AdminPage extends BorderPane {
 
         try {
             Files.writeString(file.toPath(), sb.toString());
-            status.setText("✅ Exported users to " + file.getName());
+            status.setText("\u2705 Exported users to " + file.getName());
             addAudit("Export users", file.getName());
         } catch (Exception ex) {
-            status.setText("❌ " + ex.getMessage());
+            status.setText("\u274C " + ex.getMessage());
         }
     }
 
@@ -1993,22 +1971,24 @@ public final class AdminPage extends BorderPane {
 
         try {
             admin.setUserActive(row.id(), false);
-            status.setText("✅ Deactivated " + row.username());
+            status.setText("\u2705 Deactivated " + row.username());
             addAudit("Deactivate user", "User: " + row.username());
             reload();
         } catch (Exception ex) {
-            status.setText("❌ " + ex.getMessage());
+            status.setText("\u274C " + ex.getMessage());
         }
     }
 
     private void backupDatabase() {
         if (!(store instanceof DbStore dbStore)) {
-            status.setText("❌ Backup is available only for DbStore.");
+            status.setText("\u274C Backup is available only for DbStore.");
             return;
         }
+
         Path dbFile = dbStore.manager().dbFile();
+
         if (dbFile == null || !Files.exists(dbFile)) {
-            status.setText("❌ DB file not found for backup.");
+            status.setText("\u274C DB file not found for backup.");
             return;
         }
 
@@ -2024,11 +2004,11 @@ public final class AdminPage extends BorderPane {
             Files.copy(dbFile, dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
             lastBackupAt = Instant.now();
             lastBackupName = dest.getName();
-            status.setText("✅ Backup created: " + dest.getName());
+            status.setText("\u2705 Backup created: " + dest.getName());
             addAudit("Backup DB", dest.getName());
             refreshAdminDashboard();
         } catch (Exception ex) {
-            status.setText("❌ " + ex.getMessage());
+            status.setText("\u274C " + ex.getMessage());
         }
     }
 
@@ -2268,7 +2248,7 @@ public final class AdminPage extends BorderPane {
             items.setAll(admin.listLoginUsers());
         } catch (Exception ex) {
             reloadErrors++;
-            status.setText("❌ Failed to load users: " + ex.getMessage());
+            status.setText("\u274C Failed to load users: " + ex.getMessage());
         } finally {
             long ms = Math.max(1, (System.nanoTime() - start) / 1_000_000);
             if (avgReloadMs <= 0.0) avgReloadMs = ms;
@@ -2615,9 +2595,6 @@ public final class AdminPage extends BorderPane {
 
         return box;
     }
-
-
-
 
     private record AuditEntry(String title, String detail, Instant at) {}
     private record StatusInfo(String label, String styleClass) {}

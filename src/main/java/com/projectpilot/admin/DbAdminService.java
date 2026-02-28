@@ -43,6 +43,7 @@ public final class DbAdminService implements AdminService {
     @Override
     public void deleteUser(String userId) {
         users.deleteUser(userId);
+        store.purgeMemberData(userId);
     }
 
     @Override

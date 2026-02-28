@@ -341,6 +341,11 @@ public class ResourcesPage extends BorderPane {
     private void removeResource(ResourceItem r) {
         if (currentProject == null || r == null) return;
         if (!canDeleteResource(r)) return;
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Remove resource");
+        confirm.setHeaderText("Delete resource: " + safe(r.getTitle()) + "?");
+        confirm.setContentText("Hard delete: permanently removes this resource from the DB.");
+        if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) return;
         store.removeResource(currentProject, r);
     }
 

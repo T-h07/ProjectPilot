@@ -222,15 +222,19 @@ public final class UserAdminService {
     }
 
     /**
-     * Delete ONLY login account row; member/project data remains.
+     * Hard delete a user from the database.
+     * Removes member identity, login account (cascade), project membership (cascade),
+     * and user-owned records in non-FK tables.
+     *
      * Safety: cannot delete the last active admin.
      */
     public void deleteUser(String memberId) {
         if (memberId == null || memberId.isBlank()) return;
+        final String userId = memberId.trim();
 
         db.tx(conn -> {
             try {
-                Current cur = loadCurrent(conn, memberId);
+                Current cur = loadCurrent(conn, userId);
                 if (cur == null) return null;
 
                 if (cur.active && cur.role == GlobalRole.ADMIN) {
@@ -239,10 +243,14 @@ public final class UserAdminService {
                     }
                 }
 
+                deleteNotifications(conn, userId);
+                deleteNotificationState(conn, userId);
+                deleteOwnedNotes(conn, userId);
+
                 try (PreparedStatement ps = conn.prepareStatement(
-                        "DELETE FROM auth_users WHERE member_id = ?"
+                        "DELETE FROM members WHERE id = ?"
                 )) {
-                    ps.setString(1, memberId);
+                    ps.setString(1, userId);
                     ps.executeUpdate();
                 }
                 return null;
@@ -443,6 +451,34 @@ public final class UserAdminService {
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
+        }
+    }
+
+    private static void deleteNotifications(Connection conn, String memberId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM notifications WHERE target_user_id = ? OR actor_user_id = ?"
+        )) {
+            ps.setString(1, memberId);
+            ps.setString(2, memberId);
+            ps.executeUpdate();
+        }
+    }
+
+    private static void deleteNotificationState(Connection conn, String memberId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM user_notification_state WHERE user_id = ?"
+        )) {
+            ps.setString(1, memberId);
+            ps.executeUpdate();
+        }
+    }
+
+    private static void deleteOwnedNotes(Connection conn, String memberId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM notes WHERE owner_id = ?"
+        )) {
+            ps.setString(1, memberId);
+            ps.executeUpdate();
         }
     }
 

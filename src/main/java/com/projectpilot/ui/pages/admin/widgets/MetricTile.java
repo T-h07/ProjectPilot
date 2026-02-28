@@ -5,6 +5,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.layout.*;
 import javafx.scene.shape.Polyline;
+import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Rectangle;
 
 import java.util.ArrayList;
@@ -16,8 +17,9 @@ public final class MetricTile extends StackPane {
     private final Label value = new Label();
     private final Label sub = new Label();
 
+    private final Polygon sparkArea = new Polygon();
     private final Polyline spark = new Polyline();
-    private final Pane sparkPane = new Pane(spark);
+    private final Pane sparkPane = new Pane(sparkArea, spark);
 
     private final Rectangle clip = new Rectangle();
 
@@ -33,6 +35,7 @@ public final class MetricTile extends StackPane {
         title.setText(titleText);
 
         spark.getStyleClass().add("metric-sparkline");
+        sparkArea.getStyleClass().add("metric-sparkline-area");
         sparkPane.getStyleClass().add("metric-sparkline-wrap");
         sparkPane.setMinHeight(28);
         sparkPane.setPrefHeight(28);
@@ -74,6 +77,7 @@ public final class MetricTile extends StackPane {
     public void clearSeries() {
         this.series = List.of();
         spark.getPoints().clear();
+        sparkArea.getPoints().clear();
     }
 
     public void setSeries(List<? extends Number> points) {
@@ -92,6 +96,7 @@ public final class MetricTile extends StackPane {
         double h = sparkPane.getHeight();
         if (w <= 2 || h <= 2 || series == null || series.size() < 2) {
             spark.getPoints().clear();
+            sparkArea.getPoints().clear();
             return;
         }
 
@@ -113,11 +118,27 @@ public final class MetricTile extends StackPane {
         double innerH = Math.max(1, h - topPad - bottomPad);
 
         spark.getPoints().clear();
+        sparkArea.getPoints().clear();
+
+        double firstX = leftPad;
+        double baselineY = topPad + innerH;
         for (int i = 0; i < n; i++) {
             double x = leftPad + (innerW * i) / (n - 1.0);
             double norm = (series.get(i) - min) / range;
             double y = topPad + (innerH * (1.0 - norm));
             spark.getPoints().addAll(x, y);
+            if (i == 0) firstX = x;
+        }
+
+        double lastX = leftPad + innerW;
+        sparkArea.getPoints().add(firstX);
+        sparkArea.getPoints().add(baselineY);
+        sparkArea.getPoints().addAll(spark.getPoints());
+        sparkArea.getPoints().add(lastX);
+        sparkArea.getPoints().add(baselineY);
+        if (n > 1) {
+            sparkArea.getPoints().add(firstX);
+            sparkArea.getPoints().add(baselineY);
         }
     }
 }

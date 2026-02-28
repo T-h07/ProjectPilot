@@ -408,6 +408,7 @@ public final class LanServer {
                     return;
                 }
                 userAdmin.deleteUser(req.id());
+                dbStore.purgeMemberData(req.id());
                 sendText(ex, 200, "ok");
                 return;
             }

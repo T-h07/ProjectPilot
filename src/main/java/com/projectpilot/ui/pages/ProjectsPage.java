@@ -790,7 +790,7 @@ public class ProjectsPage extends BorderPane {
         Alert a = new Alert(Alert.AlertType.CONFIRMATION);
         a.setTitle("ProjectPilot");
         a.setHeaderText("Delete project?");
-        a.setContentText("This is permanent.");
+        a.setContentText("Hard delete: permanently removes this project and related DB data.");
         var res = a.showAndWait();
         if (res.isEmpty() || res.get() != ButtonType.OK) return;
 

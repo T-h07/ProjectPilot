@@ -457,12 +457,13 @@ public final class DbStore extends InMemoryStore {
         super.markProjectDone(project);
         if (loading || project == null) return;
 
-        submitWrite(() -> db.tx(conn -> {
-            upsertProject(conn, project, System.currentTimeMillis());
-            appendActivity(conn, System.currentTimeMillis(), project.getId(), "PROJECT", project.getId(),
+        db.tx(conn -> {
+            long now = System.currentTimeMillis();
+            upsertProject(conn, project, now);
+            appendActivity(conn, now, project.getId(), "PROJECT", project.getId(),
                     "DONE", "Project marked DONE");
             return null;
-        }));
+        });
     }
 
     @Override
@@ -470,12 +471,13 @@ public final class DbStore extends InMemoryStore {
         super.restoreProject(project);
         if (loading || project == null) return;
 
-        submitWrite(() -> db.tx(conn -> {
-            upsertProject(conn, project, System.currentTimeMillis());
-            appendActivity(conn, System.currentTimeMillis(), project.getId(), "PROJECT", project.getId(),
+        db.tx(conn -> {
+            long now = System.currentTimeMillis();
+            upsertProject(conn, project, now);
+            appendActivity(conn, now, project.getId(), "PROJECT", project.getId(),
                     "RESTORE", "Project restored to ACTIVE");
             return null;
-        }));
+        });
     }
 
     // -----------------------------------------

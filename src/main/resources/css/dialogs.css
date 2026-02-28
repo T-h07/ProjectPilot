@@ -294,6 +294,7 @@
 
 .pp-root.dialog-pane.pp-modal {
     -fx-background-color: transparent;
+    -fx-background-insets: 0;
     -fx-padding: 0;
 }
 
@@ -301,6 +302,12 @@
 .pp-root.dialog-pane.pp-modal .content-pane {
     -fx-background-color: transparent;
     -fx-padding: 0;
+}
+
+.pp-root.dialog-pane.pp-modal > .button-bar {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-max-height: 0;
 }
 
 /* The rounded modal card */

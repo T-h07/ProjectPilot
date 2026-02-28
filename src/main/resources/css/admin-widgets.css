@@ -31,6 +31,28 @@
     -fx-font-size: 10px;
 }
 
+/* Admin chart cards */
+.pp-root .donut-card,
+.pp-root .mini-bar-card,
+.pp-root .metric-tile {
+    -fx-background-color: linear-gradient(to bottom, rgba(14,27,56,0.92), rgba(9,19,43,0.92));
+    -fx-border-color: rgba(108,136,190,0.28);
+    -fx-border-width: 1;
+    -fx-border-radius: 16;
+    -fx-background-radius: 16;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.30), 16, 0.14, 0, 6);
+}
+
+.pp-root .donut-legend {
+    -fx-padding: 0 6 0 0;
+}
+
+.pp-root .donut-legend-item {
+    -fx-text-fill: rgba(232,238,249,0.76);
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+}
+
 /* Sparkline container */
 .pp-root .pp-sparkline {
     -fx-background-color: rgba(255,255,255,0.03);
@@ -50,6 +72,10 @@
 .pp-root .pp-sparkline-area {
     -fx-fill: -pp-accent-soft;
     -fx-opacity: 0.9;
+}
+
+.pp-root .metric-sparkline-area {
+    -fx-fill: linear-gradient(to bottom, rgba(79,140,255,0.30), rgba(79,140,255,0.02));
 }
 
 /* Detail overlay (hidden until hover; fade is handled in code) */
